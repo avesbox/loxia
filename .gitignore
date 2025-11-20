@@ -1,4 +1,26 @@
+# Files and directories created by pub.
+.dart_tool/
+
+**/.dart_tool/
+.packages
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+*.DS_Store
+# Conventional directory for build output.
+build/
+
+**/**/coverage.json
+**/**/*_test*.json
+**/**/lcov.info
+**/**/*.code-workspace
+**/old/**
+
+**/node_modules/
+**/**/.vitepress/cache
+**/pubspec.lock
+
 pubspec_overrides.yaml
-**/.vitepress/dist
-**/.vitepress/cache
-**/node_modules/**

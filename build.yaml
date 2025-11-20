@@ -1,0 +1,22 @@
+targets:
+  $default:
+    builders:
+      loxia|entity_descriptor_builder:
+        generate_for:
+          - lib/**.dart
+          - bin/**.dart
+          - test/**.dart
+          - example/**.dart
+        options:
+          enabled: true
+
+builders:
+  entity_descriptor_builder:
+    import: "package:loxia/builder.dart"
+    builder_factories: ["entityDescriptorBuilder"]
+    build_extensions: { 
+      ".dart": [".loxia.g.part"]
+    }
+    auto_apply: dependents
+    build_to: cache
+    applies_builders: ["source_gen|combining_builder"]
