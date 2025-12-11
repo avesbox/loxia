@@ -1,3 +1,5 @@
+import '../annotations/relations.dart';
+
 /// Enum describing the type of relationship.
 enum RelationType {
   oneToOne,
@@ -6,21 +8,53 @@ enum RelationType {
   manyToMany,
 }
 
+class JoinColumnDescriptor {
+  const JoinColumnDescriptor({
+    required this.name,
+    required this.referencedColumnName,
+    this.nullable = true,
+    this.unique = false,
+  });
+
+  final String name;
+  final String referencedColumnName;
+  final bool nullable;
+  final bool unique;
+}
+
+class JoinTableDescriptor {
+  const JoinTableDescriptor({
+    required this.name,
+    this.joinColumns = const [],
+    this.inverseJoinColumns = const [],
+  });
+
+  final String name;
+  final List<JoinColumnDescriptor> joinColumns;
+  final List<JoinColumnDescriptor> inverseJoinColumns;
+}
+
 /// Describes a relationship between two entities.
 class RelationDescriptor {
-  RelationDescriptor({
+  const RelationDescriptor({
     required this.fieldName,
     required this.type,
     required this.target,
+    required this.isOwningSide,
+    this.mappedBy,
+    this.fetch = RelationFetchStrategy.lazy,
+    this.cascade = const [],
     this.joinColumn,
-    this.referenceColumn,
     this.joinTable,
   });
 
   final String fieldName;
   final RelationType type;
   final Type target;
-  final bool? joinColumn;
-  final String? referenceColumn;
-  final String? joinTable;
+  final bool isOwningSide;
+  final String? mappedBy;
+  final RelationFetchStrategy fetch;
+  final List<RelationCascade> cascade;
+  final JoinColumnDescriptor? joinColumn;
+  final JoinTableDescriptor? joinTable;
 }

@@ -1,5 +1,6 @@
 import '../metadata/entity_descriptor.dart';
 import '../metadata/column_descriptor.dart';
+import '../metadata/relation_descriptor.dart';
 import '../annotations/column.dart';
 import 'schema.dart';
 
@@ -16,22 +17,50 @@ class MigrationPlanner {
     required SchemaState current,
   }) {
     final stmts = <String>[];
+    final entityByType = {for (final e in entities) e.entityType: e};
+    final processedJoinTables = <String>{};
     for (final entity in entities) {
+      final joinColumns = _collectJoinColumns(entity, entityByType);
       final table = current.tables[entity.tableName];
       if (table == null) {
-        // Create table
         final cols = <String>[];
         for (final c in entity.columns) {
           cols.add(_columnDDL(c));
         }
+        for (final jc in joinColumns) {
+          cols.add(_joinColumnDDL(jc));
+        }
         final create = 'CREATE TABLE IF NOT EXISTS ${entity.tableName} (\n  ${cols.join(',\n  ')}\n)';
         stmts.add(create);
-        continue;
+      } else {
+        for (final c in entity.columns) {
+          if (!table.columns.containsKey(c.name)) {
+            stmts.add('ALTER TABLE ${entity.tableName} ADD COLUMN ${_columnDDL(c)}');
+          }
+        }
+        for (final jc in joinColumns) {
+          if (!table.columns.containsKey(jc.name)) {
+            stmts.add('ALTER TABLE ${entity.tableName} ADD COLUMN ${_joinColumnDDL(jc)}');
+          }
+        }
       }
-      // Existing table: add missing columns
-      for (final c in entity.columns) {
-        if (!table.columns.containsKey(c.name)) {
-          stmts.add('ALTER TABLE ${entity.tableName} ADD COLUMN ${_columnDDL(c)}');
+
+      for (final relation in entity.relations.where((r) => r.isOwningSide && r.joinTable != null)) {
+        final joinSpec = _buildJoinTableSpec(entity, relation, entityByType);
+        if (!processedJoinTables.add(joinSpec.name)) {
+          continue;
+        }
+        final schemaTable = current.tables[joinSpec.name];
+        if (schemaTable == null) {
+          final cols = joinSpec.columns.map(_joinColumnDDL).join(',\n  ');
+          final create = 'CREATE TABLE IF NOT EXISTS ${joinSpec.name} (\n  $cols\n)';
+          stmts.add(create);
+        } else {
+          for (final col in joinSpec.columns) {
+            if (!schemaTable.columns.containsKey(col.name)) {
+              stmts.add('ALTER TABLE ${joinSpec.name} ADD COLUMN ${_joinColumnDDL(col)}');
+            }
+          }
         }
       }
     }
@@ -46,6 +75,14 @@ class MigrationPlanner {
     if (c.autoIncrement) parts.add('AUTOINCREMENT'); // SQLite specific; engine will adapt
     if (c.unique) parts.add('UNIQUE');
     if (c.defaultValue != null) parts.add('DEFAULT ${_defaultLiteral(c.defaultValue)}');
+    return parts.join(' ');
+  }
+
+  String _joinColumnDDL(_JoinColumnSpec spec) {
+    final parts = <String>['"${spec.name}" ${_typeToSql(spec.type)}'];
+    if (!spec.nullable) parts.add('NOT NULL');
+    if (spec.unique) parts.add('UNIQUE');
+    parts.add('REFERENCES ${_quoteQualified(spec.referencesTable)}("${spec.referencesColumn}")');
     return parts.join(' ');
   }
 
@@ -73,4 +110,105 @@ class MigrationPlanner {
     if (v is bool) return v ? 'TRUE' : 'FALSE';
     return "'${v.toString().replaceAll("'", "''")}'";
   }
+
+  List<_JoinColumnSpec> _collectJoinColumns(
+    EntityDescriptor entity,
+    Map<Type, EntityDescriptor> entityByType,
+  ) {
+    final specs = <_JoinColumnSpec>[];
+    for (final relation in entity.relations) {
+      final joinColumn = relation.joinColumn;
+      if (!relation.isOwningSide || joinColumn == null) continue;
+      final target = _descriptorForType(relation.target, entityByType);
+      specs.add(_joinColumnSpecFromDescriptor(joinColumn, target));
+    }
+    return specs;
+  }
+
+  _JoinTableSpec _buildJoinTableSpec(
+    EntityDescriptor owner,
+    RelationDescriptor relation,
+    Map<Type, EntityDescriptor> entityByType,
+  ) {
+    final descriptor = relation.joinTable!;
+    final columns = <_JoinColumnSpec>[];
+    for (final col in descriptor.joinColumns) {
+      columns.add(_joinColumnSpecFromDescriptor(col, owner));
+    }
+    final inverseDescriptor = _descriptorForType(relation.target, entityByType);
+    for (final col in descriptor.inverseJoinColumns) {
+      columns.add(_joinColumnSpecFromDescriptor(col, inverseDescriptor));
+    }
+    return _JoinTableSpec(name: descriptor.name, columns: columns);
+  }
+
+  _JoinColumnSpec _joinColumnSpecFromDescriptor(
+    JoinColumnDescriptor descriptor,
+    EntityDescriptor referenced,
+  ) {
+    ColumnDescriptor? referencedColumn;
+    for (final column in referenced.columns) {
+      if (column.name == descriptor.referencedColumnName) {
+        referencedColumn = column;
+        break;
+      }
+    }
+    referencedColumn ??= referenced.primaryKey;
+    if (referencedColumn == null) {
+      throw StateError(
+        'Referenced column ${descriptor.referencedColumnName} was not found on ${referenced.tableName}.',
+      );
+    }
+    return _JoinColumnSpec(
+      name: descriptor.name,
+      type: referencedColumn.type,
+      nullable: descriptor.nullable,
+      unique: descriptor.unique,
+      referencesTable: referenced.qualifiedTableName,
+      referencesColumn: referencedColumn.name,
+    );
+  }
+
+  EntityDescriptor _descriptorForType(Type type, Map<Type, EntityDescriptor> index) {
+    final descriptor = index[type];
+    if (descriptor == null) {
+      throw StateError('Missing entity descriptor for $type');
+    }
+    return descriptor;
+  }
+
+  String _quoteQualified(String qualifiedName) {
+    if (!qualifiedName.contains('.')) {
+      return '"$qualifiedName"';
+    }
+    return qualifiedName.split('.').map((part) => '"$part"').join('.');
+  }
+}
+
+class _JoinColumnSpec {
+  const _JoinColumnSpec({
+    required this.name,
+    required this.type,
+    required this.nullable,
+    required this.unique,
+    required this.referencesTable,
+    required this.referencesColumn,
+  });
+
+  final String name;
+  final ColumnType type;
+  final bool nullable;
+  final bool unique;
+  final String referencesTable;
+  final String referencesColumn;
+}
+
+class _JoinTableSpec {
+  const _JoinTableSpec({
+    required this.name,
+    required this.columns,
+  });
+
+  final String name;
+  final List<_JoinColumnSpec> columns;
 }

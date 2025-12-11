@@ -1,6 +1,6 @@
 # Loxia ORM
 
-Loxia is an experiment to build a pragmatic, annotation-driven ORM for Dart that borrows ideas from TypeORM and other data mappers. The goal is to let developers describe entities once and then plug them into different SQL engines at runtime with code-generated metadata and automatic migrations.
+Loxia is an experiment to build a pragmatic, annotation-driven ORM for Dart that borrows ideas from TypeORM and other data mappers. The goal is to let developers describe entities once and then plug them into different SQL engines at runtime without code generation.
 
 ## Guiding Principles
 
@@ -35,7 +35,7 @@ Loxia is an experiment to build a pragmatic, annotation-driven ORM for Dart that
 | `datasource/` | DataSource controller, options, engine adapters, connection pooling |
 | `migrations/` | Schema diffing + migration planning/execution |
 | `repository/` | Generic `EntityRepository<T>`, query builders, transaction helpers |
-| `query/` | filters, ordering, pagination, eager loading flags |
+| `query/` | `FindOptions`, filters, ordering, pagination, eager loading flags |
 
 ## Usage Preview
 
@@ -75,18 +75,14 @@ final users = await repo.find(
 
 ## Code Generation (Builders)
 
-Loxia ships a builder that reads your entity annotations and generates an `EntityDescriptor<T>` for runtime registration.
-It also creates:
-
-- A typed `QueryBuilder` DSL for composing type-safe SQL filters.
-- A `QueryFieldsContext` exposing comparison helpers for each column.
-- DTOs for insert/update operations.
+Loxia ships a `source_gen` builder that reads your entity annotations and generates an `EntityDescriptor<T>` for runtime registration.
 
 1. Add dev dependencies to your app:
 
 ```yaml
 dev_dependencies:
-  build_runner: <latest_version>
+  build_runner: ^2.4.11
+  loxia: any # already as dependency; also provides the builder
 ```
 
 1. Annotate your entities and add a `part` directive:
@@ -112,17 +108,17 @@ class User extends Entity {
 1. Run the builder:
 
 ```pwsh
-dart run build_runner build -d
+dart run build_runner build --delete-conflicting-outputs
 ```
 
-This generates `user.g.dart` with `$UserEntityDescriptor` plus a strongly typed `UserFieldsContext` and `UserQuery` builder you can feed directly to `EntityRepository.find`.
+This generates `user.loxia.g.dart` with `$UserEntityDescriptor` plus a strongly typed `UserQueryFieldsContext` and `UserQuery` builder you can feed directly to `EntityRepository.find`.
 
 ### Fluent WHERE builders
 
 Generated files now expose two helpful pieces for composing SQL filters without stringly-typed code:
 
 - `UserQuery((q) => ...)` – a typed helper that instantiates the query context and returns the `WhereExpression` built inside the closure.
-- `UserFieldsContext` – a lightweight object whose properties (e.g. `q.email`, `q.id`) expose all comparison helpers such as `equals`, column-to-column comparisons, `gt`, `inList`, `isNull`, etc.
+- `UserQueryFieldsContext` – a lightweight object whose properties (e.g. `q.email`, `q.id`) expose all comparison helpers such as `equals`, column-to-column comparisons, `gt`, `inList`, `isNull`, etc.
 
 Inside the closure you can combine predicates with the new `.and(...)` / `.or(...)` helpers (and wrap any fragment with `.not()` when needed) available on every `WhereExpression`:
 
@@ -134,18 +130,17 @@ final teenagers = await repo.find(
 );
 ```
 
-## Current Roadmap
+These helpers work alongside the existing `UserWhereQuery` data class, so existing call sites keep working while new code can opt into the fluent DSL.
 
-- [x] Basic entity annotations and metadata generation
-- [x] SQLite engine adapter
-- [x] EntityRepository with basic CRUD operations
-- [x] QueryBuilder with typed WHERE expressions
-- [ ] Automatic migrations for schema changes
-- [ ] MySQL engine adapters
-- [ ] Relations (eager loading, foreign keys)
-- [ ] Transactions
-- [ ] Advanced query options (joins, aggregates, grouping)
+## Near-term Tasks
+
+1. Flesh out annotation/metadata layer.
+2. Ship SQLite/Postgres adapters behind a common engine API.
+3. Add schema diffing + migration executor.
+4. Implement repositories and query builders.
+5. Provide example app + tests running across multiple engines.
 
 ## Contributing
 
 Right now the project is in heavy flux. Feel free to open issues with design ideas or send PRs for experimental adapters/migration strategies.
+

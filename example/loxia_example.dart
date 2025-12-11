@@ -41,10 +41,15 @@ class User extends Entity {
 }
 
 class UserFieldsContext extends QueryFieldsContext<User> {
-  const UserFieldsContext();
+  const UserFieldsContext([super.runtime, super.alias]);
 
-  QueryField<int?> get id => const QueryField<int?>('id');
-  QueryField<String> get email => const QueryField<String>('email');
+  QueryField<int?> get id => field('id');
+  QueryField<String> get email => field('email');
+  
+  @override
+  QueryFieldsContext<User> bind(QueryRuntimeContext runtime, String alias) {
+    return UserFieldsContext(runtime, alias);
+  }
 }
 
 class UserInsertDto extends InsertDto<User> {

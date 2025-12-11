@@ -1,6 +1,7 @@
 import '../entity.dart';
 import '../metadata/entity_descriptor.dart';
 import '../migrations/planner.dart';
+import '../repository/dtos.dart';
 import '../repository/entity_repository.dart';
 import 'engine_adapter.dart';
 
@@ -45,12 +46,15 @@ class DataSource {
   }
 
   /// Returns a repository for the given entity type.
-  EntityRepository<T> getRepository<T extends Entity>() {
+  /// 
+  /// [T] is the entity type, [P] is the corresponding partial entity type.
+  /// The partial type must match the one generated for the entity.
+  EntityRepository<T, P> getRepository<T extends Entity, P extends PartialEntity<T>>() {
     final desc = _registry[T];
     if (desc == null) {
       throw StateError('Entity ${T.toString()} is not registered in this DataSource');
     }
-    final typed = desc as EntityDescriptor<T>;
-    return EntityRepository<T>(typed, _engine, desc.fieldsContext);
+    final typed = desc as EntityDescriptor<T, P>;
+    return EntityRepository<T, P>(typed, _engine, desc.fieldsContext);
   }
 }

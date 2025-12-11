@@ -1,3 +1,5 @@
+import 'package:loxia/src/repository/dtos.dart';
+
 import '../entity.dart';
 import '../repository/query.dart';
 import 'column_descriptor.dart';
@@ -8,7 +10,7 @@ typedef EntityFromRow<T extends Entity> = T Function(Map<String, dynamic> row);
 typedef EntityToRow<T extends Entity> = Map<String, dynamic> Function(T entity);
 
 /// Runtime description of an entity, referenced by repositories and builders.
-class EntityDescriptor<T extends Entity> {
+class EntityDescriptor<T extends Entity, P extends PartialEntity<T>> {
 	EntityDescriptor({
 		required this.entityType,
 		required this.tableName,

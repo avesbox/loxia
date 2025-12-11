@@ -1,18 +1,36 @@
 import 'package:loxia/loxia.dart';
 import 'package:test/test.dart';
 
-class _Fields extends QueryFieldsContext<void> {
-  const _Fields();
+class _Fields extends QueryFieldsContext<_FakeEntity> {
+  const _Fields([super.runtime, super.alias]);
 
-  QueryField<String> get email => const QueryField<String>('email');
-  QueryField<int> get age => const QueryField<int>('age');
-  QueryField<int?> get score => const QueryField<int?>('score');
+  @override
+  _Fields bind(QueryRuntimeContext runtime, String alias) => _Fields(runtime, alias);
+
+  QueryField<String> get email => field<String>('email');
+  QueryField<int> get age => field<int>('age');
+  QueryField<int?> get score => field<int?>('score');
+
+  _Fields get child {
+    final alias = ensureRelationJoin(
+      relationName: 'child',
+      targetTableName: 'child_table',
+      localColumn: 'id',
+      foreignColumn: 'parent_id',
+    );
+    return _Fields(runtimeOrThrow, alias);
+  }
+}
+
+_Fields _fieldsForAlias(String alias) {
+  final runtime = QueryRuntimeContext(rootAlias: alias);
+  return const _Fields().bind(runtime, alias);
 }
 
 void main() {
   group('QueryField + WhereExpression builder', () {
     test('supports equals/and/or composition', () {
-      const fields = _Fields();
+      final fields = _fieldsForAlias('t');
       final expr = fields.email
         .equals('foo@bar.com')
         .and(fields.age.gte(18))
@@ -23,7 +41,7 @@ void main() {
     });
 
     test('supports NOT wrapper', () {
-      const fields = _Fields();
+      final fields = _fieldsForAlias('u');
       final expr = fields.email.equals('blocked').not();
       final params = <Object?>[];
       final sql = expr.toSql('u', params);
@@ -32,7 +50,7 @@ void main() {
     });
 
     test('handles IN clauses and empty lists', () {
-      const fields = _Fields();
+      final fields = _fieldsForAlias('alias');
       final nonEmpty = fields.age.inList([1, 2, 3]);
       final empty = fields.age.inList([]);
       final params = <Object?>[];
@@ -42,7 +60,7 @@ void main() {
     });
 
     test('support complex nested expressions', () {
-      const fields = _Fields();
+      final fields = _fieldsForAlias('x');
       final expr = fields.email.equals('foo@bar.com').and(
         fields.age.gt(18).or(
           fields.score.isNotNull().and(
@@ -58,7 +76,7 @@ void main() {
     });
 
     test('compares columns with isSmallerThan', () {
-      const fields = _Fields();
+      final fields = _fieldsForAlias('tbl');
       final expr = fields.age.isSmallerThan(fields.field<int>('max_age'));
       final params = <Object?>[];
       final sql = expr.toSql('tbl', params);
@@ -71,11 +89,130 @@ void main() {
         (q) => q.field<int>('age').equals(42),
       );
       final params = <Object?>[];
-      final sql = builder.toSql(const QueryFieldsContext<_FakeEntity>(), 'u', params);
+      final context = _fieldsForAlias('u');
+      final sql = builder.toSql(context, params);
       expect(sql, '"u"."age" = ?');
       expect(params, [42]);
+    });
+  });
+
+  group('SelectOptions', () {
+    test('renders selected columns', () {
+      final select = _FakeSelect(email: true, age: true);
+      final context = _fieldsForAlias('root');
+      final sql = select.toCols(context);
+      expect(sql, '"root"."email", "root"."age"');
+    });
+
+    test('throws when no selections provided', () {
+      final select = _FakeSelect();
+      final context = _fieldsForAlias('t');
+      expect(() => select.toCols(context), throwsStateError);
+    });
+
+    test('handles relation selections with alias prefixes', () {
+      final select = _FakeSelect(
+        email: true,
+        relations: _FakeRelations(
+          child: _ChildSelect(score: true),
+        ),
+      );
+      final context = _fieldsForAlias('t');
+      final sql = select.toCols(context);
+      expect(sql, '"t"."email", "t_child"."score" AS "child_score"');
+      final joins = context.runtimeOrThrow.joins;
+      expect(joins, hasLength(1));
+      final spec = joins.single;
+      expect(spec.alias, 't_child');
+      expect(spec.tableName, 'child_table');
+      expect(spec.localColumn, 'id');
+      expect(spec.foreignColumn, 'parent_id');
     });
   });
 }
 
 class _FakeEntity extends Entity {}
+
+class _FakeSelect extends SelectOptions<_FakeEntity> {
+  const _FakeSelect({
+    this.email = false,
+    this.age = false,
+    this.relations,
+  });
+
+  final bool email;
+  final bool age;
+  final _FakeRelations? relations;
+
+  @override
+  bool get hasSelections => email || age || (relations?.hasSelections ?? false);
+
+  @override
+  void collect(QueryFieldsContext<_FakeEntity> context, List<SelectField> out, {String? path}) {
+    if (context is! _Fields) {
+      throw ArgumentError('Expected _Fields for _FakeSelect');
+    }
+    final _Fields scoped = context;
+    String? aliasFor(String column) {
+      final current = path;
+      if (current == null || current.isEmpty) return null;
+      return '${current}_$column';
+    }
+
+    final tableAlias = scoped.currentAlias;
+    if (email) {
+      out.add(SelectField('email', tableAlias: tableAlias, alias: aliasFor('email')));
+    }
+    if (age) {
+      out.add(SelectField('age', tableAlias: tableAlias, alias: aliasFor('age')));
+    }
+    final rels = relations;
+    if (rels != null && rels.hasSelections) {
+      rels.collect(scoped, out, path: path);
+    }
+  }
+}
+
+class _FakeRelations {
+  const _FakeRelations({this.child});
+
+  final _ChildSelect? child;
+
+  bool get hasSelections => child?.hasSelections ?? false;
+
+  void collect(_Fields context, List<SelectField> out, {String? path}) {
+    final childSelect = child;
+    if (childSelect != null && childSelect.hasSelections) {
+      final relationPath = path == null || path.isEmpty ? 'child' : '${path}_child';
+      final relationContext = context.child;
+      childSelect.collect(relationContext, out, path: relationPath);
+    }
+  }
+}
+
+class _ChildSelect extends SelectOptions<_FakeEntity> {
+  const _ChildSelect({this.score = false});
+
+  final bool score;
+
+  @override
+  bool get hasSelections => score;
+
+  @override
+  void collect(QueryFieldsContext<_FakeEntity> context, List<SelectField> out, {String? path}) {
+    if (context is! _Fields) {
+      throw ArgumentError('Expected _Fields for _ChildSelect');
+    }
+    final _Fields scoped = context;
+    String? aliasFor(String column) {
+      final current = path;
+      if (current == null || current.isEmpty) return null;
+      return '${current}_$column';
+    }
+
+    final tableAlias = scoped.currentAlias;
+    if (score) {
+      out.add(SelectField('score', tableAlias: tableAlias, alias: aliasFor('score')));
+    }
+  }
+}
