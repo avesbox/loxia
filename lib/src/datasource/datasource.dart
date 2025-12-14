@@ -1,3 +1,5 @@
+import 'dart:collection';
+
 import '../entity.dart';
 import '../metadata/entity_descriptor.dart';
 import '../migrations/planner.dart';
@@ -24,12 +26,16 @@ class DataSource {
   final DataSourceOptions options;
   EngineAdapter get _engine => options.engine;
   final Map<Type, EntityDescriptor> _registry = {};
+  final Map<Type, EntityRepository> _repositories = {};
+
+  Map<Type, EntityRepository> get repositories => UnmodifiableMapView(_repositories);
 
   Future<void> init() async {
     await _engine.open();
     // Register entities for repository lookup
     for (final d in options.entities) {
       _registry[d.entityType] = d;
+      _repositories[d.entityType] = d.repositoryFactory(_engine);
     }
     if (options.runMigrations) {
       final planner = MigrationPlanner();
@@ -50,11 +56,10 @@ class DataSource {
   /// [T] is the entity type, [P] is the corresponding partial entity type.
   /// The partial type must match the one generated for the entity.
   EntityRepository<T, P> getRepository<T extends Entity, P extends PartialEntity<T>>() {
-    final desc = _registry[T];
-    if (desc == null) {
+    final repo = _repositories[T];
+    if (repo == null) {
       throw StateError('Entity ${T.toString()} is not registered in this DataSource');
     }
-    final typed = desc as EntityDescriptor<T, P>;
-    return EntityRepository<T, P>(typed, _engine, desc.fieldsContext);
+    return repo as EntityRepository<T, P>;
   }
 }

@@ -50,11 +50,15 @@ final EntityDescriptor<User, UserPartial> $UserEntityDescriptor =
       ),
       toRow: (e) => {'id': e.id, 'email': e.email},
       fieldsContext: const UserFieldsContext(),
+      repositoryFactory: (engine) => EntityRepository<User, UserPartial>(
+        $UserEntityDescriptor,
+        engine,
+        $UserEntityDescriptor.fieldsContext,
+      ),
     );
 
 class UserFieldsContext extends QueryFieldsContext<User> {
-  const UserFieldsContext([QueryRuntimeContext? runtime, String? alias])
-    : super(runtime, alias);
+  const UserFieldsContext([super.runtime, super.alias]);
   @override
   UserFieldsContext bind(QueryRuntimeContext runtime, String alias) =>
       UserFieldsContext(runtime, alias);
@@ -287,7 +291,7 @@ final EntityDescriptor<Post, PostPartial> $PostEntityDescriptor =
           target: User,
           isOwningSide: true,
           fetch: RelationFetchStrategy.lazy,
-          cascade: [],
+          cascade: const [],
           joinColumn: JoinColumnDescriptor(
             name: 'user_id',
             referencedColumnName: 'id',
@@ -309,6 +313,11 @@ final EntityDescriptor<Post, PostPartial> $PostEntityDescriptor =
         'user_id': e.user?.id,
       },
       fieldsContext: const PostFieldsContext(),
+      repositoryFactory: (engine) => EntityRepository<Post, PostPartial>(
+        $PostEntityDescriptor,
+        engine,
+        $PostEntityDescriptor.fieldsContext,
+      ),
     );
 
 class PostFieldsContext extends QueryFieldsContext<Post> {

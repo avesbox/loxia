@@ -143,11 +143,12 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
     }
     buf.writeln('  },');
     buf.write('  fieldsContext: const ${className}FieldsContext(),');
+    buf.write('  repositoryFactory: (engine) => EntityRepository<$className, $partialEntityName>(\$${className}EntityDescriptor, engine, \$${className}EntityDescriptor.fieldsContext),');
     buf.writeln(');');
     buf.writeln();
     final builderFieldsClass = '${className}FieldsContext';
     buf.writeln('class $builderFieldsClass extends QueryFieldsContext<$className> {');
-    buf.writeln('  const $builderFieldsClass([QueryRuntimeContext? runtime, String? alias]) : super(runtime, alias);');
+    buf.writeln('  const $builderFieldsClass([super.runtime, super.alias]);');
     buf.writeln('  @override');
     buf.writeln('  $builderFieldsClass bind(QueryRuntimeContext runtime, String alias) => $builderFieldsClass(runtime, alias);');
     for (final c in columns) {
@@ -501,7 +502,7 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
       buf.writeln("    if (${c.prop} == null) missing.add('${c.prop}');");
     }
     buf.writeln('    if (missing.isNotEmpty) {');
-    buf.writeln("      throw StateError('Cannot convert $partialEntityName to $className: missing required fields: ' + missing.join(', '));");
+    buf.writeln("      throw StateError('Cannot convert $partialEntityName to $className: missing required fields: \${missing.join(', ')}');");
     buf.writeln('    }');
     buf.writeln('    return $className(');
     for (final c in columns) {

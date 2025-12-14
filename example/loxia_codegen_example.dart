@@ -45,7 +45,6 @@ Future<void> main() async {
     ),
   );
   await ds.init();
-
   final users = ds.getRepository<User, UserPartial>();
   await users.insert(UserInsertDto(email: 'text@example.com'));
   final rows = await users.find(

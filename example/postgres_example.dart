@@ -42,7 +42,12 @@ class User extends Entity {
           name: row['name'] as String,
         ),
         toRow: (u) => {'id': u.id, 'email': u.email, 'name': u.name},
-        fieldsContext: const UserFieldsContext(),
+        fieldsContext: const UserFieldsContext(), 
+        repositoryFactory: (EngineAdapter engine) => EntityRepository<User, UserPartial>(
+          User.entity,
+          engine,
+          User.entity.fieldsContext
+        )
       );
 }
 
