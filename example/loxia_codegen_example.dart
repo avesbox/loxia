@@ -1,4 +1,5 @@
 import 'package:loxia/loxia.dart';
+import 'package:postgres/postgres.dart';
 
 part 'loxia_codegen_example.g.dart';
 
@@ -29,10 +30,13 @@ class Post extends Entity {
   @Column()
   final String content;
 
+  @Column(defaultValue: 0)
+  final int likes;
+
   @ManyToOne(on: User)
   final User? user;
 
-  Post({required this.id, required this.title, required this.content, this.user});
+  Post({required this.id, required this.title, required this.content, required this.likes, this.user});
 
   static EntityDescriptor<Post, PostPartial> get entity => $PostEntityDescriptor;
 }
@@ -40,11 +44,23 @@ class Post extends Entity {
 Future<void> main() async {
   final ds = DataSource(
     DataSourceOptions(
-      engine: SqliteEngine.inMemory(),
+      engine: PostgresEngine.connect(
+        Endpoint(
+          host: 'localhost',
+          port: 5432,
+          database: 'loxia',
+          username: 'loxia',
+          password: 'loxia',
+        ),
+        settings: ConnectionSettings(
+          timeZone: 'UTC',
+        ),
+      ),
       entities: [User.entity, Post.entity],
     ),
   );
   await ds.init();
+  
   final users = ds.getRepository<User, UserPartial>();
   await users.insert(UserInsertDto(email: 'text@example.com'));
   final rows = await users.find(

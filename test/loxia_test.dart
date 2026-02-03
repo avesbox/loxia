@@ -100,14 +100,14 @@ void main() {
     test('renders selected columns', () {
       final select = _FakeSelect(email: true, age: true);
       final context = _fieldsForAlias('root');
-      final sql = select.toCols(context);
+      final sql = select.compile(context).sql;
       expect(sql, '"root"."email", "root"."age"');
     });
 
     test('throws when no selections provided', () {
       final select = _FakeSelect();
       final context = _fieldsForAlias('t');
-      expect(() => select.toCols(context), throwsStateError);
+      expect(() => select.compile(context).sql, throwsStateError);
     });
 
     test('handles relation selections with alias prefixes', () {
@@ -118,7 +118,7 @@ void main() {
         ),
       );
       final context = _fieldsForAlias('t');
-      final sql = select.toCols(context);
+      final sql = select.compile(context).sql;
       expect(sql, '"t"."email", "t_child"."score" AS "child_score"');
       final joins = context.runtimeOrThrow.joins;
       expect(joins, hasLength(1));
@@ -133,7 +133,16 @@ void main() {
 
 class _FakeEntity extends Entity {}
 
-class _FakeSelect extends SelectOptions<_FakeEntity> {
+class _PartialFakeEntity extends PartialEntity<_FakeEntity> {
+  @override
+  _FakeEntity toEntity() {
+    // TODO: implement toEntity
+    throw UnimplementedError();
+  }
+  
+}
+
+class _FakeSelect extends SelectOptions<_FakeEntity, _PartialFakeEntity> {
   const _FakeSelect({
     this.email = false,
     this.age = false,
@@ -171,6 +180,11 @@ class _FakeSelect extends SelectOptions<_FakeEntity> {
       rels.collect(scoped, out, path: path);
     }
   }
+  
+  @override
+  _PartialFakeEntity hydrate(Map<String, dynamic> row, {String? path}) {
+    return _PartialFakeEntity();
+  }
 }
 
 class _FakeRelations {
@@ -190,7 +204,7 @@ class _FakeRelations {
   }
 }
 
-class _ChildSelect extends SelectOptions<_FakeEntity> {
+class _ChildSelect extends SelectOptions<_FakeEntity, _PartialFakeEntity> {
   const _ChildSelect({this.score = false});
 
   final bool score;
@@ -214,5 +228,10 @@ class _ChildSelect extends SelectOptions<_FakeEntity> {
     if (score) {
       out.add(SelectField('score', tableAlias: tableAlias, alias: aliasFor('score')));
     }
+  }
+
+  @override
+  _PartialFakeEntity hydrate(Map<String, dynamic> row, {String? path}) {
+    return _PartialFakeEntity();
   }
 }

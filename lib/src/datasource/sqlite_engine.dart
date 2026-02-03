@@ -21,7 +21,7 @@ class SqliteEngine implements EngineAdapter {
 
   @override
   Future<void> close() async {
-    _db?.dispose();
+    _db?.close();
     _db = null;
   }
 
@@ -43,7 +43,7 @@ class SqliteEngine implements EngineAdapter {
       try {
         stmt.execute(params);
       } finally {
-        stmt.dispose();
+        stmt.close();
       }
     }
     final rs = db.select('SELECT changes() AS c');
@@ -61,7 +61,7 @@ class SqliteEngine implements EngineAdapter {
       try {
         rs = stmt.select(params);
       } finally {
-        stmt.dispose();
+        stmt.close();
       }
     }
     final cols = rs.columnNames;

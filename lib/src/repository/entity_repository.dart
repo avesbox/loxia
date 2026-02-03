@@ -70,6 +70,49 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     return results.firstOrNull;
   }
 
+  /// Executes a paginated query and returns partial entities with metadata.
+  ///
+  /// Throws [RangeError] if [page] or [pageSize] are less than 1, or if
+  /// [maxPageSize] is provided and [pageSize] exceeds it.
+  Future<PaginatedResult<P>> paginate({
+    required SelectOptions<T, P> select,
+    QueryBuilder<T>? where,
+    List<OrderBy>? orderBy,
+    required int page,
+    required int pageSize,
+    int? maxPageSize,
+  }) async {
+    if (page < 1) {
+      throw RangeError.range(page, 1, null, 'page');
+    }
+    if (pageSize < 1) {
+      throw RangeError.range(pageSize, 1, null, 'pageSize');
+    }
+    if (maxPageSize != null && pageSize > maxPageSize) {
+      throw RangeError.range(pageSize, 1, maxPageSize, 'pageSize');
+    }
+    final resolvedOrderBy = (orderBy == null || orderBy.isEmpty)
+        ? _defaultOrderBy()
+        : orderBy;
+    final offset = (page - 1) * pageSize;
+    final total = await count(select: select, where: where);
+    final items = await find(
+      select: select,
+      where: where,
+      orderBy: resolvedOrderBy,
+      limit: pageSize,
+      offset: offset,
+    );
+    final pageCount = total == 0 ? 0 : ((total + pageSize - 1) ~/ pageSize);
+    return PaginatedResult<P>(
+      items: items,
+      total: total,
+      page: page,
+      pageSize: pageSize,
+      pageCount: pageCount,
+    );
+  }
+
   /// Executes a query and returns full entities.
   /// 
   /// This method always selects all columns and returns fully hydrated [T] entities.
@@ -126,6 +169,28 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     return affected;
   }
 
+  Future<int> count({
+    SelectOptions<T, P>? select,
+    QueryBuilder<T>? where,
+  }) async {
+    final alias = 't';
+    final runtime = QueryRuntimeContext(rootAlias: alias);
+    final boundContext = _fieldsContext.bind(runtime, alias);
+    final fields = <SelectField>[];
+    if (select != null) {
+      select.collect(boundContext, fields, path: null);
+    }
+    final params = <Object?>[];
+    final whereSql = where?.toSql(boundContext, params);
+    final joinsSql = runtime.joins.map(_renderJoinClause).join(' ');
+    final countTarget = _buildCountTarget(select, alias, fields);
+    final sql = 'SELECT $countTarget AS c FROM ${_renderTableReference(_descriptor.qualifiedTableName)} AS "$alias"'
+        '${joinsSql.isEmpty ? '' : ' $joinsSql'}'
+        '${whereSql != null ? ' WHERE $whereSql' : ''}';
+    final rows = await _engine.query(sql, params);
+    return (rows.first['c'] as int?) ?? 0;
+  }
+
   Future<int> update(
     UpdateDto<T> values,
     QueryBuilder<T> where,
@@ -165,6 +230,36 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     final left = '"${spec.alias}"."${spec.foreignColumn}"';
     final right = '"${spec.localAlias}"."${spec.localColumn}"';
     return '$joinKeyword $tableRef AS "${spec.alias}" ON $left = $right';
+  }
+
+  String _buildCountTarget(
+    SelectOptions<T, P>? select,
+    String alias,
+    List<SelectField> fields,
+  ) {
+    if (select == null || !select.hasSelections) {
+      return 'COUNT(*)';
+    }
+    final primaryKey = select.primaryKeyColumn ?? _descriptor.primaryKey?.name;
+    if (primaryKey == null || primaryKey.isEmpty) {
+      final visible = fields.where((f) => f.visible).toList(growable: false);
+      if (visible.isEmpty) {
+        return 'COUNT(*)';
+      }
+      final columns = visible
+          .map((f) => '"${f.tableAlias ?? alias}"."${f.name}"')
+          .join(', ');
+      return 'COUNT(DISTINCT $columns)';
+    }
+    return 'COUNT(DISTINCT "$alias"."$primaryKey")';
+  }
+
+  List<OrderBy>? _defaultOrderBy() {
+    final primaryKey = _descriptor.primaryKey?.name;
+    if (primaryKey == null || primaryKey.isEmpty) {
+      return null;
+    }
+    return [OrderBy(primaryKey)];
   }
 
   String _renderTableReference(String name) =>

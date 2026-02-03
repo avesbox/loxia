@@ -17,3 +17,20 @@ abstract class PartialEntity<T extends Entity> {
   /// Throws [StateError] if required fields are missing.
   T toEntity();
 }
+
+/// Standard pagination result for repository queries.
+class PaginatedResult<P> {
+  const PaginatedResult({
+    required this.items,
+    required this.total,
+    required this.page,
+    required this.pageSize,
+    required this.pageCount,
+  });
+
+  final List<P> items;
+  final int total;
+  final int page;
+  final int pageSize;
+  final int pageCount;
+}

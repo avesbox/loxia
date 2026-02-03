@@ -62,4 +62,15 @@ class DataSource {
     }
     return repo as EntityRepository<T, P>;
   }
+
+  /// Returns a repository for the given entity descriptor.
+  /// [T] is the entity type, [P] is the corresponding partial entity type.
+  /// The partial type must match the one generated for the entity.
+  /// 
+  /// Throws a [StateError] if the entity type is not registered.
+  /// 
+  /// [descriptor] is the entity descriptor to get the repository for.
+  EntityRepository<T, P> getRepositoryFromDescriptor<T extends Entity, P extends PartialEntity<T>>(EntityDescriptor<T, P> descriptor) {
+    return EntityRepository<T, P>(descriptor, _engine, descriptor.fieldsContext);
+  }
 }

@@ -7,7 +7,7 @@ part of 'loxia_codegen_example.dart';
 // **************************************************************************
 
 final EntityDescriptor<User, UserPartial> $UserEntityDescriptor =
-    EntityDescriptor<User, UserPartial>(
+    EntityDescriptor(
       entityType: User,
       tableName: 'users',
       columns: [
@@ -44,8 +44,8 @@ final EntityDescriptor<User, UserPartial> $UserEntityDescriptor =
         ),
       ],
       fromRow: (row) => User(
-        id: row['id'] as int,
-        email: row['email'] as String,
+        id: (row['id'] as int),
+        email: (row['email'] as String),
         posts: const <Post>[],
       ),
       toRow: (e) => {'id': e.id, 'email': e.email},
@@ -58,14 +58,19 @@ final EntityDescriptor<User, UserPartial> $UserEntityDescriptor =
     );
 
 class UserFieldsContext extends QueryFieldsContext<User> {
-  const UserFieldsContext([super.runtime, super.alias]);
+  const UserFieldsContext([QueryRuntimeContext? runtime, String? alias])
+    : super(runtime, alias);
+
   @override
   UserFieldsContext bind(QueryRuntimeContext runtime, String alias) =>
       UserFieldsContext(runtime, alias);
+
   QueryField<int> get id => field<int>('id');
+
   QueryField<String> get email => field<String>('email');
+
+  /// Find the owning relation on the target entity to get join column info
   PostFieldsContext get posts {
-    // Find the owning relation on the target entity to get join column info
     final targetRelation = $PostEntityDescriptor.relations.firstWhere(
       (r) => r.fieldName == 'user',
     );
@@ -83,7 +88,9 @@ class UserFieldsContext extends QueryFieldsContext<User> {
 
 class UserQuery extends QueryBuilder<User> {
   const UserQuery(this._builder);
-  final WhereExpression Function(UserFieldsContext q) _builder;
+
+  final WhereExpression Function(UserFieldsContext) _builder;
+
   @override
   WhereExpression build(QueryFieldsContext<User> context) {
     if (context is! UserFieldsContext) {
@@ -95,11 +102,16 @@ class UserQuery extends QueryBuilder<User> {
 
 class UserSelect extends SelectOptions<User, UserPartial> {
   const UserSelect({this.id = false, this.email = false, this.relations});
+
   final bool id;
+
   final bool email;
+
   final UserRelations? relations;
+
   @override
   bool get hasSelections => id || email || (relations?.hasSelections ?? false);
+
   @override
   void collect(
     QueryFieldsContext<User> context,
@@ -137,14 +149,16 @@ class UserSelect extends SelectOptions<User, UserPartial> {
     return UserPartial(
       id: id ? readValue(row, 'id', path: path) as int? : null,
       email: email ? readValue(row, 'email', path: path) as String? : null,
-      posts: null, // Collection requires aggregation
+      posts: null,
     );
   }
 
   @override
   bool get hasCollectionRelations => true;
+
   @override
   String? get primaryKeyColumn => 'id';
+
   @override
   List<UserPartial> aggregateRows(
     List<Map<String, dynamic>> rows, {
@@ -185,13 +199,12 @@ class UserSelect extends SelectOptions<User, UserPartial> {
 
 class UserRelations {
   const UserRelations({this.posts});
+
   final PostSelect? posts;
+
   bool get hasSelections => (posts?.hasSelections ?? false);
-  void collect(
-    UserFieldsContext context,
-    List<SelectField> out, {
-    String? path,
-  }) {
+
+  collect(UserFieldsContext context, List<SelectField> out, {String? path}) {
     final postsSelect = posts;
     if (postsSelect != null && postsSelect.hasSelections) {
       final relationPath = path == null || path.isEmpty
@@ -207,7 +220,9 @@ class UserPartial extends PartialEntity<User> {
   const UserPartial({this.id, this.email, this.posts});
 
   final int? id;
+
   final String? email;
+
   final List<PostPartial>? posts;
 
   @override
@@ -217,7 +232,8 @@ class UserPartial extends PartialEntity<User> {
     if (email == null) missing.add('email');
     if (missing.isNotEmpty) {
       throw StateError(
-        'Cannot convert UserPartial to User: missing required fields: ${missing.join(', ')}',
+        'Cannot convert UserPartial to User: missing required fields: ' +
+            missing.join(', '),
       );
     }
     return User(
@@ -230,6 +246,7 @@ class UserPartial extends PartialEntity<User> {
 
 class UserInsertDto implements InsertDto<User> {
   const UserInsertDto({required this.email});
+
   final String email;
 
   @override
@@ -240,6 +257,7 @@ class UserInsertDto implements InsertDto<User> {
 
 class UserUpdateDto implements UpdateDto<User> {
   const UserUpdateDto({this.email});
+
   final String? email;
 
   @override
@@ -249,7 +267,7 @@ class UserUpdateDto implements UpdateDto<User> {
 }
 
 final EntityDescriptor<Post, PostPartial> $PostEntityDescriptor =
-    EntityDescriptor<Post, PostPartial>(
+    EntityDescriptor(
       entityType: Post,
       tableName: 'posts',
       columns: [
@@ -283,6 +301,17 @@ final EntityDescriptor<Post, PostPartial> $PostEntityDescriptor =
           autoIncrement: false,
           uuid: false,
         ),
+        ColumnDescriptor(
+          name: 'likes',
+          propertyName: 'likes',
+          type: ColumnType.integer,
+          nullable: false,
+          unique: false,
+          isPrimaryKey: false,
+          autoIncrement: false,
+          uuid: false,
+          defaultValue: 0,
+        ),
       ],
       relations: const [
         RelationDescriptor(
@@ -301,15 +330,17 @@ final EntityDescriptor<Post, PostPartial> $PostEntityDescriptor =
         ),
       ],
       fromRow: (row) => Post(
-        id: row['id'] as int,
-        title: row['title'] as String,
-        content: row['content'] as String,
+        id: (row['id'] as int),
+        title: (row['title'] as String),
+        content: (row['content'] as String),
+        likes: (row['likes'] as int),
         user: null,
       ),
       toRow: (e) => {
         'id': e.id,
         'title': e.title,
         'content': e.content,
+        'likes': e.likes,
         'user_id': e.user?.id,
       },
       fieldsContext: const PostFieldsContext(),
@@ -321,14 +352,23 @@ final EntityDescriptor<Post, PostPartial> $PostEntityDescriptor =
     );
 
 class PostFieldsContext extends QueryFieldsContext<Post> {
-  const PostFieldsContext([super.runtime, super.alias]);
+  const PostFieldsContext([QueryRuntimeContext? runtime, String? alias])
+    : super(runtime, alias);
+
   @override
   PostFieldsContext bind(QueryRuntimeContext runtime, String alias) =>
       PostFieldsContext(runtime, alias);
+
   QueryField<int> get id => field<int>('id');
+
   QueryField<String> get title => field<String>('title');
+
   QueryField<String> get content => field<String>('content');
+
+  QueryField<int> get likes => field<int>('likes');
+
   QueryField<int?> get userId => field<int?>('user_id');
+
   UserFieldsContext get user {
     final alias = ensureRelationJoin(
       relationName: 'user',
@@ -343,7 +383,9 @@ class PostFieldsContext extends QueryFieldsContext<Post> {
 
 class PostQuery extends QueryBuilder<Post> {
   const PostQuery(this._builder);
-  final WhereExpression Function(PostFieldsContext q) _builder;
+
+  final WhereExpression Function(PostFieldsContext) _builder;
+
   @override
   WhereExpression build(QueryFieldsContext<Post> context) {
     if (context is! PostFieldsContext) {
@@ -358,17 +400,32 @@ class PostSelect extends SelectOptions<Post, PostPartial> {
     this.id = false,
     this.title = false,
     this.content = false,
+    this.likes = false,
     this.userId = false,
     this.relations,
   });
+
   final bool id;
+
   final bool title;
+
   final bool content;
+
+  final bool likes;
+
   final bool userId;
+
   final PostRelations? relations;
+
   @override
   bool get hasSelections =>
-      id || title || content || userId || (relations?.hasSelections ?? false);
+      id ||
+      title ||
+      content ||
+      likes ||
+      userId ||
+      (relations?.hasSelections ?? false);
+
   @override
   void collect(
     QueryFieldsContext<Post> context,
@@ -403,6 +460,11 @@ class PostSelect extends SelectOptions<Post, PostPartial> {
         ),
       );
     }
+    if (likes) {
+      out.add(
+        SelectField('likes', tableAlias: tableAlias, alias: aliasFor('likes')),
+      );
+    }
     if (userId) {
       out.add(
         SelectField(
@@ -431,6 +493,7 @@ class PostSelect extends SelectOptions<Post, PostPartial> {
       content: content
           ? readValue(row, 'content', path: path) as String?
           : null,
+      likes: likes ? readValue(row, 'likes', path: path) as int? : null,
       userId: userId ? readValue(row, 'user_id', path: path) as int? : null,
       user: userPartial,
     );
@@ -438,19 +501,19 @@ class PostSelect extends SelectOptions<Post, PostPartial> {
 
   @override
   bool get hasCollectionRelations => false;
+
   @override
   String? get primaryKeyColumn => 'id';
 }
 
 class PostRelations {
   const PostRelations({this.user});
+
   final UserSelect? user;
+
   bool get hasSelections => (user?.hasSelections ?? false);
-  void collect(
-    PostFieldsContext context,
-    List<SelectField> out, {
-    String? path,
-  }) {
+
+  collect(PostFieldsContext context, List<SelectField> out, {String? path}) {
     final userSelect = user;
     if (userSelect != null && userSelect.hasSelections) {
       final relationPath = path == null || path.isEmpty
@@ -467,14 +530,21 @@ class PostPartial extends PartialEntity<Post> {
     this.id,
     this.title,
     this.content,
+    this.likes,
     this.userId,
     this.user,
   });
 
   final int? id;
+
   final String? title;
+
   final String? content;
+
+  final int? likes;
+
   final int? userId;
+
   final UserPartial? user;
 
   @override
@@ -483,15 +553,18 @@ class PostPartial extends PartialEntity<Post> {
     if (id == null) missing.add('id');
     if (title == null) missing.add('title');
     if (content == null) missing.add('content');
+    if (likes == null) missing.add('likes');
     if (missing.isNotEmpty) {
       throw StateError(
-        'Cannot convert PostPartial to Post: missing required fields: ${missing.join(', ')}',
+        'Cannot convert PostPartial to Post: missing required fields: ' +
+            missing.join(', '),
       );
     }
     return Post(
       id: id!,
       title: title!,
       content: content!,
+      likes: likes!,
       user: user?.toEntity(),
     );
   }
@@ -501,10 +574,16 @@ class PostInsertDto implements InsertDto<Post> {
   const PostInsertDto({
     required this.title,
     required this.content,
+    this.likes = 0,
     this.userId,
   });
+
   final String title;
+
   final String content;
+
+  final int likes;
+
   final int? userId;
 
   @override
@@ -512,15 +591,21 @@ class PostInsertDto implements InsertDto<Post> {
     return {
       'title': title,
       'content': content,
+      'likes': likes,
       if (userId != null) 'user_id': userId,
     };
   }
 }
 
 class PostUpdateDto implements UpdateDto<Post> {
-  const PostUpdateDto({this.title, this.content, this.userId});
+  const PostUpdateDto({this.title, this.content, this.likes, this.userId});
+
   final String? title;
+
   final String? content;
+
+  final int? likes;
+
   final int? userId;
 
   @override
@@ -528,6 +613,7 @@ class PostUpdateDto implements UpdateDto<Post> {
     return {
       if (title != null) 'title': title,
       if (content != null) 'content': content,
+      if (likes != null) 'likes': likes,
       if (userId != null) 'user_id': userId,
     };
   }

@@ -1,182 +1,215 @@
 import 'package:postgres/postgres.dart';
 
-import '../migrations/schema.dart';
 import '../annotations/column.dart';
+import '../migrations/schema.dart';
 import 'engine_adapter.dart';
 
 class PostgresEngine implements EngineAdapter {
-  PostgresEngine._({
-    required this.host,
-    required this.port,
-    required this.database,
-    required this.username,
-    required this.password,
-    this.useSSL = false,
-  });
+  PostgresEngine._(this._open);
 
-  final String host;
-  final int port;
-  final String database;
-  final String username;
-  final String password;
-  final bool useSSL;
+  final Future<Connection> Function() _open;
+  Connection? _db;
 
-  Connection? _connection;
+  static PostgresEngine connect(
+    Endpoint endpoint, {
+    ConnectionSettings? settings,
+  }) =>
+      PostgresEngine._(() => Connection.open(endpoint, settings: settings));
 
-  /// Creates a PostgreSQL engine with connection parameters
-  static PostgresEngine create({
-    required String host,
-    required int port,
-    required String database,
-    required String username,
-    required String password,
-    bool useSSL = false,
-  }) {
-    return PostgresEngine._(
-      host: host,
-      port: port,
-      database: database,
-      username: username,
-      password: password,
-      useSSL: useSSL,
-    );
-  }
+  static PostgresEngine fromConnection(Connection connection) =>
+      PostgresEngine._(() async => connection);
 
   @override
   Future<void> open() async {
-    _connection = await Connection.open(
-      Endpoint(
-        host: host,
-        port: port,
-        database: database,
-        username: username,
-        password: password,
-      ),
-      settings: ConnectionSettings(
-        sslMode: useSSL ? SslMode.require : SslMode.disable,
-      ),
-    );
+    _db = await _open();
   }
 
   @override
   Future<void> close() async {
-    await _connection?.close();
-    _connection = null;
+    final db = _db;
+    if (db != null) {
+      await db.close();
+    }
+    _db = null;
   }
 
   @override
   Future<void> executeBatch(List<String> statements) async {
-    final conn = _ensureConnection();
+    final db = _ensureDb();
     for (final s in statements) {
-      await conn.execute(s);
+      final sql = _adaptSql(s);
+      await db.execute(sql);
     }
   }
 
   @override
   Future<int> execute(String sql, [List<Object?> params = const []]) async {
-    final conn = _ensureConnection();
-    final result = await conn.execute(Sql.indexed(sql), parameters: params);
+    final db = _ensureDb();
+    final adapted = _adaptSql(sql);
+    final prepared = params.isEmpty ? adapted : _convertPlaceholders(adapted);
+    final result = await db.execute(prepared, parameters: params);
     return result.affectedRows;
   }
 
   @override
-  Future<List<Map<String, dynamic>>> query(
-    String sql, [
-    List<Object?> params = const [],
-  ]) async {
-    final conn = _ensureConnection();
-    final result = await conn.execute(Sql.indexed(sql), parameters: params);
-
-    return result.map((row) => row.toColumnMap()).toList(growable: false);
+  Future<List<Map<String, dynamic>>> query(String sql, [List<Object?> params = const []]) async {
+    final db = _ensureDb();
+    final prepared = params.isEmpty ? sql : _convertPlaceholders(sql);
+    final result = await db.execute(prepared, parameters: params);
+    return result
+        .map((row) => row.toColumnMap().cast<String, dynamic>())
+        .toList(growable: false);
   }
 
   @override
   Future<SchemaState> readSchema() async {
-    final conn = _ensureConnection();
+    final db = _ensureDb();
     final tables = <String, SchemaTable>{};
 
-    // Query PostgreSQL information_schema to get all tables
-    final tableRows = await conn.execute(
-      Sql.indexed(
-        "SELECT table_name FROM information_schema.tables "
-        "WHERE table_schema = 'public' AND table_type = 'BASE TABLE'",
-      ),
+    final tableRows = await db.execute(
+      "SELECT table_schema, table_name FROM information_schema.tables "
+      "WHERE table_type = 'BASE TABLE' "
+      "AND table_schema NOT IN ('pg_catalog', 'information_schema')",
     );
 
     for (final row in tableRows) {
-      final name = row.toColumnMap()['table_name'] as String;
+      final rowMap = row.toColumnMap();
+      final schema = rowMap['table_schema'] as String;
+      final name = rowMap['table_name'] as String;
 
-      // Query column information for each table
-      final colRs = await conn.execute(
-        Sql.indexed(
-          "SELECT column_name, data_type, is_nullable, "
-          "(SELECT count(*) > 0 FROM information_schema.table_constraints tc "
-          "JOIN information_schema.key_column_usage kcu "
-          "ON tc.constraint_name = kcu.constraint_name "
-          "WHERE tc.table_name = c.table_name "
-          "AND tc.constraint_type = 'PRIMARY KEY' "
-          "AND kcu.column_name = c.column_name) as is_primary "
-          "FROM information_schema.columns c "
-          "WHERE table_name = \$1 AND table_schema = 'public' "
+      final columns = <String, SchemaColumn>{};
+      final columnRows = await db.execute(
+        Sql.named(
+          "SELECT column_name, is_nullable, data_type, udt_name "
+          "FROM information_schema.columns "
+          "WHERE table_schema = @schema AND table_name = @table "
           "ORDER BY ordinal_position",
         ),
-        parameters: [name],
+        parameters: {
+          'schema': schema,
+          'table': name,
+        },
       );
 
-      final cols = <String, SchemaColumn>{};
-      for (final c in colRs) {
-        final colMap = c.toColumnMap();
-        final cname = colMap['column_name'] as String;
-        final ctypeStr = (colMap['data_type'] as String?) ?? '';
-        final isNullable = (colMap['is_nullable'] as String?) == 'YES';
-        final isPk = colMap['is_primary'] == true;
+      final pkRows = await db.execute(
+        Sql.named(
+          "SELECT kcu.column_name "
+          "FROM information_schema.table_constraints tc "
+          "JOIN information_schema.key_column_usage kcu "
+          "  ON tc.constraint_name = kcu.constraint_name "
+          " AND tc.table_schema = kcu.table_schema "
+          "WHERE tc.constraint_type = 'PRIMARY KEY' "
+          "  AND tc.table_schema = @schema "
+          "  AND tc.table_name = @table",
+        ),
+        parameters: {
+          'schema': schema,
+          'table': name,
+        },
+      );
 
-        cols[cname] = SchemaColumn(
+      final pkColumns = pkRows.map((r) => r.toColumnMap()['column_name'] as String).toSet();
+
+      for (final c in columnRows) {
+        final cMap = c.toColumnMap();
+        final cname = cMap['column_name'] as String;
+        final nullable = (cMap['is_nullable'] as String?) == 'YES';
+        final dataType = cMap['data_type'] as String?;
+        final udtName = cMap['udt_name'] as String?;
+        columns[cname] = SchemaColumn(
           name: cname,
-          type: _mapType(ctypeStr),
-          nullable: isNullable,
-          isPrimaryKey: isPk,
+          type: _mapType(dataType, udtName),
+          nullable: nullable,
+          isPrimaryKey: pkColumns.contains(cname),
         );
       }
-      tables[name] = SchemaTable(name: name, columns: cols);
+
+      tables[name] = SchemaTable(name: name, columns: columns);
     }
+
     return SchemaState(tables: tables);
   }
 
-  ColumnType _mapType(String t) {
-    final up = t.toUpperCase();
-    // PostgreSQL type mappings
-    if (up.contains('INT') ||
-        up == 'SERIAL' ||
-        up == 'BIGSERIAL' ||
-        up == 'SMALLSERIAL') {
-      return ColumnType.integer;
+  String _adaptSql(String sql) {
+    var adapted = sql;
+    adapted = adapted.replaceAll(
+      RegExp(r'PRIMARY\\s+KEY\\s+AUTOINCREMENT', caseSensitive: false),
+      'GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY',
+    );
+    adapted = adapted.replaceAll(
+      RegExp(r'\\bAUTOINCREMENT\\b', caseSensitive: false),
+      'GENERATED BY DEFAULT AS IDENTITY',
+    );
+    adapted = adapted.replaceAll(
+      RegExp(r'\\bBLOB\\b', caseSensitive: false),
+      'BYTEA',
+    );
+    adapted = adapted.replaceAll(
+      RegExp(r'\\bDOUBLE\\b', caseSensitive: false),
+      'DOUBLE PRECISION',
+    );
+    return adapted;
+  }
+
+  String _convertPlaceholders(String sql) {
+    var index = 0;
+    var inSingle = false;
+    var inDouble = false;
+    final out = StringBuffer();
+    for (var i = 0; i < sql.length; i++) {
+      final ch = sql[i];
+      if (ch == "'" && !inDouble) {
+        if (inSingle && i + 1 < sql.length && sql[i + 1] == "'") {
+          out.write("''");
+          i++;
+          continue;
+        }
+        inSingle = !inSingle;
+        out.write(ch);
+        continue;
+      }
+      if (ch == '"' && !inSingle) {
+        if (inDouble && i + 1 < sql.length && sql[i + 1] == '"') {
+          out.write('""');
+          i++;
+          continue;
+        }
+        inDouble = !inDouble;
+        out.write(ch);
+        continue;
+      }
+      if (ch == '?' && !inSingle && !inDouble) {
+        index += 1;
+        out.write('\$${index}');
+        continue;
+      }
+      out.write(ch);
     }
-    if (up.contains('CHAR') || up.contains('TEXT') || up == 'VARCHAR') {
-      return ColumnType.text;
-    }
-    if (up == 'BYTEA') return ColumnType.binary;
-    if (up.contains('REAL') ||
-        up.contains('FLOAT') ||
-        up.contains('DOUBLE') ||
-        up == 'NUMERIC' ||
-        up == 'DECIMAL') {
+    return out.toString();
+  }
+
+  ColumnType _mapType(String? dataType, String? udtName) {
+    final type = (dataType ?? '').toUpperCase();
+    final udt = (udtName ?? '').toUpperCase();
+    if (type.contains('INT') || udt.contains('INT')) return ColumnType.integer;
+    if (type.contains('CHAR') || type.contains('TEXT') || udt.contains('CHAR')) return ColumnType.text;
+    if (type.contains('BOOL')) return ColumnType.boolean;
+    if (type.contains('DOUBLE') || type.contains('REAL') || type.contains('NUMERIC')) {
       return ColumnType.doublePrecision;
     }
-    if (up == 'JSON' || up == 'JSONB') return ColumnType.json;
-    if (up == 'BOOLEAN' || up == 'BOOL') return ColumnType.boolean;
-    if (up.contains('TIME') || up.contains('DATE') || up == 'TIMESTAMP') {
+    if (type.contains('TIMESTAMP') || type.contains('DATE') || type.contains('TIME')) {
       return ColumnType.dateTime;
     }
-    // Fallback to text
+    if (type.contains('JSON')) return ColumnType.json;
+    if (type.contains('BYTEA')) return ColumnType.binary;
     return ColumnType.text;
   }
 
-  Connection _ensureConnection() {
-    final conn = _connection;
-    if (conn == null) {
+  Connection _ensureDb() {
+    final db = _db;
+    if (db == null) {
       throw StateError('PostgresEngine is not open');
     }
-    return conn;
+    return db;
   }
 }

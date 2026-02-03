@@ -1,21 +1,33 @@
 name: loxia
-description: A sample command-line application.
-version: 0.0.1-dev.1
-# repository: https://github.com/my_org/my_repo
+description: A lightweight Dart ORM for Relational Databases built to be simple and extensible.
+version: 0.0.1
+repository: https://github.com/avesbox/loxia
+documentation: https://loxia.avesbox.com
+homepage: https://loxia.avesbox.com
+funding:
+  - https://github.com/sponsors/francescovallone
+topics:
+  - orm
+  - sqlite
+  - postgres
+  - database
 
 environment:
   sdk: ^3.9.0
 
 # Add regular dependencies here.
 dependencies:
+  code_builder: ^4.11.1
+  dart_style: ^3.0.1
   path: ^1.9.0
   postgres: ^3.5.9
-  sqlite3: ^2.9.4
+  sqlite3: ^3.1.4
+  build_runner: ^2.10.3
+  source_gen: ^4.1.0
+  analyzer: ^10.0.0
+  build: ^4.0.2
+  glob: ^2.1.2
 
 dev_dependencies:
-  lints: ^6.0.0
+  lints: ^6.1.0
   test: ^1.25.6
-  build_runner: ^2.10.4
-  source_gen: ^4.1.1
-  analyzer: ^9.0.0
-  build: ^4.0.3
