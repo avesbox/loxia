@@ -1,0 +1,26 @@
+{
+  "name": "serinus-docs",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "docs:dev": "vitepress dev",
+    "docs:build": "vitepress build",
+    "docs:preview": "vitepress preview",
+    "build:azure": "vitepress build"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "baseline-browser-mapping": "^2.8.30",
+    "vitepress": "2.0.0-alpha.15"
+  },
+  "dependencies": {
+    "@avesbox/canary": "^0.1.0",
+    "@tailwindcss/vite": "^4.1.18",
+    "motion-v": "^1.7.4",
+    "tailwindcss": "^4.1.18",
+    "vitepress-plugin-llms": "^1.10.0"
+  }
+}

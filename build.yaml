@@ -1,0 +1,34 @@
+targets:
+  $default:
+    builders:
+      loxia|entity_descriptor_builder:
+        generate_for:
+          - lib/**.dart
+          - bin/**.dart
+          - test/**.dart
+          - example/**.dart
+        options:
+          enabled: true
+      loxia|schema_snapshot_builder:
+        options:
+          enabled: true
+          # include_globs controls which Dart files are scanned for @EntityMeta
+          include_globs: ["lib/**.dart", "example/**.dart"]
+          # exclude_globs removes files from scanning (e.g. generated files)
+          # exclude_globs: ["**/*.g.dart", "**/*.loxia.g.part"]
+
+builders:
+  entity_descriptor_builder:
+    import: "package:loxia/builder.dart"
+    builder_factories: ["entityDescriptorBuilder"]
+    build_extensions: { ".dart": [".loxia.g.part"] }
+    auto_apply: dependents
+    build_to: cache
+    applies_builders: ["source_gen|combining_builder"]
+
+  schema_snapshot_builder:
+    import: "package:loxia/builder.dart"
+    builder_factories: ["schemaSnapshotBuilder"]
+    build_extensions: { "pubspec.yaml": [".loxia/schema_v1.json"] }
+    auto_apply: root_package
+    build_to: source

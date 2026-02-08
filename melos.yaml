@@ -1,0 +1,11 @@
+name: loxia
+
+packages:
+  - .website
+  - packages/**
+  - examples/**
+
+scripts:
+  generate:
+    run: melos exec --depends-on=build_runner -- "dart run build_runner build -d"
+    description: Build all generated files for Dart packages in this project.

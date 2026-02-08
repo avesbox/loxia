@@ -1,0 +1,317 @@
+/// Builders for generating InsertDto and UpdateDto classes.
+library;
+
+import 'package:code_builder/code_builder.dart';
+
+import 'models.dart';
+
+/// Builds the InsertDto class for an entity.
+class InsertDtoBuilder {
+  const InsertDtoBuilder();
+
+  /// Builds the complete InsertDto class.
+  Class build(EntityGenerationContext context) {
+    final insertableColumns =
+        context.columns.where((c) => !c.autoIncrement && !c.isPk).toList();
+    final cascadeRelations =
+        context.relations.where((r) => r.cascadePersist).toList();
+
+    return Class((c) => c
+      ..name = context.insertDtoName
+      ..implements.add(TypeReference((t) => t
+        ..symbol = 'InsertDto'
+        ..types.add(refer(context.entityName))))
+      ..constructors
+          .add(_buildConstructor(context, insertableColumns, cascadeRelations))
+      ..fields.addAll(_buildColumnFields(insertableColumns))
+      ..fields.addAll(_buildJoinColumnFields(context))
+      ..fields.addAll(_buildCascadeFields(cascadeRelations))
+      ..methods.add(_buildToMapMethod(context, insertableColumns))
+      ..methods.add(_buildCascadesGetter(cascadeRelations))
+      ..methods.add(_buildCopyWithMethod(context, insertableColumns, cascadeRelations)));
+  }
+
+  Constructor _buildConstructor(
+      EntityGenerationContext context, List<GenColumn> columns, List<GenRelation> cascades) {
+    final params = <Parameter>[];
+
+    for (final c in columns) {
+      params.add(Parameter((p) => p
+        ..name = c.prop
+        ..named = true
+        ..toThis = true
+        ..required = !c.nullable && c.defaultLiteral == null
+        ..defaultTo = c.defaultLiteral != null ? Code(c.defaultLiteral!) : null));
+    }
+
+    for (final relation in context.owningJoinColumns) {
+      params.add(Parameter((p) => p
+        ..name = relation.joinColumnPropertyName!
+        ..named = true
+        ..toThis = true
+        ..required = !relation.joinColumnNullable));
+    }
+
+    for (final relation in cascades) {
+      params.add(Parameter((p) => p
+        ..name = relation.fieldName
+        ..named = true
+        ..toThis = true));
+    }
+
+    return Constructor((c) => c
+      ..constant = true
+      ..optionalParameters.addAll(params));
+  }
+
+  Iterable<Field> _buildColumnFields(List<GenColumn> columns) {
+    return columns.map((c) => Field((f) => f
+      ..name = c.prop
+      ..modifier = FieldModifier.final$
+      ..type = refer(c.dartTypeCode)));
+  }
+
+  Iterable<Field> _buildJoinColumnFields(EntityGenerationContext context) {
+    return context.owningJoinColumns.map((relation) {
+      final joinType = relation.joinColumnBaseDartType!;
+      final typeWithNull =
+          relation.joinColumnNullable ? '$joinType?' : joinType;
+      return Field((f) => f
+        ..name = relation.joinColumnPropertyName!
+        ..modifier = FieldModifier.final$
+        ..type = refer(typeWithNull));
+    });
+  }
+
+  Iterable<Field> _buildCascadeFields(List<GenRelation> relations) {
+    return relations.map((relation) {
+      final targetDto = '${relation.targetTypeCode}InsertDto';
+      final type = relation.isCollection
+          ? 'List<$targetDto>?'
+          : '$targetDto?';
+      return Field((f) => f
+        ..name = relation.fieldName
+        ..modifier = FieldModifier.final$
+        ..type = refer(type));
+    });
+  }
+
+  Method _buildToMapMethod(
+      EntityGenerationContext context, List<GenColumn> columns) {
+    final entries = <String>[];
+
+    for (final c in columns) {
+      entries.add("'${c.name}': ${c.prop}");
+    }
+
+    for (final relation in context.owningJoinColumns) {
+      final prop = relation.joinColumnPropertyName;
+      if (relation.joinColumnNullable) {
+        entries.add(
+            "if($prop != null) '${relation.joinColumn!.name}': $prop");
+      } else {
+        entries.add("'${relation.joinColumn!.name}': $prop");
+      }
+    }
+
+    return Method((m) => m
+      ..annotations.add(refer('override'))
+      ..name = 'toMap'
+      ..returns = refer('Map<String, dynamic>')
+      ..body = Code('return {${entries.join(', ')}};')
+      ..lambda = false);
+  }
+
+  Method _buildCascadesGetter(List<GenRelation> relations) {
+    final entries = <String>[];
+    for (final relation in relations) {
+      entries.add("if(${relation.fieldName} != null) '${relation.fieldName}': ${relation.fieldName}");
+    }
+    final body = entries.isEmpty ? 'return const {};'
+        : 'return {${entries.join(', ')}};';
+    return Method((m) => m
+      ..name = 'cascades'
+      ..type = MethodType.getter
+      ..returns = refer('Map<String, dynamic>')
+      ..body = Code(body));
+  }
+
+  Method _buildCopyWithMethod(
+    EntityGenerationContext context,
+    List<GenColumn> columns,
+    List<GenRelation> cascades,
+  ) {
+    final params = <Parameter>[];
+
+    for (final c in columns) {
+      final nullableType = c.nullable ? c.dartTypeCode : '${c.dartTypeCode}?';
+      params.add(Parameter((p) => p
+        ..name = c.prop
+        ..named = true
+        ..type = refer(nullableType)));
+    }
+
+    for (final relation in context.owningJoinColumns) {
+      final joinType = relation.joinColumnBaseDartType!;
+      final typeWithNull = relation.joinColumnNullable ? '$joinType?' : joinType;
+      params.add(Parameter((p) => p
+        ..name = relation.joinColumnPropertyName!
+        ..named = true
+        ..type = refer(typeWithNull)));
+    }
+
+    for (final relation in cascades) {
+      final targetDto = '${relation.targetTypeCode}InsertDto';
+      final type = relation.isCollection
+          ? 'List<$targetDto>?'
+          : '$targetDto?';
+      params.add(Parameter((p) => p
+        ..name = relation.fieldName
+        ..named = true
+        ..type = refer(type)));
+    }
+
+    final args = <String>[];
+    for (final c in columns) {
+      args.add('${c.prop}: ${c.prop} ?? this.${c.prop}');
+    }
+    for (final relation in context.owningJoinColumns) {
+      final prop = relation.joinColumnPropertyName!;
+      args.add('$prop: $prop ?? this.$prop');
+    }
+    for (final relation in cascades) {
+      final prop = relation.fieldName;
+      args.add('$prop: $prop ?? this.$prop');
+    }
+
+    return Method((m) => m
+      ..name = 'copyWith'
+      ..returns = refer(context.insertDtoName)
+      ..optionalParameters.addAll(params)
+      ..body = Code('return ${context.insertDtoName}(${args.join(', ')});'));
+  }
+}
+
+/// Builds the UpdateDto class for an entity.
+class UpdateDtoBuilder {
+  const UpdateDtoBuilder();
+
+  /// Builds the complete UpdateDto class.
+  Class build(EntityGenerationContext context) {
+    final updateableColumns =
+        context.columns.where((c) => !c.autoIncrement && !c.isPk).toList();
+    final cascadeRelations =
+        context.relations.where((r) => r.cascadeMerge).toList();
+
+    return Class((c) => c
+      ..name = context.updateDtoName
+      ..implements.add(TypeReference((t) => t
+        ..symbol = 'UpdateDto'
+        ..types.add(refer(context.entityName))))
+      ..constructors.add(_buildConstructor(context, updateableColumns, cascadeRelations))
+      ..fields.addAll(_buildColumnFields(updateableColumns))
+      ..fields.addAll(_buildJoinColumnFields(context))
+      ..fields.addAll(_buildCascadeFields(cascadeRelations))
+      ..methods.add(_buildToMapMethod(context, updateableColumns))
+      ..methods.add(_buildCascadesGetter(cascadeRelations)));
+  }
+
+  Constructor _buildConstructor(
+      EntityGenerationContext context, List<GenColumn> columns, List<GenRelation> cascades) {
+    final params = <Parameter>[];
+
+    for (final c in columns) {
+      params.add(Parameter((p) => p
+        ..name = c.prop
+        ..named = true
+        ..toThis = true));
+    }
+
+    for (final relation in context.owningJoinColumns) {
+      params.add(Parameter((p) => p
+        ..name = relation.joinColumnPropertyName!
+        ..named = true
+        ..toThis = true));
+    }
+
+    for (final relation in cascades) {
+      params.add(Parameter((p) => p
+        ..name = relation.fieldName
+        ..named = true
+        ..toThis = true));
+    }
+
+    return Constructor((c) => c
+      ..constant = true
+      ..optionalParameters.addAll(params));
+  }
+
+  Iterable<Field> _buildColumnFields(List<GenColumn> columns) {
+    return columns.map((c) {
+      // For update DTO, all fields are optional (nullable)
+      final type = c.nullable ? c.dartTypeCode : '${c.dartTypeCode}?';
+      return Field((f) => f
+        ..name = c.prop
+        ..modifier = FieldModifier.final$
+        ..type = refer(type));
+    });
+  }
+
+  Iterable<Field> _buildJoinColumnFields(EntityGenerationContext context) {
+    return context.owningJoinColumns.map((relation) {
+      final joinType = relation.joinColumnBaseDartType!;
+      return Field((f) => f
+        ..name = relation.joinColumnPropertyName!
+        ..modifier = FieldModifier.final$
+        ..type = refer('$joinType?'));
+    });
+  }
+
+  Iterable<Field> _buildCascadeFields(List<GenRelation> relations) {
+    return relations.map((relation) {
+      final targetDto = '${relation.targetTypeCode}UpdateDto';
+      final type = relation.isCollection
+          ? 'List<$targetDto>?'
+          : '$targetDto?';
+      return Field((f) => f
+        ..name = relation.fieldName
+        ..modifier = FieldModifier.final$
+        ..type = refer(type));
+    });
+  }
+
+  Method _buildToMapMethod(
+      EntityGenerationContext context, List<GenColumn> columns) {
+    final entries = <String>[];
+
+    for (final c in columns) {
+      entries.add("if(${c.prop} != null) '${c.name}': ${c.prop}");
+    }
+
+    for (final relation in context.owningJoinColumns) {
+      entries.add(
+          "if(${relation.joinColumnPropertyName} != null) '${relation.joinColumn!.name}': ${relation.joinColumnPropertyName}");
+    }
+
+    return Method((m) => m
+      ..annotations.add(refer('override'))
+      ..name = 'toMap'
+      ..returns = refer('Map<String, dynamic>')
+      ..body = Code('return {${entries.join(', ')}};')
+      ..lambda = false);
+  }
+
+  Method _buildCascadesGetter(List<GenRelation> relations) {
+    final entries = <String>[];
+    for (final relation in relations) {
+      entries.add("if(${relation.fieldName} != null) '${relation.fieldName}': ${relation.fieldName}");
+    }
+    final body = entries.isEmpty ? 'return const {};'
+        : 'return {${entries.join(', ')}};';
+    return Method((m) => m
+      ..name = 'cascades'
+      ..type = MethodType.getter
+      ..returns = refer('Map<String, dynamic>')
+      ..body = Code(body));
+  }
+}
