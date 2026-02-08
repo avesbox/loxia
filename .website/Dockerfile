@@ -1,5 +1,7 @@
 FROM node:20-alpine AS build
 
+ARG GITHUB_TOKEN
+
 WORKDIR /app
 
 
@@ -8,6 +10,8 @@ COPY package.json .
 RUN npm install
 
 COPY . .
+
+ENV GITHUB_TOKEN=${GITHUB_TOKEN}
 
 RUN npm run docs:build
 
