@@ -1,8 +1,50 @@
 import 'package:postgres/postgres.dart';
 
 import '../annotations/column.dart';
+import '../metadata/entity_descriptor.dart';
+import '../migrations/migration.dart';
 import '../migrations/schema.dart';
+import 'datasource.dart';
 import 'engine_adapter.dart';
+
+
+final class PostgresDataSourceOptions extends DataSourceOptions {
+
+  /// Creates options for a PostgreSQL DataSource.
+  PostgresDataSourceOptions._({
+    required super.engine,
+    required super.entities,
+    super.migrations,
+  });
+
+  factory PostgresDataSourceOptions.connect({
+    required String host,
+    required int port,
+    required String database,
+    required String username,
+    required String password,
+    required List<EntityDescriptor> entities,
+    ConnectionSettings? settings,
+    List<Migration> migrations = const [],
+  }) {
+    final engine = PostgresEngine.connect(
+      Endpoint(
+        host: host,
+        port: port,
+        database: database,
+        username: username,
+        password: password,
+      ),
+      settings: settings
+    );
+    return PostgresDataSourceOptions._(
+      engine: engine,
+      entities: entities,
+      migrations: migrations,
+    );
+  }
+
+}
 
 class PostgresEngine implements EngineAdapter {
   PostgresEngine._(this._open);
@@ -19,51 +61,7 @@ class PostgresEngine implements EngineAdapter {
   static PostgresEngine fromConnection(Connection connection) =>
       PostgresEngine._(() async => connection);
 
-  @override
-  Future<void> open() async {
-    _db = await _open();
-  }
-
-  @override
-  Future<void> close() async {
-    final db = _db;
-    if (db != null) {
-      await db.close();
-    }
-    _db = null;
-  }
-
-  @override
-  Future<void> executeBatch(List<String> statements) async {
-    final db = _ensureDb();
-    for (final s in statements) {
-      final sql = _adaptSql(s);
-      await db.execute(sql);
-    }
-  }
-
-  @override
-  Future<int> execute(String sql, [List<Object?> params = const []]) async {
-    final db = _ensureDb();
-    final adapted = _adaptSql(sql);
-    final prepared = params.isEmpty ? adapted : _convertPlaceholders(adapted);
-    final result = await db.execute(prepared, parameters: params);
-    return result.affectedRows;
-  }
-
-  @override
-  Future<List<Map<String, dynamic>>> query(String sql, [List<Object?> params = const []]) async {
-    final db = _ensureDb();
-    final prepared = params.isEmpty ? sql : _convertPlaceholders(sql);
-    final result = await db.execute(prepared, parameters: params);
-    return result
-        .map((row) => row.toColumnMap().cast<String, dynamic>())
-        .toList(growable: false);
-  }
-
-  @override
-  Future<SchemaState> readSchema() async {
-    final db = _ensureDb();
+  static Future<SchemaState> _readSchemaWithSession(Session db) async {
     final tables = <String, SchemaTable>{};
 
     final tableRows = await db.execute(
@@ -130,7 +128,86 @@ class PostgresEngine implements EngineAdapter {
     return SchemaState(tables: tables);
   }
 
-  String _adaptSql(String sql) {
+  @override
+  Future<void> open() async {
+    _db = await _open();
+  }
+
+  @override
+  Future<void> close() async {
+    final db = _db;
+    if (db != null) {
+      await db.close();
+    }
+    _db = null;
+  }
+
+  @override
+  Future<void> executeBatch(List<String> statements) async {
+    final db = _ensureDb();
+    for (final s in statements) {
+      final sql = _adaptSql(s);
+      await db.execute(sql);
+    }
+  }
+
+  @override
+  Future<int> execute(String sql, [List<Object?> params = const []]) async {
+    final db = _ensureDb();
+    final adapted = _adaptSql(sql);
+    final prepared = params.isEmpty ? adapted : _convertPlaceholders(adapted);
+    final result = await db.execute(prepared, parameters: params);
+    return result.affectedRows;
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> query(String sql, [List<Object?> params = const []]) async {
+    final db = _ensureDb();
+    final prepared = params.isEmpty ? sql : _convertPlaceholders(sql);
+    final result = await db.execute(prepared, parameters: params);
+    return result
+        .map((row) => row.toColumnMap().cast<String, dynamic>())
+        .toList(growable: false);
+  }
+
+  @override
+  Future<SchemaState> readSchema() async {
+    return _readSchemaWithSession(_ensureDb());
+  }
+
+  @override
+  Future<T> transaction<T>(Future<T> Function(EngineAdapter txEngine) action) async {
+    final db = _ensureDb();
+    return db.runTx((session) async {
+      final txEngine = _PostgresSessionEngine(session);
+      return action(txEngine);
+    });
+  }
+
+  @override
+  Future<void> ensureHistoryTable() async {
+    final db = _ensureDb();
+    await db.execute(
+      'CREATE TABLE IF NOT EXISTS _loxia_migrations (\n'
+      '  version INTEGER PRIMARY KEY,\n'
+      '  applied_at TIMESTAMP,\n'
+      '  description TEXT\n'
+      ')',
+    );
+  }
+
+  @override
+  Future<List<int>> getAppliedVersions() async {
+    final db = _ensureDb();
+    final result = await db.execute(
+      'SELECT version FROM _loxia_migrations ORDER BY version',
+    );
+    return result
+        .map((row) => row.toColumnMap()['version'] as int)
+        .toList(growable: false);
+  }
+
+  static String _adaptSql(String sql) {
     var adapted = sql;
     adapted = adapted.replaceAll(
       RegExp(r'PRIMARY\\s+KEY\\s+AUTOINCREMENT', caseSensitive: false),
@@ -151,7 +228,7 @@ class PostgresEngine implements EngineAdapter {
     return adapted;
   }
 
-  String _convertPlaceholders(String sql) {
+  static String _convertPlaceholders(String sql) {
     var index = 0;
     var inSingle = false;
     var inDouble = false;
@@ -180,7 +257,7 @@ class PostgresEngine implements EngineAdapter {
       }
       if (ch == '?' && !inSingle && !inDouble) {
         index += 1;
-        out.write('\$${index}');
+        out.write('\$$index');
         continue;
       }
       out.write(ch);
@@ -188,7 +265,7 @@ class PostgresEngine implements EngineAdapter {
     return out.toString();
   }
 
-  ColumnType _mapType(String? dataType, String? udtName) {
+  static ColumnType _mapType(String? dataType, String? udtName) {
     final type = (dataType ?? '').toUpperCase();
     final udt = (udtName ?? '').toUpperCase();
     if (type.contains('INT') || udt.contains('INT')) return ColumnType.integer;
@@ -211,5 +288,77 @@ class PostgresEngine implements EngineAdapter {
       throw StateError('PostgresEngine is not open');
     }
     return db;
+  }
+}
+
+class _PostgresSessionEngine implements EngineAdapter {
+  _PostgresSessionEngine(this._session);
+
+  final Session _session;
+
+  @override
+  Future<void> open() async {
+    // No-op: session is already active.
+  }
+
+  @override
+  Future<void> close() async {
+    // No-op: session lifecycle is managed by the parent transaction.
+  }
+
+  @override
+  Future<void> executeBatch(List<String> statements) async {
+    for (final s in statements) {
+      final sql = PostgresEngine._adaptSql(s);
+      await _session.execute(sql);
+    }
+  }
+
+  @override
+  Future<int> execute(String sql, [List<Object?> params = const []]) async {
+    final adapted = PostgresEngine._adaptSql(sql);
+    final prepared = params.isEmpty ? adapted : PostgresEngine._convertPlaceholders(adapted);
+    final result = await _session.execute(prepared, parameters: params);
+    return result.affectedRows;
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> query(String sql, [List<Object?> params = const []]) async {
+    final prepared = params.isEmpty ? sql : PostgresEngine._convertPlaceholders(sql);
+    final result = await _session.execute(prepared, parameters: params);
+    return result
+        .map((row) => row.toColumnMap().cast<String, dynamic>())
+        .toList(growable: false);
+  }
+
+  @override
+  Future<SchemaState> readSchema() async {
+    return PostgresEngine._readSchemaWithSession(_session);
+  }
+
+  @override
+  Future<T> transaction<T>(Future<T> Function(EngineAdapter txEngine) action) async {
+    return action(this);
+  }
+
+  @override
+  Future<void> ensureHistoryTable() async {
+    await _session.execute(
+      'CREATE TABLE IF NOT EXISTS _loxia_migrations (\n'
+      '  version INTEGER PRIMARY KEY,\n'
+      '  applied_at TIMESTAMP,\n'
+      '  description TEXT\n'
+      ')',
+    );
+  }
+
+  @override
+  Future<List<int>> getAppliedVersions() async {
+    final result = await _session.execute(
+      'SELECT version FROM _loxia_migrations ORDER BY version',
+    );
+    return result
+        .map((row) => row.toColumnMap()['version'] as int)
+        .toList(growable: false);
   }
 }

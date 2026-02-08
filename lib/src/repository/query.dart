@@ -93,6 +93,31 @@ abstract class QueryFieldsContext<E> {
 		return alias;
 	}
 
+	/// Ensures a join from a specific alias (e.g., a join table) to a target table.
+	/// Used for ManyToMany relations where we need to join through an intermediate table.
+	String ensureRelationJoinFrom({
+		required String fromAlias,
+		required String relationName,
+		required String targetTableName,
+		required String localColumn,
+		required String foreignColumn,
+		JoinType joinType = JoinType.left,
+	}) {
+		final runtime = runtimeOrThrow;
+		final alias = _composeRelationAlias(currentAlias, relationName);
+		runtime.ensureJoin(
+			RelationJoinSpec(
+				alias: alias,
+				tableName: targetTableName,
+				localAlias: fromAlias,
+				localColumn: localColumn,
+				foreignColumn: foreignColumn,
+				joinType: joinType,
+			),
+		);
+		return alias;
+	}
+
 	String _composeRelationAlias(String parentAlias, String relationName) =>
 		'${parentAlias}_$relationName';
 }

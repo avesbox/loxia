@@ -22,6 +22,7 @@ class FieldsContextBuilder {
       ..methods.addAll(_buildColumnGetters(context))
       ..methods.addAll(_buildJoinColumnGetters(context))
       ..methods.addAll(_buildOwningRelationGetters(context))
+      ..methods.addAll(_buildManyToManyRelationGetters(context))
       ..methods.addAll(_buildInverseRelationGetters(context)));
   }
 
@@ -31,12 +32,13 @@ class FieldsContextBuilder {
       ..optionalParameters.addAll([
         Parameter((p) => p
           ..name = 'runtime'
-          ..type = refer('QueryRuntimeContext?')),
+          ..toSuper = true
+        ),
         Parameter((p) => p
           ..name = 'alias'
-          ..type = refer('String?')),
-      ])
-      ..initializers.add(Code('super(runtime, alias)')));
+          ..toSuper = true
+        )
+      ]));
   }
 
   Method _buildBindMethod(EntityGenerationContext context) {
@@ -106,6 +108,53 @@ class FieldsContextBuilder {
                 'localColumn': literalString(relation.joinColumn!.name),
                 'foreignColumn':
                     literalString(relation.joinColumn!.referencedColumnName),
+                'joinType': refer('JoinType.left'),
+              }))
+              .statement,
+          refer(targetContext)
+              .newInstance([refer('runtimeOrThrow'), refer('alias')])
+              .returned
+              .statement,
+        ]));
+    });
+  }
+
+  Iterable<Method> _buildManyToManyRelationGetters(
+      EntityGenerationContext context) {
+    return context.manyToManyRelations.map((relation) {
+      final targetSimple = simpleTypeName(relation.targetTypeCode);
+      final targetContext = '${targetSimple}FieldsContext';
+      final descriptorRef = '\$${targetSimple}EntityDescriptor';
+      final joinTable = relation.joinTable!;
+      final joinColumn = joinTable.joinColumns.first;
+      final inverseJoinColumn = joinTable.inverseJoinColumns.first;
+
+      return Method((m) => m
+        ..type = MethodType.getter
+        ..name = relation.fieldName
+        ..returns = refer(targetContext)
+        ..docs.add('/// Join through the ${joinTable.name} join table')
+        ..body = Block.of([
+          // First join: owner table -> join table
+          declareFinal('joinTableAlias')
+              .assign(refer('ensureRelationJoin').call([], {
+                'relationName': literalString('${relation.fieldName}_jt'),
+                'targetTableName': literalString(joinTable.name),
+                'localColumn': literalString(joinColumn.referencedColumnName),
+                'foreignColumn': literalString(joinColumn.name),
+                'joinType': refer('JoinType.left'),
+              }))
+              .statement,
+          // Second join: join table -> target table
+          declareFinal('alias')
+              .assign(refer('ensureRelationJoinFrom').call([], {
+                'fromAlias': refer('joinTableAlias'),
+                'relationName': literalString(relation.fieldName),
+                'targetTableName':
+                    refer(descriptorRef).property('qualifiedTableName'),
+                'localColumn': literalString(inverseJoinColumn.name),
+                'foreignColumn':
+                    literalString(inverseJoinColumn.referencedColumnName),
                 'joinType': refer('JoinType.left'),
               }))
               .statement,

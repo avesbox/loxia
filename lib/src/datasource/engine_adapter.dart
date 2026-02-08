@@ -16,4 +16,19 @@ abstract class EngineAdapter {
 
   /// Executes a command (INSERT/UPDATE/DELETE) and returns affected rows.
   Future<int> execute(String sql, [List<Object?> params = const []]);
+
+  /// Executes the provided action within a transactional context.
+  Future<T> transaction<T>(Future<T> Function(EngineAdapter txEngine) action);
+
+  /// Ensures the migration history table exists.
+  ///
+  /// Table: _loxia_migrations
+  /// Columns:
+  /// - version INTEGER PRIMARY KEY
+  /// - applied_at TIMESTAMP
+  /// - description TEXT NULL
+  Future<void> ensureHistoryTable();
+
+  /// Returns applied migration versions, sorted ascending.
+  Future<List<int>> getAppliedVersions();
 }

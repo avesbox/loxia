@@ -28,6 +28,9 @@ class RelationDescriptorBuilder {
 
     namedArgs['fetch'] = CodeExpression(Code(relation.fetchLiteral));
     namedArgs['cascade'] = CodeExpression(Code(relation.cascadeLiteral));
+    namedArgs['cascadePersist'] = literalBool(relation.cascadePersist);
+    namedArgs['cascadeMerge'] = literalBool(relation.cascadeMerge);
+    namedArgs['cascadeRemove'] = literalBool(relation.cascadeRemove);
 
     if (relation.joinColumn != null) {
       namedArgs['joinColumn'] = _joinColumnBuilder.build(relation.joinColumn!);

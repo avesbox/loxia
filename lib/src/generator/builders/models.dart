@@ -74,6 +74,9 @@ class GenRelation {
     required this.mappedBy,
     required this.fetchLiteral,
     required this.cascadeLiteral,
+    required this.cascadePersist,
+    required this.cascadeMerge,
+    required this.cascadeRemove,
     this.joinColumn,
     this.joinTable,
     this.constructorLiteral,
@@ -91,6 +94,9 @@ class GenRelation {
   final String? mappedBy;
   final String fetchLiteral;
   final String cascadeLiteral;
+  final bool cascadePersist;
+  final bool cascadeMerge;
+  final bool cascadeRemove;
   final GenJoinColumn? joinColumn;
   final GenJoinTable? joinTable;
   final String? constructorLiteral;
@@ -122,13 +128,21 @@ class EntityGenerationContext {
     this.schema,
     required this.columns,
     required this.relations,
-  });
+    Map<String, List<String>>? hooks,
+    List<GenTimestampField>? createdAtFields,
+    List<GenTimestampField>? updatedAtFields,
+  })  : hooks = hooks ?? const {},
+        createdAtFields = createdAtFields ?? const [],
+        updatedAtFields = updatedAtFields ?? const [];
 
   final String className;
   final String tableName;
   final String? schema;
   final List<GenColumn> columns;
   final List<GenRelation> relations;
+  final Map<String, List<String>> hooks;
+  final List<GenTimestampField> createdAtFields;
+  final List<GenTimestampField> updatedAtFields;
 
   /// Entity class name.
   String get entityName => className;
@@ -157,17 +171,21 @@ class EntityGenerationContext {
   /// Entity descriptor variable name.
   String get descriptorVarName => '\$${className}EntityDescriptor';
 
-  /// Relations with owning join columns.
+  /// Relations with owning join columns (ManyToOne, OneToOne owning).
   List<GenRelation> get owningJoinColumns =>
       relations.where((r) => r.joinColumn != null && r.isOwningSide).toList();
+
+  /// ManyToMany relations (owning side with join table).
+  List<GenRelation> get manyToManyRelations =>
+      relations.where((r) => r.type == RelationKind.manyToMany && r.isOwningSide).toList();
 
   /// Inverse relations (not owning side with mappedBy).
   List<GenRelation> get inverseRelations =>
       relations.where((r) => !r.isOwningSide && r.mappedBy != null).toList();
 
-  /// All selectable relations (both owning and inverse).
+  /// All selectable relations (owning, manyToMany, and inverse).
   List<GenRelation> get allSelectableRelations =>
-      [...owningJoinColumns, ...inverseRelations];
+      [...owningJoinColumns, ...manyToManyRelations, ...inverseRelations];
 
   /// Primary key column.
   GenColumn get primaryKeyColumn =>
@@ -175,4 +193,12 @@ class EntityGenerationContext {
 
   /// Whether the entity has collection relations.
   bool get hasCollectionRelations => inverseRelations.any((r) => r.isCollection);
+}
+
+/// Represents a timestamp field to be managed by lifecycle hooks.
+class GenTimestampField {
+  GenTimestampField({required this.fieldName, required this.valueExpression});
+
+  final String fieldName;
+  final String valueExpression;
 }

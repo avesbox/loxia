@@ -13,6 +13,16 @@ typedef EntityToRow<T extends Entity> = Map<String, dynamic> Function(T entity);
 
 /// Runtime description of an entity, referenced by repositories and builders.
 class EntityDescriptor<T extends Entity, P extends PartialEntity<T>> {
+	static final Map<Type, EntityDescriptor> _registry = {};
+
+	static void registerAll(Iterable<EntityDescriptor> descriptors) {
+		_registry
+			..clear()
+			..addEntries(descriptors.map((d) => MapEntry(d.entityType, d)));
+	}
+
+	static EntityDescriptor? lookup(Type type) => _registry[type];
+
 	EntityDescriptor({
 		required this.entityType,
 		required this.tableName,
@@ -24,6 +34,7 @@ class EntityDescriptor<T extends Entity, P extends PartialEntity<T>> {
 		required this.toRow,
     required this.fieldsContext,
     required this.repositoryFactory,
+		this.hooks,
 	})  : columns = List.unmodifiable(columns),
 				relations = List.unmodifiable(relations),
 				indexes = List.unmodifiable(indexes);
@@ -38,6 +49,7 @@ class EntityDescriptor<T extends Entity, P extends PartialEntity<T>> {
 	final EntityToRow<T> toRow;
   final QueryFieldsContext<T> fieldsContext;
   final EntityRepository<T, P> Function(EngineAdapter engine) repositoryFactory;
+	final EntityHooks<T>? hooks;
 
 	ColumnDescriptor? get primaryKey {
 		for (final column in columns) {
@@ -53,4 +65,25 @@ class EntityDescriptor<T extends Entity, P extends PartialEntity<T>> {
 	Map<String, dynamic> toMap(T entity) => toRow(entity);
 
 	T fromMap(Map<String, dynamic> row) => fromRow(row);
+}
+
+/// Optional lifecycle hooks for an entity.
+class EntityHooks<T> {
+	const EntityHooks({
+		this.prePersist,
+		this.postPersist,
+		this.preUpdate,
+		this.postUpdate,
+		this.preRemove,
+		this.postRemove,
+		this.postLoad,
+	});
+
+	final void Function(T entity)? prePersist;
+	final void Function(T entity)? postPersist;
+	final void Function(T entity)? preUpdate;
+	final void Function(T entity)? postUpdate;
+	final void Function(T entity)? preRemove;
+	final void Function(T entity)? postRemove;
+	final void Function(T entity)? postLoad;
 }

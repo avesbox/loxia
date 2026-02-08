@@ -40,7 +40,7 @@ class SelectOptionsBuilder {
         ..name = c.prop
         ..named = true
         ..toThis = true
-        ..defaultTo = literalFalse.code));
+        ..defaultTo = literalTrue.code));
     }
 
     for (final relation in context.owningJoinColumns) {
@@ -50,7 +50,7 @@ class SelectOptionsBuilder {
           ..name = joinProp
           ..named = true
           ..toThis = true
-          ..defaultTo = literalFalse.code));
+          ..defaultTo = literalTrue.code));
       }
     }
 
@@ -201,8 +201,12 @@ if (${relation.fieldName}Select != null && ${relation.fieldName}Select.hasSelect
     // Build return statement
     final returnParts = <String>[];
     for (final c in context.columns) {
-      final castType = c.dartTypeCode + (c.nullable ? '?' : '');
-      returnParts.add("${c.prop}: ${c.prop} ? readValue(row, '${c.name}', path: path) as $castType? : null");
+      var baseType = c.dartTypeCode;
+      if (baseType.endsWith('?')) {
+        baseType = baseType.substring(0, baseType.length - 1);
+      }
+      final castType = c.nullable ? '$baseType?' : baseType;
+      returnParts.add("${c.prop}: ${c.prop} ? readValue(row, '${c.name}', path: path) as $castType : null");
     }
     for (final relation in context.owningJoinColumns) {
       final joinProp = relation.joinColumnPropertyName;

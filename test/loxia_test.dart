@@ -135,11 +135,23 @@ class _FakeEntity extends Entity {}
 
 class _PartialFakeEntity extends PartialEntity<_FakeEntity> {
   @override
+  Object? get primaryKeyValue => null;
+
+  @override
   _FakeEntity toEntity() {
     // TODO: implement toEntity
     throw UnimplementedError();
   }
-  
+
+  @override
+  InsertDto<_FakeEntity> toInsertDto() {
+    throw UnimplementedError();
+  }
+
+  @override
+  UpdateDto<_FakeEntity> toUpdateDto() {
+    throw UnimplementedError();
+  }
 }
 
 class _FakeSelect extends SelectOptions<_FakeEntity, _PartialFakeEntity> {

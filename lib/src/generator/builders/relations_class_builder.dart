@@ -71,6 +71,7 @@ class RelationsClassBuilder {
     if (relations.isEmpty) {
       return Method((m) => m
         ..name = 'collect'
+        ..returns = refer('void')
         ..requiredParameters.addAll([
           Parameter((p) => p
             ..name = 'context'
@@ -102,6 +103,7 @@ if (${relationName}Select != null && ${relationName}Select.hasSelections) {
 
     return Method((m) => m
       ..name = 'collect'
+      ..returns = refer('void')
       ..requiredParameters.addAll([
         Parameter((p) => p
           ..name = 'context'

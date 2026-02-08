@@ -74,22 +74,17 @@ class SchemaSnapshotBuilder implements Builder {
       buildStep.inputId.package,
       '$snapshotDirName/$snapshotFileName',
     );
-    print('snapshot: $snapshotAsset');
     final previous = await _readSnapshot(buildStep, snapshotAsset);
-    print(previous);
     if (previous == null) {
       await _writeSnapshot(buildStep, snapshotAsset, snapshot);
       return;
     }
-    print(_equals(previous, snapshot));
     if (_equals(previous, snapshot)) {
       return;
     }
 
     if (emitMigrations) {
       final diff = _diff(previous, snapshot);
-      print(diff.down);
-      print(diff.up);
       if (diff.up.isNotEmpty || diff.down.isNotEmpty) {
         final migrationId = _buildMigrationId();
         await _writeMigrations(buildStep, migrationId, diff.up, diff.down);

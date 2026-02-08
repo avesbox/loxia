@@ -40,7 +40,10 @@ final EntityDescriptor<User, UserPartial> $UserEntityDescriptor =
           isOwningSide: false,
           mappedBy: 'user',
           fetch: RelationFetchStrategy.lazy,
-          cascade: const [],
+          cascade: const [RelationCascade.persist],
+          cascadePersist: true,
+          cascadeMerge: false,
+          cascadeRemove: false,
         ),
       ],
       fromRow: (row) => User(
@@ -50,16 +53,11 @@ final EntityDescriptor<User, UserPartial> $UserEntityDescriptor =
       ),
       toRow: (e) => {'id': e.id, 'email': e.email},
       fieldsContext: const UserFieldsContext(),
-      repositoryFactory: (engine) => EntityRepository<User, UserPartial>(
-        $UserEntityDescriptor,
-        engine,
-        $UserEntityDescriptor.fieldsContext,
-      ),
+      repositoryFactory: (EngineAdapter engine) => UserRepository(engine),
     );
 
 class UserFieldsContext extends QueryFieldsContext<User> {
-  const UserFieldsContext([QueryRuntimeContext? runtime, String? alias])
-    : super(runtime, alias);
+  const UserFieldsContext([super.runtime, super.alias]);
 
   @override
   UserFieldsContext bind(QueryRuntimeContext runtime, String alias) =>
@@ -101,7 +99,7 @@ class UserQuery extends QueryBuilder<User> {
 }
 
 class UserSelect extends SelectOptions<User, UserPartial> {
-  const UserSelect({this.id = false, this.email = false, this.relations});
+  const UserSelect({this.id = true, this.email = true, this.relations});
 
   final bool id;
 
@@ -147,8 +145,8 @@ class UserSelect extends SelectOptions<User, UserPartial> {
   UserPartial hydrate(Map<String, dynamic> row, {String? path}) {
     // Collection relation posts requires row aggregation
     return UserPartial(
-      id: id ? readValue(row, 'id', path: path) as int? : null,
-      email: email ? readValue(row, 'email', path: path) as String? : null,
+      id: id ? readValue(row, 'id', path: path) as int : null,
+      email: email ? readValue(row, 'email', path: path) as String : null,
       posts: null,
     );
   }
@@ -204,7 +202,11 @@ class UserRelations {
 
   bool get hasSelections => (posts?.hasSelections ?? false);
 
-  collect(UserFieldsContext context, List<SelectField> out, {String? path}) {
+  void collect(
+    UserFieldsContext context,
+    List<SelectField> out, {
+    String? path,
+  }) {
     final postsSelect = posts;
     if (postsSelect != null && postsSelect.hasSelections) {
       final relationPath = path == null || path.isEmpty
@@ -226,14 +228,38 @@ class UserPartial extends PartialEntity<User> {
   final List<PostPartial>? posts;
 
   @override
+  Object? get primaryKeyValue {
+    return id;
+  }
+
+  @override
+  UserInsertDto toInsertDto() {
+    final missing = <String>[];
+    if (email == null) missing.add('email');
+    if (missing.isNotEmpty) {
+      throw StateError(
+        'Cannot convert UserPartial to UserInsertDto: missing required fields: ${missing.join(', ')}',
+      );
+    }
+    return UserInsertDto(
+      email: email!,
+      posts: posts?.map((p) => p.toInsertDto()).toList(),
+    );
+  }
+
+  @override
+  UserUpdateDto toUpdateDto() {
+    return UserUpdateDto(email: email);
+  }
+
+  @override
   User toEntity() {
     final missing = <String>[];
     if (id == null) missing.add('id');
     if (email == null) missing.add('email');
     if (missing.isNotEmpty) {
       throw StateError(
-        'Cannot convert UserPartial to User: missing required fields: ' +
-            missing.join(', '),
+        'Cannot convert UserPartial to User: missing required fields: ${missing.join(', ')}',
       );
     }
     return User(
@@ -245,13 +271,26 @@ class UserPartial extends PartialEntity<User> {
 }
 
 class UserInsertDto implements InsertDto<User> {
-  const UserInsertDto({required this.email});
+  const UserInsertDto({required this.email, this.posts});
 
   final String email;
+
+  final List<PostInsertDto>? posts;
 
   @override
   Map<String, dynamic> toMap() {
     return {'email': email};
+  }
+
+  Map<String, dynamic> get cascades {
+    return {if (posts != null) 'posts': posts};
+  }
+
+  UserInsertDto copyWith({String? email, List<PostInsertDto>? posts}) {
+    return UserInsertDto(
+      email: email ?? this.email,
+      posts: posts ?? this.posts,
+    );
   }
 }
 
@@ -264,6 +303,15 @@ class UserUpdateDto implements UpdateDto<User> {
   Map<String, dynamic> toMap() {
     return {if (email != null) 'email': email};
   }
+
+  Map<String, dynamic> get cascades {
+    return const {};
+  }
+}
+
+class UserRepository extends EntityRepository<User, UserPartial> {
+  UserRepository(EngineAdapter engine)
+    : super($UserEntityDescriptor, engine, $UserEntityDescriptor.fieldsContext);
 }
 
 final EntityDescriptor<Post, PostPartial> $PostEntityDescriptor =
@@ -312,6 +360,26 @@ final EntityDescriptor<Post, PostPartial> $PostEntityDescriptor =
           uuid: false,
           defaultValue: 0,
         ),
+        ColumnDescriptor(
+          name: 'created_at',
+          propertyName: 'createdAt',
+          type: ColumnType.dateTime,
+          nullable: true,
+          unique: false,
+          isPrimaryKey: false,
+          autoIncrement: false,
+          uuid: false,
+        ),
+        ColumnDescriptor(
+          name: 'last_updated_at',
+          propertyName: 'lastUpdatedAt',
+          type: ColumnType.dateTime,
+          nullable: true,
+          unique: false,
+          isPrimaryKey: false,
+          autoIncrement: false,
+          uuid: false,
+        ),
       ],
       relations: const [
         RelationDescriptor(
@@ -321,11 +389,44 @@ final EntityDescriptor<Post, PostPartial> $PostEntityDescriptor =
           isOwningSide: true,
           fetch: RelationFetchStrategy.lazy,
           cascade: const [],
+          cascadePersist: false,
+          cascadeMerge: false,
+          cascadeRemove: false,
           joinColumn: JoinColumnDescriptor(
             name: 'user_id',
             referencedColumnName: 'id',
             nullable: true,
             unique: false,
+          ),
+        ),
+        RelationDescriptor(
+          fieldName: 'tags',
+          type: RelationType.manyToMany,
+          target: Tag,
+          isOwningSide: true,
+          fetch: RelationFetchStrategy.lazy,
+          cascade: const [RelationCascade.persist, RelationCascade.remove],
+          cascadePersist: true,
+          cascadeMerge: false,
+          cascadeRemove: true,
+          joinTable: JoinTableDescriptor(
+            name: 'post_tags',
+            joinColumns: [
+              JoinColumnDescriptor(
+                name: 'post_id',
+                referencedColumnName: 'id',
+                nullable: true,
+                unique: false,
+              ),
+            ],
+            inverseJoinColumns: [
+              JoinColumnDescriptor(
+                name: 'tag_id',
+                referencedColumnName: 'id',
+                nullable: true,
+                unique: false,
+              ),
+            ],
           ),
         ),
       ],
@@ -334,26 +435,38 @@ final EntityDescriptor<Post, PostPartial> $PostEntityDescriptor =
         title: (row['title'] as String),
         content: (row['content'] as String),
         likes: (row['likes'] as int),
+        createdAt: (row['created_at'] as DateTime?),
+        lastUpdatedAt: (row['last_updated_at'] as int?),
         user: null,
+        tags: const <Tag>[],
       ),
       toRow: (e) => {
         'id': e.id,
         'title': e.title,
         'content': e.content,
         'likes': e.likes,
+        'created_at': e.createdAt,
+        'last_updated_at': e.lastUpdatedAt,
         'user_id': e.user?.id,
       },
       fieldsContext: const PostFieldsContext(),
-      repositoryFactory: (engine) => EntityRepository<Post, PostPartial>(
-        $PostEntityDescriptor,
-        engine,
-        $PostEntityDescriptor.fieldsContext,
+      repositoryFactory: (EngineAdapter engine) => PostRepository(engine),
+      hooks: EntityHooks<Post>(
+        preRemove: (e) {
+          e.beforeDelete();
+        },
+        prePersist: (e) {
+          e.createdAt = DateTime.now();
+          e.lastUpdatedAt = DateTime.now().millisecondsSinceEpoch;
+        },
+        preUpdate: (e) {
+          e.lastUpdatedAt = DateTime.now().millisecondsSinceEpoch;
+        },
       ),
     );
 
 class PostFieldsContext extends QueryFieldsContext<Post> {
-  const PostFieldsContext([QueryRuntimeContext? runtime, String? alias])
-    : super(runtime, alias);
+  const PostFieldsContext([super.runtime, super.alias]);
 
   @override
   PostFieldsContext bind(QueryRuntimeContext runtime, String alias) =>
@@ -367,6 +480,10 @@ class PostFieldsContext extends QueryFieldsContext<Post> {
 
   QueryField<int> get likes => field<int>('likes');
 
+  QueryField<DateTime?> get createdAt => field<DateTime?>('created_at');
+
+  QueryField<int?> get lastUpdatedAt => field<int?>('last_updated_at');
+
   QueryField<int?> get userId => field<int?>('user_id');
 
   UserFieldsContext get user {
@@ -378,6 +495,26 @@ class PostFieldsContext extends QueryFieldsContext<Post> {
       joinType: JoinType.left,
     );
     return UserFieldsContext(runtimeOrThrow, alias);
+  }
+
+  /// Join through the post_tags join table
+  TagFieldsContext get tags {
+    final joinTableAlias = ensureRelationJoin(
+      relationName: 'tags_jt',
+      targetTableName: 'post_tags',
+      localColumn: 'id',
+      foreignColumn: 'post_id',
+      joinType: JoinType.left,
+    );
+    final alias = ensureRelationJoinFrom(
+      fromAlias: joinTableAlias,
+      relationName: 'tags',
+      targetTableName: $TagEntityDescriptor.qualifiedTableName,
+      localColumn: 'tag_id',
+      foreignColumn: 'id',
+      joinType: JoinType.left,
+    );
+    return TagFieldsContext(runtimeOrThrow, alias);
   }
 }
 
@@ -397,11 +534,13 @@ class PostQuery extends QueryBuilder<Post> {
 
 class PostSelect extends SelectOptions<Post, PostPartial> {
   const PostSelect({
-    this.id = false,
-    this.title = false,
-    this.content = false,
-    this.likes = false,
-    this.userId = false,
+    this.id = true,
+    this.title = true,
+    this.content = true,
+    this.likes = true,
+    this.createdAt = true,
+    this.lastUpdatedAt = true,
+    this.userId = true,
     this.relations,
   });
 
@@ -413,6 +552,10 @@ class PostSelect extends SelectOptions<Post, PostPartial> {
 
   final bool likes;
 
+  final bool createdAt;
+
+  final bool lastUpdatedAt;
+
   final bool userId;
 
   final PostRelations? relations;
@@ -423,6 +566,8 @@ class PostSelect extends SelectOptions<Post, PostPartial> {
       title ||
       content ||
       likes ||
+      createdAt ||
+      lastUpdatedAt ||
       userId ||
       (relations?.hasSelections ?? false);
 
@@ -465,6 +610,24 @@ class PostSelect extends SelectOptions<Post, PostPartial> {
         SelectField('likes', tableAlias: tableAlias, alias: aliasFor('likes')),
       );
     }
+    if (createdAt) {
+      out.add(
+        SelectField(
+          'created_at',
+          tableAlias: tableAlias,
+          alias: aliasFor('created_at'),
+        ),
+      );
+    }
+    if (lastUpdatedAt) {
+      out.add(
+        SelectField(
+          'last_updated_at',
+          tableAlias: tableAlias,
+          alias: aliasFor('last_updated_at'),
+        ),
+      );
+    }
     if (userId) {
       out.add(
         SelectField(
@@ -488,12 +651,16 @@ class PostSelect extends SelectOptions<Post, PostPartial> {
       userPartial = userSelect.hydrate(row, path: extendPath(path, 'user'));
     }
     return PostPartial(
-      id: id ? readValue(row, 'id', path: path) as int? : null,
-      title: title ? readValue(row, 'title', path: path) as String? : null,
-      content: content
-          ? readValue(row, 'content', path: path) as String?
+      id: id ? readValue(row, 'id', path: path) as int : null,
+      title: title ? readValue(row, 'title', path: path) as String : null,
+      content: content ? readValue(row, 'content', path: path) as String : null,
+      likes: likes ? readValue(row, 'likes', path: path) as int : null,
+      createdAt: createdAt
+          ? readValue(row, 'created_at', path: path) as DateTime?
           : null,
-      likes: likes ? readValue(row, 'likes', path: path) as int? : null,
+      lastUpdatedAt: lastUpdatedAt
+          ? readValue(row, 'last_updated_at', path: path) as int?
+          : null,
       userId: userId ? readValue(row, 'user_id', path: path) as int? : null,
       user: userPartial,
     );
@@ -507,13 +674,20 @@ class PostSelect extends SelectOptions<Post, PostPartial> {
 }
 
 class PostRelations {
-  const PostRelations({this.user});
+  const PostRelations({this.user, this.tags});
 
   final UserSelect? user;
 
-  bool get hasSelections => (user?.hasSelections ?? false);
+  final TagSelect? tags;
 
-  collect(PostFieldsContext context, List<SelectField> out, {String? path}) {
+  bool get hasSelections =>
+      (user?.hasSelections ?? false) || (tags?.hasSelections ?? false);
+
+  void collect(
+    PostFieldsContext context,
+    List<SelectField> out, {
+    String? path,
+  }) {
     final userSelect = user;
     if (userSelect != null && userSelect.hasSelections) {
       final relationPath = path == null || path.isEmpty
@@ -521,6 +695,14 @@ class PostRelations {
           : '${path}_user';
       final relationContext = context.user;
       userSelect.collect(relationContext, out, path: relationPath);
+    }
+    final tagsSelect = tags;
+    if (tagsSelect != null && tagsSelect.hasSelections) {
+      final relationPath = path == null || path.isEmpty
+          ? 'tags'
+          : '${path}_tags';
+      final relationContext = context.tags;
+      tagsSelect.collect(relationContext, out, path: relationPath);
     }
   }
 }
@@ -531,8 +713,11 @@ class PostPartial extends PartialEntity<Post> {
     this.title,
     this.content,
     this.likes,
+    this.createdAt,
+    this.lastUpdatedAt,
     this.userId,
     this.user,
+    this.tags,
   });
 
   final int? id;
@@ -543,9 +728,53 @@ class PostPartial extends PartialEntity<Post> {
 
   final int? likes;
 
+  final DateTime? createdAt;
+
+  final int? lastUpdatedAt;
+
   final int? userId;
 
   final UserPartial? user;
+
+  final List<TagPartial>? tags;
+
+  @override
+  Object? get primaryKeyValue {
+    return id;
+  }
+
+  @override
+  PostInsertDto toInsertDto() {
+    final missing = <String>[];
+    if (title == null) missing.add('title');
+    if (content == null) missing.add('content');
+    if (missing.isNotEmpty) {
+      throw StateError(
+        'Cannot convert PostPartial to PostInsertDto: missing required fields: ${missing.join(', ')}',
+      );
+    }
+    return PostInsertDto(
+      title: title!,
+      content: content!,
+      likes: likes ?? 0,
+      createdAt: createdAt,
+      lastUpdatedAt: lastUpdatedAt,
+      userId: userId,
+      tags: tags?.map((p) => p.toInsertDto()).toList(),
+    );
+  }
+
+  @override
+  PostUpdateDto toUpdateDto() {
+    return PostUpdateDto(
+      title: title,
+      content: content,
+      likes: likes,
+      createdAt: createdAt,
+      lastUpdatedAt: lastUpdatedAt,
+      userId: userId,
+    );
+  }
 
   @override
   Post toEntity() {
@@ -556,8 +785,7 @@ class PostPartial extends PartialEntity<Post> {
     if (likes == null) missing.add('likes');
     if (missing.isNotEmpty) {
       throw StateError(
-        'Cannot convert PostPartial to Post: missing required fields: ' +
-            missing.join(', '),
+        'Cannot convert PostPartial to Post: missing required fields: ${missing.join(', ')}',
       );
     }
     return Post(
@@ -565,7 +793,10 @@ class PostPartial extends PartialEntity<Post> {
       title: title!,
       content: content!,
       likes: likes!,
+      createdAt: createdAt,
+      lastUpdatedAt: lastUpdatedAt,
       user: user?.toEntity(),
+      tags: tags?.map((p) => p.toEntity()).toList() ?? const <Tag>[],
     );
   }
 }
@@ -575,7 +806,10 @@ class PostInsertDto implements InsertDto<Post> {
     required this.title,
     required this.content,
     this.likes = 0,
+    this.createdAt,
+    this.lastUpdatedAt,
     this.userId,
+    this.tags,
   });
 
   final String title;
@@ -584,7 +818,13 @@ class PostInsertDto implements InsertDto<Post> {
 
   final int likes;
 
+  final DateTime? createdAt;
+
+  final int? lastUpdatedAt;
+
   final int? userId;
+
+  final List<TagInsertDto>? tags;
 
   @override
   Map<String, dynamic> toMap() {
@@ -592,19 +832,56 @@ class PostInsertDto implements InsertDto<Post> {
       'title': title,
       'content': content,
       'likes': likes,
+      'created_at': createdAt,
+      'last_updated_at': lastUpdatedAt,
       if (userId != null) 'user_id': userId,
     };
+  }
+
+  Map<String, dynamic> get cascades {
+    return {if (tags != null) 'tags': tags};
+  }
+
+  PostInsertDto copyWith({
+    String? title,
+    String? content,
+    int? likes,
+    DateTime? createdAt,
+    int? lastUpdatedAt,
+    int? userId,
+    List<TagInsertDto>? tags,
+  }) {
+    return PostInsertDto(
+      title: title ?? this.title,
+      content: content ?? this.content,
+      likes: likes ?? this.likes,
+      createdAt: createdAt ?? this.createdAt,
+      lastUpdatedAt: lastUpdatedAt ?? this.lastUpdatedAt,
+      userId: userId ?? this.userId,
+      tags: tags ?? this.tags,
+    );
   }
 }
 
 class PostUpdateDto implements UpdateDto<Post> {
-  const PostUpdateDto({this.title, this.content, this.likes, this.userId});
+  const PostUpdateDto({
+    this.title,
+    this.content,
+    this.likes,
+    this.createdAt,
+    this.lastUpdatedAt,
+    this.userId,
+  });
 
   final String? title;
 
   final String? content;
 
   final int? likes;
+
+  final DateTime? createdAt;
+
+  final int? lastUpdatedAt;
 
   final int? userId;
 
@@ -614,7 +891,317 @@ class PostUpdateDto implements UpdateDto<Post> {
       if (title != null) 'title': title,
       if (content != null) 'content': content,
       if (likes != null) 'likes': likes,
+      if (createdAt != null) 'created_at': createdAt,
+      if (lastUpdatedAt != null) 'last_updated_at': lastUpdatedAt,
       if (userId != null) 'user_id': userId,
     };
   }
+
+  Map<String, dynamic> get cascades {
+    return const {};
+  }
+}
+
+class PostRepository extends EntityRepository<Post, PostPartial> {
+  PostRepository(EngineAdapter engine)
+    : super($PostEntityDescriptor, engine, $PostEntityDescriptor.fieldsContext);
+}
+
+final EntityDescriptor<Tag, TagPartial> $TagEntityDescriptor = EntityDescriptor(
+  entityType: Tag,
+  tableName: 'tag',
+  columns: [
+    ColumnDescriptor(
+      name: 'id',
+      propertyName: 'id',
+      type: ColumnType.integer,
+      nullable: false,
+      unique: false,
+      isPrimaryKey: true,
+      autoIncrement: true,
+      uuid: false,
+    ),
+    ColumnDescriptor(
+      name: 'name',
+      propertyName: 'name',
+      type: ColumnType.text,
+      nullable: false,
+      unique: false,
+      isPrimaryKey: false,
+      autoIncrement: false,
+      uuid: false,
+    ),
+  ],
+  relations: const [
+    RelationDescriptor(
+      fieldName: 'posts',
+      type: RelationType.manyToMany,
+      target: Post,
+      isOwningSide: false,
+      mappedBy: 'tags',
+      fetch: RelationFetchStrategy.lazy,
+      cascade: const [],
+      cascadePersist: false,
+      cascadeMerge: false,
+      cascadeRemove: false,
+    ),
+  ],
+  fromRow: (row) => Tag(
+    id: (row['id'] as int),
+    name: (row['name'] as String),
+    posts: const <Post>[],
+  ),
+  toRow: (e) => {'id': e.id, 'name': e.name},
+  fieldsContext: const TagFieldsContext(),
+  repositoryFactory: (EngineAdapter engine) => TagRepository(engine),
+);
+
+class TagFieldsContext extends QueryFieldsContext<Tag> {
+  const TagFieldsContext([super.runtime, super.alias]);
+
+  @override
+  TagFieldsContext bind(QueryRuntimeContext runtime, String alias) =>
+      TagFieldsContext(runtime, alias);
+
+  QueryField<int> get id => field<int>('id');
+
+  QueryField<String> get name => field<String>('name');
+
+  /// Find the owning relation on the target entity to get join column info
+  PostFieldsContext get posts {
+    final targetRelation = $PostEntityDescriptor.relations.firstWhere(
+      (r) => r.fieldName == 'tags',
+    );
+    final joinColumn = targetRelation.joinColumn!;
+    final alias = ensureRelationJoin(
+      relationName: 'posts',
+      targetTableName: $PostEntityDescriptor.qualifiedTableName,
+      localColumn: joinColumn.referencedColumnName,
+      foreignColumn: joinColumn.name,
+      joinType: JoinType.left,
+    );
+    return PostFieldsContext(runtimeOrThrow, alias);
+  }
+}
+
+class TagQuery extends QueryBuilder<Tag> {
+  const TagQuery(this._builder);
+
+  final WhereExpression Function(TagFieldsContext) _builder;
+
+  @override
+  WhereExpression build(QueryFieldsContext<Tag> context) {
+    if (context is! TagFieldsContext) {
+      throw ArgumentError('Expected TagFieldsContext for TagQuery');
+    }
+    return _builder(context);
+  }
+}
+
+class TagSelect extends SelectOptions<Tag, TagPartial> {
+  const TagSelect({this.id = true, this.name = true, this.relations});
+
+  final bool id;
+
+  final bool name;
+
+  final TagRelations? relations;
+
+  @override
+  bool get hasSelections => id || name || (relations?.hasSelections ?? false);
+
+  @override
+  void collect(
+    QueryFieldsContext<Tag> context,
+    List<SelectField> out, {
+    String? path,
+  }) {
+    if (context is! TagFieldsContext) {
+      throw ArgumentError('Expected TagFieldsContext for TagSelect');
+    }
+    final TagFieldsContext scoped = context;
+    String? aliasFor(String column) {
+      final current = path;
+      if (current == null || current.isEmpty) return null;
+      return '${current}_$column';
+    }
+
+    final tableAlias = scoped.currentAlias;
+    if (id) {
+      out.add(SelectField('id', tableAlias: tableAlias, alias: aliasFor('id')));
+    }
+    if (name) {
+      out.add(
+        SelectField('name', tableAlias: tableAlias, alias: aliasFor('name')),
+      );
+    }
+    final rels = relations;
+    if (rels != null && rels.hasSelections) {
+      rels.collect(scoped, out, path: path);
+    }
+  }
+
+  @override
+  TagPartial hydrate(Map<String, dynamic> row, {String? path}) {
+    // Collection relation posts requires row aggregation
+    return TagPartial(
+      id: id ? readValue(row, 'id', path: path) as int : null,
+      name: name ? readValue(row, 'name', path: path) as String : null,
+      posts: null,
+    );
+  }
+
+  @override
+  bool get hasCollectionRelations => true;
+
+  @override
+  String? get primaryKeyColumn => 'id';
+
+  @override
+  List<TagPartial> aggregateRows(
+    List<Map<String, dynamic>> rows, {
+    String? path,
+  }) {
+    if (rows.isEmpty) return [];
+    final grouped = <Object?, List<Map<String, dynamic>>>{};
+    for (final row in rows) {
+      final key = readValue(row, 'id', path: path);
+      (grouped[key] ??= []).add(row);
+    }
+    return grouped.entries.map((entry) {
+      final groupRows = entry.value;
+      final firstRow = groupRows.first;
+      final base = hydrate(firstRow, path: path);
+      // Aggregate posts collection
+      final postsSelect = relations?.posts;
+      List<PostPartial>? postsList;
+      if (postsSelect != null && postsSelect.hasSelections) {
+        final relationPath = extendPath(path, 'posts');
+        postsList = <PostPartial>[];
+        final seenKeys = <Object?>{};
+        for (final row in groupRows) {
+          final itemKey = postsSelect.readValue(
+            row,
+            postsSelect.primaryKeyColumn ?? 'id',
+            path: relationPath,
+          );
+          if (itemKey != null && seenKeys.add(itemKey)) {
+            postsList.add(postsSelect.hydrate(row, path: relationPath));
+          }
+        }
+      }
+      return TagPartial(id: base.id, name: base.name, posts: postsList);
+    }).toList();
+  }
+}
+
+class TagRelations {
+  const TagRelations({this.posts});
+
+  final PostSelect? posts;
+
+  bool get hasSelections => (posts?.hasSelections ?? false);
+
+  void collect(
+    TagFieldsContext context,
+    List<SelectField> out, {
+    String? path,
+  }) {
+    final postsSelect = posts;
+    if (postsSelect != null && postsSelect.hasSelections) {
+      final relationPath = path == null || path.isEmpty
+          ? 'posts'
+          : '${path}_posts';
+      final relationContext = context.posts;
+      postsSelect.collect(relationContext, out, path: relationPath);
+    }
+  }
+}
+
+class TagPartial extends PartialEntity<Tag> {
+  const TagPartial({this.id, this.name, this.posts});
+
+  final int? id;
+
+  final String? name;
+
+  final List<PostPartial>? posts;
+
+  @override
+  Object? get primaryKeyValue {
+    return id;
+  }
+
+  @override
+  TagInsertDto toInsertDto() {
+    final missing = <String>[];
+    if (name == null) missing.add('name');
+    if (missing.isNotEmpty) {
+      throw StateError(
+        'Cannot convert TagPartial to TagInsertDto: missing required fields: ${missing.join(', ')}',
+      );
+    }
+    return TagInsertDto(name: name!);
+  }
+
+  @override
+  TagUpdateDto toUpdateDto() {
+    return TagUpdateDto(name: name);
+  }
+
+  @override
+  Tag toEntity() {
+    final missing = <String>[];
+    if (id == null) missing.add('id');
+    if (name == null) missing.add('name');
+    if (missing.isNotEmpty) {
+      throw StateError(
+        'Cannot convert TagPartial to Tag: missing required fields: ${missing.join(', ')}',
+      );
+    }
+    return Tag(
+      id: id!,
+      name: name!,
+      posts: posts?.map((p) => p.toEntity()).toList() ?? const <Post>[],
+    );
+  }
+}
+
+class TagInsertDto implements InsertDto<Tag> {
+  const TagInsertDto({required this.name});
+
+  final String name;
+
+  @override
+  Map<String, dynamic> toMap() {
+    return {'name': name};
+  }
+
+  Map<String, dynamic> get cascades {
+    return const {};
+  }
+
+  TagInsertDto copyWith({String? name}) {
+    return TagInsertDto(name: name ?? this.name);
+  }
+}
+
+class TagUpdateDto implements UpdateDto<Tag> {
+  const TagUpdateDto({this.name});
+
+  final String? name;
+
+  @override
+  Map<String, dynamic> toMap() {
+    return {if (name != null) 'name': name};
+  }
+
+  Map<String, dynamic> get cascades {
+    return const {};
+  }
+}
+
+class TagRepository extends EntityRepository<Tag, TagPartial> {
+  TagRepository(EngineAdapter engine)
+    : super($TagEntityDescriptor, engine, $TagEntityDescriptor.fieldsContext);
 }

@@ -1,4 +1,5 @@
 import 'package:loxia/loxia.dart';
+import 'package:postgres/postgres.dart';
 
 // Define a simple entity
 class User extends Entity {
@@ -59,6 +60,9 @@ class UserPartial extends PartialEntity<User> {
   final String? name;
 
   @override
+  Object? get primaryKeyValue => id;
+
+  @override
   User toEntity() {
     final missing = <String>[];
     if (id == null) missing.add('id');
@@ -74,6 +78,24 @@ class UserPartial extends PartialEntity<User> {
       email: email!,
       name: name!,
     );
+  }
+
+  @override
+  InsertDto<User> toInsertDto() {
+    final missing = <String>[];
+    if (email == null) missing.add('email');
+    if (name == null) missing.add('name');
+    if (missing.isNotEmpty) {
+      throw StateError(
+        'Cannot convert UserPartial to UserInsertDto: missing required fields: ${missing.join(', ')}',
+      );
+    }
+    return UserInsertDto(email: email!, name: name!);
+  }
+
+  @override
+  UpdateDto<User> toUpdateDto() {
+    return UserUpdateDto(email: email, name: name);
   }
 }
 
@@ -102,22 +124,41 @@ class UserInsertDto extends InsertDto<User> {
   }
 }
 
+class UserUpdateDto extends UpdateDto<User> {
+  UserUpdateDto({this.email, this.name});
+
+  final String? email;
+  final String? name;
+
+  @override
+  Map<String, dynamic> toMap() {
+    return {
+      if (email != null) 'email': email,
+      if (name != null) 'name': name,
+    };
+  }
+}
+
 Future<void> main() async {
   // Create PostgreSQL engine with connection parameters
-  final postgresEngine = PostgresEngine.create(
-    host: 'localhost',
-    port: 5432,
-    database: 'loxia_db',
-    username: 'postgres',
-    password: 'password',
-    useSSL: false,
+  final postgresEngine = PostgresEngine.connect(
+    Endpoint(
+      host: 'localhost',
+      port: 5432,
+      database: 'loxia',
+      username: 'loxia',
+      password: 'loxia',
+    ),
+    settings: ConnectionSettings(
+      timeZone: 'UTC',
+    ),
   );
 
   final ds = DataSource(
     DataSourceOptions(
       engine: postgresEngine,
       entities: [User.entity],
-      runMigrations: true,
+      migrations: []
     ),
   );
 

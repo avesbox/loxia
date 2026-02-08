@@ -185,6 +185,88 @@ class MigrationPlanner {
   }
 }
 
+/// Generates Dart code for a Migration class based on the current schema diff.
+class MigrationGenerator {
+  final MigrationPlanner _planner;
+
+  MigrationGenerator({MigrationPlanner? planner}) : _planner = planner ?? MigrationPlanner();
+
+  String generate({
+    required int version,
+    required List<EntityDescriptor> entities,
+    required SchemaState current,
+  }) {
+    final plan = _planner.diff(entities: entities, current: current);
+    final downStatements = _buildDownStatements(plan.statements);
+    final className = 'Migration$version';
+    final buffer = StringBuffer()
+      ..writeln('class $className extends Migration {')
+      ..writeln('  $className() : super($version);')
+      ..writeln()
+      ..writeln('  @override')
+      ..writeln('  Future<void> up(EngineAdapter engine) async {');
+
+    if (plan.isEmpty) {
+      buffer.writeln('    // No schema changes detected.');
+    } else {
+      for (final stmt in plan.statements) {
+        buffer.writeln("    await engine.execute('${_escapeSql(stmt)}');");
+      }
+    }
+
+    buffer
+      ..writeln('  }')
+      ..writeln()
+      ..writeln('  @override')
+      ..writeln('  Future<void> down(EngineAdapter engine) async {')
+      ..writeln(_renderDownBody(downStatements))
+      ..writeln('  }')
+      ..writeln('}');
+
+    return buffer.toString();
+  }
+
+  String _escapeSql(String sql) => sql.replaceAll("'", "\\'");
+
+  List<String> _buildDownStatements(List<String> upStatements) {
+    final down = <String>[];
+    for (final stmt in upStatements.reversed) {
+      final createMatch = RegExp(
+        r'^CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+([^\s]+)',
+        caseSensitive: false,
+      ).firstMatch(stmt);
+      if (createMatch != null) {
+        final table = createMatch.group(1)!;
+        down.add('DROP TABLE IF EXISTS $table');
+        continue;
+      }
+
+      final addColumnMatch = RegExp(
+        r'^ALTER\s+TABLE\s+([^\s]+)\s+ADD\s+COLUMN\s+"([^"]+)"',
+        caseSensitive: false,
+      ).firstMatch(stmt);
+      if (addColumnMatch != null) {
+        final table = addColumnMatch.group(1)!;
+        final column = addColumnMatch.group(2)!;
+        down.add('ALTER TABLE $table DROP COLUMN "$column"');
+        continue;
+      }
+    }
+    return down;
+  }
+
+  String _renderDownBody(List<String> statements) {
+    if (statements.isEmpty) {
+      return '    // No rollback statements could be generated.';
+    }
+    final buffer = StringBuffer();
+    for (final stmt in statements) {
+      buffer.writeln("    await engine.execute('${_escapeSql(stmt)}');");
+    }
+    return buffer.toString().trimRight();
+  }
+}
+
 class _JoinColumnSpec {
   const _JoinColumnSpec({
     required this.name,

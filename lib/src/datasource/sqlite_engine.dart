@@ -2,13 +2,38 @@ import 'package:sqlite3/sqlite3.dart' as sq;
 
 import '../migrations/schema.dart';
 import '../annotations/column.dart';
+import 'datasource.dart';
 import 'engine_adapter.dart';
+
+final class SqliteDataSourceOptions extends DataSourceOptions {
+
+  /// Creates options for a SQLite DataSource.
+  SqliteDataSourceOptions({
+    required super.entities,
+    required String path,
+    super.migrations,
+  }) : super(
+    engine: SqliteEngine.file(path),
+  );
+}
+
+final class InMemoryDataSourceOptions extends DataSourceOptions {
+
+  /// Creates options for an in-memory DataSource.
+  InMemoryDataSourceOptions({
+    required super.entities,
+    super.migrations,
+  }) : super(
+          engine: SqliteEngine.inMemory(),
+        );
+}
 
 class SqliteEngine implements EngineAdapter {
   SqliteEngine._(this._open);
 
   final sq.Database Function() _open;
   sq.Database? _db;
+  bool _inTransaction = false;
 
   static SqliteEngine inMemory() => SqliteEngine._(() => sq.sqlite3.openInMemory());
 
@@ -100,6 +125,26 @@ class SqliteEngine implements EngineAdapter {
     return SchemaState(tables: tables);
   }
 
+  @override
+  Future<T> transaction<T>(Future<T> Function(EngineAdapter txEngine) action) async {
+    final db = _ensureDb();
+    if (_inTransaction) {
+      throw StateError('Nested transactions not supported');
+    }
+    _inTransaction = true;
+    db.execute('BEGIN');
+    try {
+      final result = await action(this);
+      db.execute('COMMIT');
+      return result;
+    } catch (e) {
+      db.execute('ROLLBACK');
+      rethrow;
+    } finally {
+      _inTransaction = false;
+    }
+  }
+
   ColumnType _mapType(String t) {
     final up = t.toUpperCase();
     if (up.contains('INT')) return ColumnType.integer;
@@ -119,5 +164,24 @@ class SqliteEngine implements EngineAdapter {
       throw StateError('SqliteEngine is not open');
     }
     return db;
+  }
+  
+  @override
+  Future<void> ensureHistoryTable() async {
+    final db = _ensureDb();
+    db.execute(
+      'CREATE TABLE IF NOT EXISTS _loxia_migrations (\n'
+      '  version INTEGER PRIMARY KEY,\n'
+      '  applied_at TIMESTAMP,\n'
+      '  description TEXT\n'
+      ')',
+    );
+  }
+  
+  @override
+  Future<List<int>> getAppliedVersions() async {
+    final db = _ensureDb();
+    final rs = db.select('SELECT version FROM _loxia_migrations ORDER BY version');
+    return rs.map((row) => row['version'] as int).toList(growable: false);
   }
 }

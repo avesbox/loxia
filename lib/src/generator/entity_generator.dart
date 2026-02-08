@@ -15,16 +15,25 @@ import 'package:source_gen/source_gen.dart';
 
 import '../../loxia.dart'
     show
-        Column,
-        ColumnType,
-        EntityMeta,
-        JoinColumn,
-        JoinTable,
-        ManyToMany,
-        ManyToOne,
-        OneToMany,
-        OneToOne,
-        PrimaryKey;
+      Column,
+      ColumnType,
+      CreatedAt,
+      UpdatedAt,
+      EntityMeta,
+      JoinColumn,
+      JoinTable,
+      ManyToMany,
+      ManyToOne,
+      OneToMany,
+      OneToOne,
+      PrePersist,
+      PostPersist,
+      PreUpdate,
+      PostUpdate,
+      PreRemove,
+      PostRemove,
+      PostLoad,
+      PrimaryKey;
 import 'builders/builders.dart';
 
 /// Code generator for entities annotated with [EntityMeta].
@@ -53,6 +62,7 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
   final _partialEntityBuilder = const PartialEntityBuilder();
   final _insertDtoBuilder = const InsertDtoBuilder();
   final _updateDtoBuilder = const UpdateDtoBuilder();
+  final _repositoryClassBuilder = const RepositoryClassBuilder();
 
   @override
   Future<String> generateForAnnotatedElement(
@@ -76,7 +86,8 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
       ..body.add(_relationsClassBuilder.build(context))
       ..body.add(_partialEntityBuilder.build(context))
       ..body.add(_insertDtoBuilder.build(context))
-      ..body.add(_updateDtoBuilder.build(context)));
+      ..body.add(_updateDtoBuilder.build(context))
+      ..body.add(_repositoryClassBuilder.build(context)));
 
     // Emit and format the generated code
     final code = library.accept(_emitter).toString();
@@ -94,6 +105,8 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
 
     final columns = _parseColumns(clazz);
     final relations = _parseRelations(clazz, className, table);
+    final hooks = _parseHooks(clazz);
+    final timestamps = _parseTimestampFields(clazz);
 
     return EntityGenerationContext(
       className: className,
@@ -101,7 +114,117 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
       schema: schema,
       columns: columns,
       relations: relations,
+      hooks: hooks,
+      createdAtFields: timestamps.createdAt,
+      updatedAtFields: timestamps.updatedAt,
     );
+  }
+
+  _TimestampFields _parseTimestampFields(ClassElement clazz) {
+    final createdAt = <GenTimestampField>[];
+    final updatedAt = <GenTimestampField>[];
+
+    for (final field in clazz.fields.where((f) => !f.isStatic)) {
+      final hasCreatedAt = _firstAnnotation(field, CreatedAt) != null;
+      final hasUpdatedAt = _firstAnnotation(field, UpdatedAt) != null;
+      if (!hasCreatedAt && !hasUpdatedAt) continue;
+
+      final valueExpression = _timestampValueExpression(field);
+      final model = GenTimestampField(
+        fieldName: field.displayName,
+        valueExpression: valueExpression,
+      );
+      if (hasCreatedAt) createdAt.add(model);
+      if (hasUpdatedAt) updatedAt.add(model);
+    }
+
+    return _TimestampFields(createdAt: createdAt, updatedAt: updatedAt);
+  }
+
+  String _timestampValueExpression(FieldElement field) {
+    var typeName = field.type.getDisplayString();
+    if (field.type.nullabilitySuffix == NullabilitySuffix.question) {
+      typeName = typeName.substring(0, typeName.length - 1);
+    }
+    switch (typeName) {
+      case 'DateTime':
+        return 'DateTime.now()';
+      case 'int':
+        return 'DateTime.now().millisecondsSinceEpoch';
+      case 'double':
+        return 'DateTime.now().millisecondsSinceEpoch.toDouble()';
+      case 'String':
+        return 'DateTime.now().toIso8601String()';
+      default:
+        throw InvalidGenerationSourceError(
+          'Unsupported timestamp field type ${field.type.getDisplayString()} on ${field.enclosingElement.displayName}.${field.displayName}. '
+          'Use DateTime, int, double, or String.',
+          element: field,
+        );
+    }
+  }
+
+  Map<String, List<String>> _parseHooks(ClassElement clazz) {
+    final hooks = <String, List<String>>{};
+    final hookTypes = <Type, String>{
+      PrePersist: 'prePersist',
+      PostPersist: 'postPersist',
+      PreUpdate: 'preUpdate',
+      PostUpdate: 'postUpdate',
+      PreRemove: 'preRemove',
+      PostRemove: 'postRemove',
+      PostLoad: 'postLoad',
+    };
+
+    for (final method in clazz.methods.where((m) => !m.isStatic)) {
+      final matching = <String>[];
+      for (final entry in hookTypes.entries) {
+        if (_hasAnnotation(method, entry.key)) {
+          matching.add(entry.value);
+        }
+      }
+      if (matching.isEmpty) continue;
+      _validateHookSignature(clazz, method);
+      for (final hookName in matching) {
+        (hooks[hookName] ??= <String>[]).add(method.displayName);
+      }
+    }
+    return hooks;
+  }
+
+  bool _hasAnnotation(MethodElement method, Type t) {
+    final want = t.toString();
+    final metas = (method.metadata as dynamic);
+    final iterable =
+        (metas is Iterable) ? metas : (metas.annotations as Iterable);
+    for (final meta in iterable) {
+      final obj = meta.computeConstantValue();
+      if (obj == null) continue;
+      final typeName = obj.type?.getDisplayString();
+      if (typeName == want) return true;
+    }
+    return false;
+  }
+
+  void _validateHookSignature(ClassElement clazz, MethodElement method) {
+    if (method.formalParameters.isNotEmpty) {
+      throw InvalidGenerationSourceError(
+        'Lifecycle hook ${clazz.displayName}.${method.displayName} must not accept parameters.',
+        element: method,
+      );
+    }
+    if (method.returnType.getDisplayString() != 'void') {
+      throw InvalidGenerationSourceError(
+        'Lifecycle hook ${clazz.displayName}.${method.displayName} must return void.',
+        element: method,
+      );
+    }
+    if (method.firstFragment.isAsynchronous) {
+      throw InvalidGenerationSourceError(
+        'Lifecycle hook ${clazz.displayName}.${method.displayName} must be synchronous (not async).',
+        element: method,
+      );
+    }
   }
 
   /// Parses column definitions from entity fields.
@@ -111,22 +234,28 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
     for (final field in clazz.fields.where((f) => !f.isStatic)) {
       final colAnnObj =
           _firstAnnotation(field, Column) ?? _firstAnnotation(field, PrimaryKey);
-      if (colAnnObj == null) continue;
-      final colAnn = ConstantReader(colAnnObj);
+      final createdAtAnn = _firstAnnotation(field, CreatedAt);
+      final updatedAtAnn = _firstAnnotation(field, UpdatedAt);
+      if (colAnnObj == null && createdAtAnn == null && updatedAtAnn == null) {
+        continue;
+      }
+      final colAnn = colAnnObj == null ? null : ConstantReader(colAnnObj);
 
       final isPk = _firstAnnotation(field, PrimaryKey) != null;
-      final colName =
-          colAnn.peek('name')?.stringValue ?? _toSnake(field.displayName);
+        final colName =
+          colAnn?.peek('name')?.stringValue ?? _toSnake(field.displayName);
       final dartType = field.type;
       final nullable = dartType.nullabilitySuffix != NullabilitySuffix.none;
-      final unique = colAnn.peek('unique')?.boolValue ?? false;
-      final defaultValue = colAnn.peek('defaultValue')?.objectValue;
+      final unique = colAnn?.peek('unique')?.boolValue ?? false;
+      final defaultValue = colAnn?.peek('defaultValue')?.objectValue;
 
-      final autoInc =
-          isPk ? (colAnn.peek('autoIncrement')?.boolValue ?? false) : false;
-      final uuid = isPk ? (colAnn.peek('uuid')?.boolValue ?? false) : false;
+        final autoInc =
+          isPk ? (colAnn?.peek('autoIncrement')?.boolValue ?? false) : false;
+        final uuid = isPk ? (colAnn?.peek('uuid')?.boolValue ?? false) : false;
 
-      final type = _resolveColumnType(colAnn, dartType);
+        final type = (createdAtAnn != null || updatedAtAnn != null)
+          ? ColumnType.dateTime
+          : _resolveColumnType(colAnn!, dartType);
       final dartTypeCode = dartType.getDisplayString();
 
       columns.add(GenColumn(
@@ -251,6 +380,9 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
       _relationCascadeNames,
       'RelationCascade',
     );
+    final cascadePersist = _hasCascadePersist(cascadeValues);
+    final cascadeMerge = _hasCascadeMerge(cascadeValues);
+    final cascadeRemove = _hasCascadeRemove(cascadeValues);
 
     final joinColumnAnn = _firstAnnotation(field, JoinColumn);
     final needsJoinColumn = isOwning &&
@@ -333,6 +465,9 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
       mappedBy: mappedBy,
       fetchLiteral: fetchLiteral,
       cascadeLiteral: cascadeLiteral,
+      cascadePersist: cascadePersist,
+      cascadeMerge: cascadeMerge,
+      cascadeRemove: cascadeRemove,
       joinColumn: joinColumn,
       joinTable: joinTable,
       constructorLiteral: constructorLiteral,
@@ -388,6 +523,45 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
       items.add('$enumType.${names[index]}');
     }
     return 'const [${items.join(', ')}]';
+  }
+
+  bool _hasCascadePersist(List<DartObject> values) {
+    if (values.isEmpty) return false;
+    for (final value in values) {
+      final index = value.getField('index')?.toIntValue();
+      if (index == null || index < 0 || index >= _relationCascadeNames.length) {
+        continue;
+      }
+      final name = _relationCascadeNames[index];
+      if (name == 'persist' || name == 'all') return true;
+    }
+    return false;
+  }
+
+  bool _hasCascadeMerge(List<DartObject> values) {
+    if (values.isEmpty) return false;
+    for (final value in values) {
+      final index = value.getField('index')?.toIntValue();
+      if (index == null || index < 0 || index >= _relationCascadeNames.length) {
+        continue;
+      }
+      final name = _relationCascadeNames[index];
+      if (name == 'merge' || name == 'all') return true;
+    }
+    return false;
+  }
+
+  bool _hasCascadeRemove(List<DartObject> values) {
+    if (values.isEmpty) return false;
+    for (final value in values) {
+      final index = value.getField('index')?.toIntValue();
+      if (index == null || index < 0 || index >= _relationCascadeNames.length) {
+        continue;
+      }
+      final name = _relationCascadeNames[index];
+      if (name == 'remove' || name == 'all') return true;
+    }
+    return false;
   }
 
   GenJoinColumn _joinColumnFromConstant(
@@ -624,4 +798,11 @@ class _RelationMatch {
   final RelationKind kind;
   final ConstantReader reader;
   final String annotationName;
+}
+
+class _TimestampFields {
+  _TimestampFields({required this.createdAt, required this.updatedAt});
+
+  final List<GenTimestampField> createdAt;
+  final List<GenTimestampField> updatedAt;
 }
