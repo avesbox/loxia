@@ -12,47 +12,26 @@ sidebar: false
 <Home>
   <template #start>
 
-:::code-group
+```dart
+part 'user.g.dart';
 
-```dart canary [Entrypoint]
-import 'package:serinus/serinus.dart';
+@EntityMeta()
+class User extends Entity{
+  @PrimaryKey()
+  final int id;
 
-Future<void> main() async {
-  final app = await serinus.createApplication(
-    entrypoint: AppModule(),
-  );
-  await app.serve();
+  @Column()
+  final String name;
+
+  @Column()
+  final String email;
+
+  User(this.id, this.name, this.email);
+
+  static EntityDescriptor<User, UserPartial> get entity => 
+    $UserEntityDescriptor;
 }
 ```
-
-```dart canary [Module]
-import 'package:serinus/serinus.dart';
-
-import 'app_controller.dart';
-
-class AppModule extends Module {
-  AppModule() : super(
-    controllers: [AppController()],
-  );
-}
-```
-
-```dart canary [Controller]
-import 'package:serinus/serinus.dart';
-
-class AppController extends Controller {
-
-  AppController() : super('/') {
-    on(Route.get('/'), _handleHelloWorld);
-  }
-
-  String _handleHelloWorld(RequestContext context) {
-    return 'Hello, World!';
-  }
-}
-```
-
-:::
 
   </template>
 </Home>

@@ -117,7 +117,7 @@ import CliSequence from './cli_sequence.vue';
                     </div>
                     
                     <div class="md:block hidden absolute -bottom-4 -right-4 bg-primary text-primary-foreground px-4 py-2 font-mono text-xs uppercase tracking-wider">
-                        Modular by Design
+                        Elegant. Type-safe. Dart-native.
                     </div>
                 </motion.div>
             </div>
