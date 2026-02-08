@@ -50,13 +50,15 @@ class InsertDtoBuilder {
     final params = <Parameter>[];
 
     for (final c in columns) {
+      final isTimestampManaged = c.isCreatedAt || c.isUpdatedAt;
       params.add(
         Parameter(
           (p) => p
             ..name = c.prop
             ..named = true
             ..toThis = true
-            ..required = !c.nullable && c.defaultLiteral == null
+            ..required =
+                !isTimestampManaged && !c.nullable && c.defaultLiteral == null
             ..defaultTo = c.defaultLiteral != null
                 ? Code(c.defaultLiteral!)
                 : null,
@@ -100,7 +102,11 @@ class InsertDtoBuilder {
         (f) => f
           ..name = c.prop
           ..modifier = FieldModifier.final$
-          ..type = refer(c.dartTypeCode),
+          ..type = refer(
+            (c.nullable || c.isCreatedAt || c.isUpdatedAt)
+                ? _nullableType(c.dartTypeCode)
+                : c.dartTypeCode,
+          ),
       ),
     );
   }
@@ -137,10 +143,24 @@ class InsertDtoBuilder {
     EntityGenerationContext context,
     List<GenColumn> columns,
   ) {
+    final createdAtExpr = {
+      for (final f in context.createdAtFields) f.fieldName: f.valueExpression,
+    };
+    final updatedAtExpr = {
+      for (final f in context.updatedAtFields) f.fieldName: f.valueExpression,
+    };
+
     final entries = <String>[];
 
     for (final c in columns) {
-      entries.add("'${c.name}': ${c.prop}");
+      final timestampExpr = createdAtExpr[c.prop] ?? updatedAtExpr[c.prop];
+      if (timestampExpr != null) {
+        entries.add(
+          "'${c.name}': ${_timestampLiteralToDateTime(c, timestampExpr)}",
+        );
+      } else {
+        entries.add("'${c.name}': ${_timestampPropToDateTime(c, c.prop)}");
+      }
     }
 
     for (final relation in context.owningJoinColumns) {
@@ -189,7 +209,7 @@ class InsertDtoBuilder {
     final params = <Parameter>[];
 
     for (final c in columns) {
-      final nullableType = c.nullable ? c.dartTypeCode : '${c.dartTypeCode}?';
+      final nullableType = _nullableType(c.dartTypeCode);
       params.add(
         Parameter(
           (p) => p
@@ -335,7 +355,7 @@ class UpdateDtoBuilder {
   Iterable<Field> _buildColumnFields(List<GenColumn> columns) {
     return columns.map((c) {
       // For update DTO, all fields are optional (nullable)
-      final type = c.nullable ? c.dartTypeCode : '${c.dartTypeCode}?';
+      final type = _nullableType(c.dartTypeCode);
       return Field(
         (f) => f
           ..name = c.prop
@@ -374,10 +394,23 @@ class UpdateDtoBuilder {
     EntityGenerationContext context,
     List<GenColumn> columns,
   ) {
+    final updatedAtExpr = {
+      for (final f in context.updatedAtFields) f.fieldName: f.valueExpression,
+    };
+
     final entries = <String>[];
 
     for (final c in columns) {
-      entries.add("if(${c.prop} != null) '${c.name}': ${c.prop}");
+      final timestampExpr = updatedAtExpr[c.prop];
+      if (timestampExpr != null) {
+        entries.add(
+          "'${c.name}': ${_timestampLiteralToDateTime(c, timestampExpr)}",
+        );
+        continue;
+      }
+      entries.add(
+        "if(${c.prop} != null) '${c.name}': ${_timestampPropToDateTime(c, c.prop)}",
+      );
     }
 
     for (final relation in context.owningJoinColumns) {
@@ -413,5 +446,40 @@ class UpdateDtoBuilder {
         ..returns = refer('Map<String, dynamic>')
         ..body = Code(body),
     );
+  }
+}
+
+String _nullableType(String type) {
+  return type.endsWith('?') ? type : '$type?';
+}
+
+String _timestampLiteralToDateTime(GenColumn c, String expr) {
+  final base = c.dartTypeCode.replaceAll('?', '');
+  switch (base) {
+    case 'int':
+      return 'DateTime.fromMillisecondsSinceEpoch($expr)';
+    case 'double':
+      return 'DateTime.fromMillisecondsSinceEpoch($expr.toInt())';
+    case 'String':
+      return 'DateTime.parse($expr)';
+    default:
+      return expr;
+  }
+}
+
+String _timestampPropToDateTime(GenColumn c, String prop) {
+  if (!c.isCreatedAt && !c.isUpdatedAt) {
+    return prop;
+  }
+  final base = c.dartTypeCode.replaceAll('?', '');
+  switch (base) {
+    case 'int':
+      return '$prop == null ? null : DateTime.fromMillisecondsSinceEpoch($prop)';
+    case 'double':
+      return '$prop == null ? null : DateTime.fromMillisecondsSinceEpoch($prop.toInt())';
+    case 'String':
+      return '$prop == null ? null : DateTime.parse($prop)';
+    default:
+      return prop;
   }
 }

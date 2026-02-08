@@ -258,6 +258,7 @@ if (missing.isNotEmpty) {
     final statements = <Code>[Code('final missing = <String>[];')];
 
     for (final c in insertableColumns) {
+      if ((c.isCreatedAt || c.isUpdatedAt)) continue;
       if (!c.nullable && c.defaultLiteral == null) {
         statements.add(
           Code("if (${c.prop} == null) missing.add('${c.prop}');"),
@@ -284,7 +285,9 @@ if (missing.isNotEmpty) {
 
     final args = <String>[];
     for (final c in insertableColumns) {
-      if (!c.nullable && c.defaultLiteral == null) {
+      if (c.isCreatedAt || c.isUpdatedAt) {
+        args.add('${c.prop}: ${c.prop}');
+      } else if (!c.nullable && c.defaultLiteral == null) {
         args.add('${c.prop}: ${c.prop}!');
       } else if (c.defaultLiteral != null) {
         args.add('${c.prop}: ${c.prop} ?? ${c.defaultLiteral}');

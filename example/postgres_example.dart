@@ -134,29 +134,20 @@ class UserUpdateDto extends UpdateDto<User> {
 }
 
 Future<void> main() async {
-  // Create PostgreSQL engine with connection parameters
-  final postgresEngine = PostgresEngine.connect(
-    Endpoint(
+  final ds = DataSource(
+    PostgresDataSourceOptions.connect(
       host: 'localhost',
       port: 5432,
-      database: 'loxia',
-      username: 'loxia',
-      password: 'loxia',
-    ),
-    settings: ConnectionSettings(timeZone: 'UTC'),
-  );
-
-  final ds = DataSource(
-    DataSourceOptions(
-      engine: postgresEngine,
+      database: 'postgres',
+      username: 'postgres',
+      password: 'test123',
       entities: [User.entity],
-      migrations: [],
     ),
   );
 
   await ds.init();
 
-  final users = ds.getRepository<User, UserPartial>();
+  final users = ds.getRepository<User>();
 
   // Insert a user
   await users.insert(

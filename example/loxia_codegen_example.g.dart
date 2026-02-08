@@ -436,7 +436,7 @@ final EntityDescriptor<Post, PostPartial> $PostEntityDescriptor =
         content: (row['content'] as String),
         likes: (row['likes'] as int),
         createdAt: (row['created_at'] as DateTime?),
-        lastUpdatedAt: (row['last_updated_at'] as int?),
+        lastUpdatedAt: row['last_updated_at']?.millisecondsSinceEpoch,
         user: null,
         tags: const <Tag>[],
       ),
@@ -446,7 +446,9 @@ final EntityDescriptor<Post, PostPartial> $PostEntityDescriptor =
         'content': e.content,
         'likes': e.likes,
         'created_at': e.createdAt,
-        'last_updated_at': e.lastUpdatedAt,
+        'last_updated_at': e.lastUpdatedAt == null
+            ? null
+            : DateTime.fromMillisecondsSinceEpoch((e.lastUpdatedAt as int)),
         'user_id': e.user?.id,
       },
       fieldsContext: const PostFieldsContext(),
@@ -832,8 +834,10 @@ class PostInsertDto implements InsertDto<Post> {
       'title': title,
       'content': content,
       'likes': likes,
-      'created_at': createdAt,
-      'last_updated_at': lastUpdatedAt,
+      'created_at': DateTime.now(),
+      'last_updated_at': DateTime.fromMillisecondsSinceEpoch(
+        DateTime.now().millisecondsSinceEpoch,
+      ),
       if (userId != null) 'user_id': userId,
     };
   }
@@ -892,7 +896,9 @@ class PostUpdateDto implements UpdateDto<Post> {
       if (content != null) 'content': content,
       if (likes != null) 'likes': likes,
       if (createdAt != null) 'created_at': createdAt,
-      if (lastUpdatedAt != null) 'last_updated_at': lastUpdatedAt,
+      'last_updated_at': DateTime.fromMillisecondsSinceEpoch(
+        DateTime.now().millisecondsSinceEpoch,
+      ),
       if (userId != null) 'user_id': userId,
     };
   }

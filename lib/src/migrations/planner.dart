@@ -19,6 +19,7 @@ class MigrationPlanner {
     final stmts = <String>[];
     final entityByType = {for (final e in entities) e.entityType: e};
     final processedJoinTables = <String>{};
+    final joinTableSpecs = <_JoinTableSpec>[];
     for (final entity in entities) {
       final joinColumns = _collectJoinColumns(entity, entityByType);
       final table = current.tables[entity.tableName];
@@ -54,22 +55,27 @@ class MigrationPlanner {
         (r) => r.isOwningSide && r.joinTable != null,
       )) {
         final joinSpec = _buildJoinTableSpec(entity, relation, entityByType);
-        if (!processedJoinTables.add(joinSpec.name)) {
-          continue;
+        if (processedJoinTables.add(joinSpec.name)) {
+          joinTableSpecs.add(joinSpec);
         }
-        final schemaTable = current.tables[joinSpec.name];
-        if (schemaTable == null) {
-          final cols = joinSpec.columns.map(_joinColumnDDL).join(',\n  ');
-          final create =
-              'CREATE TABLE IF NOT EXISTS ${joinSpec.name} (\n  $cols\n)';
-          stmts.add(create);
-        } else {
-          for (final col in joinSpec.columns) {
-            if (!schemaTable.columns.containsKey(col.name)) {
-              stmts.add(
-                'ALTER TABLE ${joinSpec.name} ADD COLUMN ${_joinColumnDDL(col)}',
-              );
-            }
+      }
+    }
+
+    // Process join tables after all base tables are ensured to exist, so
+    // foreign key references resolve correctly on PostgreSQL.
+    for (final joinSpec in joinTableSpecs) {
+      final schemaTable = current.tables[joinSpec.name];
+      if (schemaTable == null) {
+        final cols = joinSpec.columns.map(_joinColumnDDL).join(',\n  ');
+        final create =
+            'CREATE TABLE IF NOT EXISTS ${joinSpec.name} (\n  $cols\n)';
+        stmts.add(create);
+      } else {
+        for (final col in joinSpec.columns) {
+          if (!schemaTable.columns.containsKey(col.name)) {
+            stmts.add(
+              'ALTER TABLE ${joinSpec.name} ADD COLUMN ${_joinColumnDDL(col)}',
+            );
           }
         }
       }
@@ -105,7 +111,7 @@ class MigrationPlanner {
   String _typeToSql(ColumnType t) {
     switch (t) {
       case ColumnType.integer:
-        return 'INTEGER';
+        return 'BIGINT';
       case ColumnType.text:
         return 'TEXT';
       case ColumnType.boolean:

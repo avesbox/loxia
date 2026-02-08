@@ -1,4 +1,5 @@
 import 'package:loxia/loxia.dart';
+import 'package:postgres/postgres.dart';
 
 part 'loxia_codegen_example.g.dart';
 
@@ -93,9 +94,14 @@ class Tag extends Entity {
 
 Future<void> main() async {
   final ds = DataSource(
-    SqliteDataSourceOptions(
-      path: 'example.db',
+    PostgresDataSourceOptions.connect(
+      host: 'localhost',
+      port: 5432,
+      database: 'loxia',
+      username: 'loxia',
+      password: 'test1234',
       entities: [User.entity, Post.entity, Tag.entity],
+      settings: ConnectionSettings(sslMode: SslMode.disable),
     ),
   );
   await ds.init();
@@ -104,6 +110,25 @@ Future<void> main() async {
   await users.update(
     UserUpdateDto(email: 'new@example.com'),
     where: UserQuery((q) => q.id.equals(1)),
+  );
+  final user = await users.findOneBy(
+    where: UserQuery((q) => q.email.equals('new@example.com')),
+  );
+  print('User: id=${user?.id}, email=${user?.email}');
+  final posts = ds.getRepository<Post>();
+  await posts.save(
+    PostPartial(
+      title: 'Hello World',
+      content: 'This is my first post',
+      likes: 0,
+      userId: user?.id,
+    ),
+  );
+  final post = await posts.findOneBy(
+    where: PostQuery((q) => q.title.equals('Hello World')),
+  );
+  print(
+    'Post: id=${post?.id}, title=${post?.title}, content=${post?.content}, likes=${post?.likes}, userId=${post?.user?.id} - ${post?.createdAt} - ${post?.lastUpdatedAt}',
   );
   await ds.dispose();
 }

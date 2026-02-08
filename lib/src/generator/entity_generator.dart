@@ -256,6 +256,9 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
           : false;
       final uuid = isPk ? (colAnn?.peek('uuid')?.boolValue ?? false) : false;
 
+      final isCreatedAt = createdAtAnn != null;
+      final isUpdatedAt = updatedAtAnn != null;
+
       final type = (createdAtAnn != null || updatedAtAnn != null)
           ? ColumnType.dateTime
           : _resolveColumnType(colAnn!, dartType);
@@ -272,6 +275,8 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
           isPk: isPk,
           autoIncrement: autoInc,
           uuid: uuid,
+          isCreatedAt: isCreatedAt,
+          isUpdatedAt: isUpdatedAt,
           defaultLiteral: _dartObjToLiteral(defaultValue),
         ),
       );

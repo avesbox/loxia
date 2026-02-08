@@ -11,13 +11,17 @@ final class SqliteDataSourceOptions extends DataSourceOptions {
     required super.entities,
     required String path,
     super.migrations,
+    super.synchronize = true,
   }) : super(engine: SqliteEngine.file(path));
 }
 
 final class InMemoryDataSourceOptions extends DataSourceOptions {
   /// Creates options for an in-memory DataSource.
-  InMemoryDataSourceOptions({required super.entities, super.migrations})
-    : super(engine: SqliteEngine.inMemory());
+  InMemoryDataSourceOptions({
+    required super.entities,
+    super.migrations,
+    super.synchronize = true,
+  }) : super(engine: SqliteEngine.inMemory());
 }
 
 class SqliteEngine implements EngineAdapter {

@@ -18,6 +18,8 @@ class GenColumn {
     required this.isPk,
     required this.autoIncrement,
     required this.uuid,
+    this.isCreatedAt = false,
+    this.isUpdatedAt = false,
     this.defaultLiteral,
   });
 
@@ -30,6 +32,8 @@ class GenColumn {
   final bool isPk;
   final bool autoIncrement;
   final bool uuid;
+  final bool isCreatedAt;
+  final bool isUpdatedAt;
   final String? defaultLiteral;
 }
 

@@ -12,11 +12,13 @@ abstract class DataSourceOptions {
   final EngineAdapter engine;
   final List<EntityDescriptor> entities;
   final List<Migration> migrations;
+  final bool synchronize;
 
   const DataSourceOptions({
     required this.engine,
     required this.entities,
     this.migrations = const [],
+    this.synchronize = true,
   });
 }
 
@@ -71,11 +73,13 @@ class DataSource {
       });
     }
 
-    final planner = MigrationPlanner();
-    final current = await _engine.readSchema();
-    final plan = planner.diff(entities: options.entities, current: current);
-    if (!plan.isEmpty) {
-      await _engine.executeBatch(plan.statements);
+    if (options.synchronize) {
+      final planner = MigrationPlanner();
+      final current = await _engine.readSchema();
+      final plan = planner.diff(entities: options.entities, current: current);
+      if (!plan.isEmpty) {
+        await _engine.executeBatch(plan.statements);
+      }
     }
   }
 

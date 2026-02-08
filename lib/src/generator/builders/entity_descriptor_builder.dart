@@ -134,13 +134,7 @@ class EntityDescriptorBuilder {
 
     // Add column assignments
     for (final c in context.columns) {
-      var accessor = refer('row').index(literalString(c.name));
-      if (c.dartTypeCode == 'bool') {
-        accessor = accessor.equalTo(literalNum(1));
-      } else {
-        accessor = accessor.asA(refer(c.dartTypeCode));
-      }
-      assignments[c.prop] = accessor;
+      assignments[c.prop] = _fromRowAccessor(c);
     }
 
     // Add relation constructor literals
@@ -158,12 +152,58 @@ class EntityDescriptorBuilder {
     ).closure;
   }
 
+  Expression _fromRowAccessor(GenColumn c) {
+    final col = refer('row').index(literalString(c.name));
+    final baseType = c.dartTypeCode.replaceAll('?', '');
+    final isNullable = c.dartTypeCode.endsWith('?');
+
+    if (c.dartTypeCode == 'bool') {
+      return col.equalTo(literalNum(1));
+    }
+
+    if (c.isCreatedAt || c.isUpdatedAt) {
+      switch (baseType) {
+        case 'int':
+          final expr = col
+              .asA(refer('DateTime'))
+              .property('millisecondsSinceEpoch');
+          return isNullable
+              ? col.nullSafeProperty('millisecondsSinceEpoch')
+              : expr;
+        case 'double':
+          final expr = col
+              .asA(refer('DateTime'))
+              .property('millisecondsSinceEpoch')
+              .property('toDouble')
+              .call([]);
+          return isNullable
+              ? col
+                    .nullSafeProperty('millisecondsSinceEpoch')
+                    .nullSafeProperty('toDouble')
+                    .call([])
+              : expr;
+        case 'String':
+          final expr = col
+              .asA(refer('DateTime'))
+              .property('toIso8601String')
+              .call([]);
+          return isNullable
+              ? col.nullSafeProperty('toIso8601String').call([])
+              : expr;
+        default:
+          return col.asA(refer(c.dartTypeCode));
+      }
+    }
+
+    return col.asA(refer(c.dartTypeCode));
+  }
+
   Expression _buildToRow(EntityGenerationContext context) {
     final entries = <Expression, Expression>{};
 
     // Add column entries
     for (final c in context.columns) {
-      entries[literalString(c.name)] = refer('e').property(c.prop);
+      entries[literalString(c.name)] = _toRowValue(c);
     }
 
     // Add owning join column entries
@@ -182,5 +222,46 @@ class EntityDescriptorBuilder {
         ..body = literalMap(entries).code
         ..lambda = true,
     ).closure;
+  }
+
+  Expression _toRowValue(GenColumn c) {
+    final value = refer('e').property(c.prop);
+    final baseType = c.dartTypeCode.replaceAll('?', '');
+
+    if (!c.isCreatedAt && !c.isUpdatedAt) {
+      return value;
+    }
+
+    switch (baseType) {
+      case 'int':
+        return value
+            .equalTo(literalNull)
+            .conditional(
+              literalNull,
+              refer('DateTime').property('fromMillisecondsSinceEpoch').call([
+                value.asA(refer('int')),
+              ]),
+            );
+      case 'double':
+        return value
+            .equalTo(literalNull)
+            .conditional(
+              literalNull,
+              refer('DateTime').property('fromMillisecondsSinceEpoch').call([
+                value.property('toInt').call([]),
+              ]),
+            );
+      case 'String':
+        return value
+            .equalTo(literalNull)
+            .conditional(
+              literalNull,
+              refer(
+                'DateTime',
+              ).property('parse').call([value.asA(refer('String'))]),
+            );
+      default:
+        return value;
+    }
   }
 }
