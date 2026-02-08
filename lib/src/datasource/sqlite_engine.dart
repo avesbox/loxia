@@ -6,26 +6,18 @@ import 'datasource.dart';
 import 'engine_adapter.dart';
 
 final class SqliteDataSourceOptions extends DataSourceOptions {
-
   /// Creates options for a SQLite DataSource.
   SqliteDataSourceOptions({
     required super.entities,
     required String path,
     super.migrations,
-  }) : super(
-    engine: SqliteEngine.file(path),
-  );
+  }) : super(engine: SqliteEngine.file(path));
 }
 
 final class InMemoryDataSourceOptions extends DataSourceOptions {
-
   /// Creates options for an in-memory DataSource.
-  InMemoryDataSourceOptions({
-    required super.entities,
-    super.migrations,
-  }) : super(
-          engine: SqliteEngine.inMemory(),
-        );
+  InMemoryDataSourceOptions({required super.entities, super.migrations})
+    : super(engine: SqliteEngine.inMemory());
 }
 
 class SqliteEngine implements EngineAdapter {
@@ -35,9 +27,11 @@ class SqliteEngine implements EngineAdapter {
   sq.Database? _db;
   bool _inTransaction = false;
 
-  static SqliteEngine inMemory() => SqliteEngine._(() => sq.sqlite3.openInMemory());
+  static SqliteEngine inMemory() =>
+      SqliteEngine._(() => sq.sqlite3.openInMemory());
 
-  static SqliteEngine file(String path) => SqliteEngine._(() => sq.sqlite3.open(path, mutex: true));
+  static SqliteEngine file(String path) =>
+      SqliteEngine._(() => sq.sqlite3.open(path, mutex: true));
 
   @override
   Future<void> open() async {
@@ -76,7 +70,10 @@ class SqliteEngine implements EngineAdapter {
   }
 
   @override
-  Future<List<Map<String, dynamic>>> query(String sql, [List<Object?> params = const []]) async {
+  Future<List<Map<String, dynamic>>> query(
+    String sql, [
+    List<Object?> params = const [],
+  ]) async {
     final db = _ensureDb();
     final sq.ResultSet rs;
     if (params.isEmpty) {
@@ -91,9 +88,7 @@ class SqliteEngine implements EngineAdapter {
     }
     final cols = rs.columnNames;
     return rs.rows
-        .map((row) => {
-              for (var i = 0; i < cols.length; i++) cols[i]: row[i],
-            })
+        .map((row) => {for (var i = 0; i < cols.length; i++) cols[i]: row[i]})
         .toList(growable: false);
   }
 
@@ -126,7 +121,9 @@ class SqliteEngine implements EngineAdapter {
   }
 
   @override
-  Future<T> transaction<T>(Future<T> Function(EngineAdapter txEngine) action) async {
+  Future<T> transaction<T>(
+    Future<T> Function(EngineAdapter txEngine) action,
+  ) async {
     final db = _ensureDb();
     if (_inTransaction) {
       throw StateError('Nested transactions not supported');
@@ -147,13 +144,27 @@ class SqliteEngine implements EngineAdapter {
 
   ColumnType _mapType(String t) {
     final up = t.toUpperCase();
-    if (up.contains('INT')) return ColumnType.integer;
-    if (up.contains('CHAR') || up.contains('CLOB') || up.contains('TEXT')) return ColumnType.text;
-    if (up.contains('BLOB')) return ColumnType.binary;
-    if (up.contains('REAL') || up.contains('FLOA') || up.contains('DOUB')) return ColumnType.doublePrecision;
-    if (up.contains('JSON')) return ColumnType.json;
-    if (up.contains('BOOL')) return ColumnType.boolean;
-    if (up.contains('TIME') || up.contains('DATE')) return ColumnType.dateTime;
+    if (up.contains('INT')) {
+      return ColumnType.integer;
+    }
+    if (up.contains('CHAR') || up.contains('CLOB') || up.contains('TEXT')) {
+      return ColumnType.text;
+    }
+    if (up.contains('BLOB')) {
+      return ColumnType.binary;
+    }
+    if (up.contains('REAL') || up.contains('FLOA') || up.contains('DOUB')) {
+      return ColumnType.doublePrecision;
+    }
+    if (up.contains('JSON')) {
+      return ColumnType.json;
+    }
+    if (up.contains('BOOL')) {
+      return ColumnType.boolean;
+    }
+    if (up.contains('TIME') || up.contains('DATE')) {
+      return ColumnType.dateTime;
+    }
     // Fallback to text affinity per SQLite rules
     return ColumnType.text;
   }
@@ -165,7 +176,7 @@ class SqliteEngine implements EngineAdapter {
     }
     return db;
   }
-  
+
   @override
   Future<void> ensureHistoryTable() async {
     final db = _ensureDb();
@@ -177,11 +188,13 @@ class SqliteEngine implements EngineAdapter {
       ')',
     );
   }
-  
+
   @override
   Future<List<int>> getAppliedVersions() async {
     final db = _ensureDb();
-    final rs = db.select('SELECT version FROM _loxia_migrations ORDER BY version');
+    final rs = db.select(
+      'SELECT version FROM _loxia_migrations ORDER BY version',
+    );
     return rs.map((row) => row['version'] as int).toList(growable: false);
   }
 }

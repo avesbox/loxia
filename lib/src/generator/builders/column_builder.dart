@@ -66,8 +66,9 @@ class JoinTableDescriptorBuilder {
     return refer('JoinTableDescriptor').newInstance([], {
       'name': literalString(joinTable.name),
       'joinColumns': _joinColumnBuilder.buildConstList(joinTable.joinColumns),
-      'inverseJoinColumns':
-          _joinColumnBuilder.buildConstList(joinTable.inverseJoinColumns),
+      'inverseJoinColumns': _joinColumnBuilder.buildConstList(
+        joinTable.inverseJoinColumns,
+      ),
     });
   }
 }

@@ -19,9 +19,7 @@ class Column {
 class PrimaryKey {
   final bool autoIncrement;
 
-  const PrimaryKey({
-    this.autoIncrement = false,
-  });
+  const PrimaryKey({this.autoIncrement = false});
 }
 
 /// Marks a column that should be indexed.

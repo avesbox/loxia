@@ -12,7 +12,10 @@ abstract class EngineAdapter {
   Future<void> executeBatch(List<String> statements);
 
   /// Executes a query and returns list of rows.
-  Future<List<Map<String, dynamic>>> query(String sql, [List<Object?> params = const []]);
+  Future<List<Map<String, dynamic>>> query(
+    String sql, [
+    List<Object?> params = const [],
+  ]);
 
   /// Executes a command (INSERT/UPDATE/DELETE) and returns affected rows.
   Future<int> execute(String sql, [List<Object?> params = const []]);

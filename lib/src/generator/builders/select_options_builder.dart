@@ -12,79 +12,107 @@ class SelectOptionsBuilder {
 
   /// Builds the complete Select class.
   Class build(EntityGenerationContext context) {
-    return Class((c) => c
-      ..name = context.selectClassName
-      ..extend = TypeReference((t) => t
-        ..symbol = 'SelectOptions'
-        ..types.addAll([
-          refer(context.entityName),
-          refer(context.partialEntityName),
-        ]))
-      ..constructors.add(_buildConstructor(context))
-      ..fields.addAll(_buildColumnFields(context))
-      ..fields.addAll(_buildJoinColumnFields(context))
-      ..fields.add(_buildRelationsField(context))
-      ..methods.add(_buildHasSelectionsGetter(context))
-      ..methods.add(_buildCollectMethod(context))
-      ..methods.add(_buildHydrateMethod(context))
-      ..methods.add(_buildHasCollectionRelationsGetter(context))
-      ..methods.add(_buildPrimaryKeyColumnGetter(context))
-      ..methods.addAll(_buildAggregateRowsMethod(context)));
+    return Class(
+      (c) => c
+        ..name = context.selectClassName
+        ..extend = TypeReference(
+          (t) => t
+            ..symbol = 'SelectOptions'
+            ..types.addAll([
+              refer(context.entityName),
+              refer(context.partialEntityName),
+            ]),
+        )
+        ..constructors.add(_buildConstructor(context))
+        ..fields.addAll(_buildColumnFields(context))
+        ..fields.addAll(_buildJoinColumnFields(context))
+        ..fields.add(_buildRelationsField(context))
+        ..methods.add(_buildHasSelectionsGetter(context))
+        ..methods.add(_buildCollectMethod(context))
+        ..methods.add(_buildHydrateMethod(context))
+        ..methods.add(_buildHasCollectionRelationsGetter(context))
+        ..methods.add(_buildPrimaryKeyColumnGetter(context))
+        ..methods.addAll(_buildAggregateRowsMethod(context)),
+    );
   }
 
   Constructor _buildConstructor(EntityGenerationContext context) {
     final params = <Parameter>[];
 
     for (final c in context.columns) {
-      params.add(Parameter((p) => p
-        ..name = c.prop
-        ..named = true
-        ..toThis = true
-        ..defaultTo = literalTrue.code));
+      params.add(
+        Parameter(
+          (p) => p
+            ..name = c.prop
+            ..named = true
+            ..toThis = true
+            ..defaultTo = literalTrue.code,
+        ),
+      );
     }
 
     for (final relation in context.owningJoinColumns) {
       final joinProp = relation.joinColumnPropertyName;
       if (joinProp != null) {
-        params.add(Parameter((p) => p
-          ..name = joinProp
-          ..named = true
-          ..toThis = true
-          ..defaultTo = literalTrue.code));
+        params.add(
+          Parameter(
+            (p) => p
+              ..name = joinProp
+              ..named = true
+              ..toThis = true
+              ..defaultTo = literalTrue.code,
+          ),
+        );
       }
     }
 
-    params.add(Parameter((p) => p
-      ..name = 'relations'
-      ..named = true
-      ..toThis = true));
+    params.add(
+      Parameter(
+        (p) => p
+          ..name = 'relations'
+          ..named = true
+          ..toThis = true,
+      ),
+    );
 
-    return Constructor((c) => c
-      ..constant = true
-      ..optionalParameters.addAll(params));
+    return Constructor(
+      (c) => c
+        ..constant = true
+        ..optionalParameters.addAll(params),
+    );
   }
 
   Iterable<Field> _buildColumnFields(EntityGenerationContext context) {
-    return context.columns.map((c) => Field((f) => f
-      ..name = c.prop
-      ..modifier = FieldModifier.final$
-      ..type = refer('bool')));
+    return context.columns.map(
+      (c) => Field(
+        (f) => f
+          ..name = c.prop
+          ..modifier = FieldModifier.final$
+          ..type = refer('bool'),
+      ),
+    );
   }
 
   Iterable<Field> _buildJoinColumnFields(EntityGenerationContext context) {
     return context.owningJoinColumns
         .where((r) => r.joinColumnPropertyName != null)
-        .map((relation) => Field((f) => f
-          ..name = relation.joinColumnPropertyName!
-          ..modifier = FieldModifier.final$
-          ..type = refer('bool')));
+        .map(
+          (relation) => Field(
+            (f) => f
+              ..name = relation.joinColumnPropertyName!
+              ..modifier = FieldModifier.final$
+              ..type = refer('bool'),
+          ),
+        );
   }
 
   Field _buildRelationsField(EntityGenerationContext context) {
-    return Field((f) => f
-      ..name = 'relations'
-      ..modifier = FieldModifier.final$
-      ..type = refer('${context.relationsClassName}?'));
+    return Field(
+      (f) => f
+        ..name = 'relations'
+        ..modifier = FieldModifier.final$
+        ..type = refer('${context.relationsClassName}?'),
+    );
   }
 
   Method _buildHasSelectionsGetter(EntityGenerationContext context) {
@@ -98,13 +126,15 @@ class SelectOptionsBuilder {
     }
     parts.add('(relations?.hasSelections ?? false)');
 
-    return Method((m) => m
-      ..annotations.add(refer('override'))
-      ..type = MethodType.getter
-      ..name = 'hasSelections'
-      ..returns = refer('bool')
-      ..body = Code(parts.join(' || '))
-      ..lambda = true);
+    return Method(
+      (m) => m
+        ..annotations.add(refer('override'))
+        ..type = MethodType.getter
+        ..name = 'hasSelections'
+        ..returns = refer('bool')
+        ..body = Code(parts.join(' || '))
+        ..lambda = true,
+    );
   }
 
   Method _buildCollectMethod(EntityGenerationContext context) {
@@ -124,10 +154,12 @@ final tableAlias = scoped.currentAlias;'''),
 
     // Column selection statements
     for (final c in context.columns) {
-      statements.add(Code('''
+      statements.add(
+        Code('''
 if (${c.prop}) {
   out.add(SelectField('${c.name}', tableAlias: tableAlias, alias: aliasFor('${c.name}')));
-}'''));
+}'''),
+      );
     }
 
     // Join column selection statements
@@ -135,38 +167,54 @@ if (${c.prop}) {
       final joinProp = relation.joinColumnPropertyName;
       final joinColumn = relation.joinColumn?.name;
       if (joinProp != null && joinColumn != null) {
-        statements.add(Code('''
+        statements.add(
+          Code('''
 if ($joinProp) {
   out.add(SelectField('$joinColumn', tableAlias: tableAlias, alias: aliasFor('$joinColumn')));
-}'''));
+}'''),
+        );
       }
     }
 
-    statements.add(Code('''
+    statements.add(
+      Code('''
 final rels = relations;
 if (rels != null && rels.hasSelections) {
   rels.collect(scoped, out, path: path);
-}'''));
+}'''),
+    );
 
-    return Method((m) => m
-      ..annotations.add(refer('override'))
-      ..name = 'collect'
-      ..returns = refer('void')
-      ..requiredParameters.addAll([
-        Parameter((p) => p
-          ..name = 'context'
-          ..type = TypeReference((t) => t
-            ..symbol = 'QueryFieldsContext'
-            ..types.add(refer(context.entityName)))),
-        Parameter((p) => p
-          ..name = 'out'
-          ..type = refer('List<SelectField>')),
-      ])
-      ..optionalParameters.add(Parameter((p) => p
-        ..name = 'path'
-        ..named = true
-        ..type = refer('String?')))
-      ..body = Block.of(statements));
+    return Method(
+      (m) => m
+        ..annotations.add(refer('override'))
+        ..name = 'collect'
+        ..returns = refer('void')
+        ..requiredParameters.addAll([
+          Parameter(
+            (p) => p
+              ..name = 'context'
+              ..type = TypeReference(
+                (t) => t
+                  ..symbol = 'QueryFieldsContext'
+                  ..types.add(refer(context.entityName)),
+              ),
+          ),
+          Parameter(
+            (p) => p
+              ..name = 'out'
+              ..type = refer('List<SelectField>'),
+          ),
+        ])
+        ..optionalParameters.add(
+          Parameter(
+            (p) => p
+              ..name = 'path'
+              ..named = true
+              ..type = refer('String?'),
+          ),
+        )
+        ..body = Block.of(statements),
+    );
   }
 
   Method _buildHydrateMethod(EntityGenerationContext context) {
@@ -175,26 +223,34 @@ if (rels != null && rels.hasSelections) {
     // Hydrate owning relations
     for (final relation in context.owningJoinColumns) {
       final targetSimple = simpleTypeName(relation.targetTypeCode);
-      statements.add(Code('''
+      statements.add(
+        Code('''
 ${targetSimple}Partial? ${relation.fieldName}Partial;
 final ${relation.fieldName}Select = relations?.${relation.fieldName};
 if (${relation.fieldName}Select != null && ${relation.fieldName}Select.hasSelections) {
   ${relation.fieldName}Partial = ${relation.fieldName}Select.hydrate(row, path: extendPath(path, '${relation.fieldName}'));
-}'''));
+}'''),
+      );
     }
 
     // Hydrate inverse relations
     for (final relation in context.inverseRelations) {
       final targetSimple = simpleTypeName(relation.targetTypeCode);
       if (relation.isCollection) {
-        statements.add(Code('// Collection relation ${relation.fieldName} requires row aggregation'));
+        statements.add(
+          Code(
+            '// Collection relation ${relation.fieldName} requires row aggregation',
+          ),
+        );
       } else {
-        statements.add(Code('''
+        statements.add(
+          Code('''
 ${targetSimple}Partial? ${relation.fieldName}Partial;
 final ${relation.fieldName}Select = relations?.${relation.fieldName};
 if (${relation.fieldName}Select != null && ${relation.fieldName}Select.hasSelections) {
   ${relation.fieldName}Partial = ${relation.fieldName}Select.hydrate(row, path: extendPath(path, '${relation.fieldName}'));
-}'''));
+}'''),
+        );
       }
     }
 
@@ -206,13 +262,17 @@ if (${relation.fieldName}Select != null && ${relation.fieldName}Select.hasSelect
         baseType = baseType.substring(0, baseType.length - 1);
       }
       final castType = c.nullable ? '$baseType?' : baseType;
-      returnParts.add("${c.prop}: ${c.prop} ? readValue(row, '${c.name}', path: path) as $castType : null");
+      returnParts.add(
+        "${c.prop}: ${c.prop} ? readValue(row, '${c.name}', path: path) as $castType : null",
+      );
     }
     for (final relation in context.owningJoinColumns) {
       final joinProp = relation.joinColumnPropertyName;
       if (joinProp != null) {
         final joinType = relation.joinColumnBaseDartType!;
-        returnParts.add("$joinProp: $joinProp ? readValue(row, '${relation.joinColumn!.name}', path: path) as $joinType? : null");
+        returnParts.add(
+          "$joinProp: $joinProp ? readValue(row, '${relation.joinColumn!.name}', path: path) as $joinType? : null",
+        );
       }
       returnParts.add('${relation.fieldName}: ${relation.fieldName}Partial');
     }
@@ -224,40 +284,56 @@ if (${relation.fieldName}Select != null && ${relation.fieldName}Select.hasSelect
       }
     }
 
-    statements.add(Code('return ${context.partialEntityName}(${returnParts.join(', ')});'));
+    statements.add(
+      Code('return ${context.partialEntityName}(${returnParts.join(', ')});'),
+    );
 
-    return Method((m) => m
-      ..annotations.add(refer('override'))
-      ..name = 'hydrate'
-      ..returns = refer(context.partialEntityName)
-      ..requiredParameters.add(Parameter((p) => p
-        ..name = 'row'
-        ..type = refer('Map<String, dynamic>')))
-      ..optionalParameters.add(Parameter((p) => p
-        ..name = 'path'
-        ..named = true
-        ..type = refer('String?')))
-      ..body = Block.of(statements));
+    return Method(
+      (m) => m
+        ..annotations.add(refer('override'))
+        ..name = 'hydrate'
+        ..returns = refer(context.partialEntityName)
+        ..requiredParameters.add(
+          Parameter(
+            (p) => p
+              ..name = 'row'
+              ..type = refer('Map<String, dynamic>'),
+          ),
+        )
+        ..optionalParameters.add(
+          Parameter(
+            (p) => p
+              ..name = 'path'
+              ..named = true
+              ..type = refer('String?'),
+          ),
+        )
+        ..body = Block.of(statements),
+    );
   }
 
   Method _buildHasCollectionRelationsGetter(EntityGenerationContext context) {
-    return Method((m) => m
-      ..annotations.add(refer('override'))
-      ..type = MethodType.getter
-      ..name = 'hasCollectionRelations'
-      ..returns = refer('bool')
-      ..body = literalBool(context.hasCollectionRelations).code
-      ..lambda = true);
+    return Method(
+      (m) => m
+        ..annotations.add(refer('override'))
+        ..type = MethodType.getter
+        ..name = 'hasCollectionRelations'
+        ..returns = refer('bool')
+        ..body = literalBool(context.hasCollectionRelations).code
+        ..lambda = true,
+    );
   }
 
   Method _buildPrimaryKeyColumnGetter(EntityGenerationContext context) {
-    return Method((m) => m
-      ..annotations.add(refer('override'))
-      ..type = MethodType.getter
-      ..name = 'primaryKeyColumn'
-      ..returns = refer('String?')
-      ..body = literalString(context.primaryKeyColumn.name).code
-      ..lambda = true);
+    return Method(
+      (m) => m
+        ..annotations.add(refer('override'))
+        ..type = MethodType.getter
+        ..name = 'primaryKeyColumn'
+        ..returns = refer('String?')
+        ..body = literalString(context.primaryKeyColumn.name).code
+        ..lambda = true,
+    );
   }
 
   Iterable<Method> _buildAggregateRowsMethod(EntityGenerationContext context) {
@@ -283,7 +359,9 @@ for (final row in rows) {
     aggregationParts.add('final base = hydrate(firstRow, path: path);');
 
     // Collection aggregation for each inverse collection relation
-    for (final relation in context.inverseRelations.where((r) => r.isCollection)) {
+    for (final relation in context.inverseRelations.where(
+      (r) => r.isCollection,
+    )) {
       final targetSimple = simpleTypeName(relation.targetTypeCode);
       final relationName = relation.fieldName;
       aggregationParts.add('''
@@ -322,26 +400,40 @@ if (${relationName}Select != null && ${relationName}Select.hasSelections) {
         returnParts.add('${relation.fieldName}: base.${relation.fieldName}');
       }
     }
-    aggregationParts.add('return ${context.partialEntityName}(${returnParts.join(', ')});');
+    aggregationParts.add(
+      'return ${context.partialEntityName}(${returnParts.join(', ')});',
+    );
 
-    statements.add(Code('''
+    statements.add(
+      Code('''
 return grouped.entries.map((entry) {
   ${aggregationParts.join('\n  ')}
-}).toList();'''));
+}).toList();'''),
+    );
 
     return [
-      Method((m) => m
-        ..annotations.add(refer('override'))
-        ..name = 'aggregateRows'
-        ..returns = refer('List<${context.partialEntityName}>')
-        ..requiredParameters.add(Parameter((p) => p
-          ..name = 'rows'
-          ..type = refer('List<Map<String, dynamic>>')))
-        ..optionalParameters.add(Parameter((p) => p
-          ..name = 'path'
-          ..named = true
-          ..type = refer('String?')))
-        ..body = Block.of(statements))
+      Method(
+        (m) => m
+          ..annotations.add(refer('override'))
+          ..name = 'aggregateRows'
+          ..returns = refer('List<${context.partialEntityName}>')
+          ..requiredParameters.add(
+            Parameter(
+              (p) => p
+                ..name = 'rows'
+                ..type = refer('List<Map<String, dynamic>>'),
+            ),
+          )
+          ..optionalParameters.add(
+            Parameter(
+              (p) => p
+                ..name = 'path'
+                ..named = true
+                ..type = refer('String?'),
+            ),
+          )
+          ..body = Block.of(statements),
+      ),
     ];
   }
 }

@@ -11,8 +11,9 @@ Expression constList(List<Expression> items, [Reference? type]) {
 /// Gets the simple type name from a type code (removes generics and qualifiers).
 String simpleTypeName(String typeCode) {
   final genericsIndex = typeCode.indexOf('<');
-  final trimmed =
-      genericsIndex == -1 ? typeCode : typeCode.substring(0, genericsIndex);
+  final trimmed = genericsIndex == -1
+      ? typeCode
+      : typeCode.substring(0, genericsIndex);
   final dotIndex = trimmed.lastIndexOf('.');
   return dotIndex == -1 ? trimmed : trimmed.substring(dotIndex + 1);
 }

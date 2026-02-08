@@ -2,14 +2,7 @@
 enum RelationFetchStrategy { eager, lazy }
 
 /// Describes cascading operations that propagate to relations.
-enum RelationCascade {
-  persist,
-  merge,
-  remove,
-  detach,
-  refresh,
-  all,
-}
+enum RelationCascade { persist, merge, remove, detach, refresh, all }
 
 /// Declares a one-to-one relationship.
 class OneToOne {

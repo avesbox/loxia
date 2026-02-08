@@ -39,7 +39,10 @@ class SchemaSnapshot {
         final key = entry.key?.toString();
         final value = entry.value;
         if (key == null || value is! Map) continue;
-        tables[key] = SnapshotTable.fromJson(key, Map<String, dynamic>.from(value));
+        tables[key] = SnapshotTable.fromJson(
+          key,
+          Map<String, dynamic>.from(value),
+        );
       }
     }
     return SchemaSnapshot(version: version, tables: tables);
@@ -73,7 +76,10 @@ class SnapshotTable {
         final key = entry.key?.toString();
         final value = entry.value;
         if (key == null || value is! Map) continue;
-        columns[key] = SnapshotColumn.fromJson(key, Map<String, dynamic>.from(value));
+        columns[key] = SnapshotColumn.fromJson(
+          key,
+          Map<String, dynamic>.from(value),
+        );
       }
     }
     return SnapshotTable(name: name, columns: columns);

@@ -1,7 +1,4 @@
 import 'dart:io';
-import 'dart:convert';
-
-import 'package:loxia/loxia.dart';
 
 Future<void> main(List<String> args) async {
   if (args.isEmpty || args.first == 'help' || args.first == '--help') {
@@ -36,14 +33,26 @@ void _printUsage() {
   stdout.writeln('  migrate:revert    Revert applied migrations');
   stdout.writeln('');
   stdout.writeln('Options:');
-  stdout.writeln('  --engine <name>   Database engine: sqlite|postgres (default: sqlite)');
-  stdout.writeln('  --db <path>       Path to SQLite database file (required for sqlite)');
+  stdout.writeln(
+    '  --engine <name>   Database engine: sqlite|postgres (default: sqlite)',
+  );
+  stdout.writeln(
+    '  --db <path>       Path to SQLite database file (required for sqlite)',
+  );
   stdout.writeln('  --pg-host <host>  Postgres host (required for postgres)');
   stdout.writeln('  --pg-port <port>  Postgres port (required for postgres)');
-  stdout.writeln('  --pg-db <name>    Postgres database (required for postgres)');
-  stdout.writeln('  --pg-user <name>  Postgres username (required for postgres)');
-  stdout.writeln('  --pg-password <pw> Postgres password (required for postgres)');
-  stdout.writeln('  --pg-ssl <bool>   Postgres SSL (true/false, default: false)');
+  stdout.writeln(
+    '  --pg-db <name>    Postgres database (required for postgres)',
+  );
+  stdout.writeln(
+    '  --pg-user <name>  Postgres username (required for postgres)',
+  );
+  stdout.writeln(
+    '  --pg-password <pw> Postgres password (required for postgres)',
+  );
+  stdout.writeln(
+    '  --pg-ssl <bool>   Postgres SSL (true/false, default: false)',
+  );
   stdout.writeln(
     '  --migrations <path>  Dart migrations file (default: lib/migrations.dart)',
   );
@@ -54,7 +63,9 @@ void _printUsage() {
   stdout.writeln('Examples:');
   stdout.writeln('  loxia migrate:run --db ./app.db');
   stdout.writeln('  loxia migrate:revert --db ./app.db --steps 2');
-  stdout.writeln('  loxia migrate:run --engine postgres --pg-host localhost --pg-port 5432 --pg-db app --pg-user postgres --pg-password secret');
+  stdout.writeln(
+    '  loxia migrate:run --engine postgres --pg-host localhost --pg-port 5432 --pg-db app --pg-user postgres --pg-password secret',
+  );
 }
 
 Map<String, String> _parseOptions(List<String> args) {
@@ -76,11 +87,7 @@ Map<String, String> _parseOptions(List<String> args) {
 }
 
 Future<void> _runMigrations(Map<String, String> options) async {
-  await _runMigrationRunner(
-    options,
-    mode: 'run',
-    steps: 0,
-  );
+  await _runMigrationRunner(options, mode: 'run', steps: 0);
 }
 
 Future<void> _revertMigrations(Map<String, String> options) async {
@@ -89,12 +96,9 @@ Future<void> _revertMigrations(Map<String, String> options) async {
     stderr.writeln('--steps must be >= 1');
     exit(64);
   }
-  await _runMigrationRunner(
-    options,
-    mode: 'revert',
-    steps: steps,
-  );
+  await _runMigrationRunner(options, mode: 'revert', steps: steps);
 }
+
 Future<void> _runMigrationRunner(
   Map<String, String> options, {
   required String mode,
@@ -115,8 +119,16 @@ Future<void> _runMigrationRunner(
     final database = options['pg-db'];
     final user = options['pg-user'];
     final password = options['pg-password'];
-    if ([host, port, database, user, password].any((v) => v == null || v!.trim().isEmpty)) {
-      stderr.writeln('Missing required postgres options: --pg-host --pg-port --pg-db --pg-user --pg-password');
+    if ([
+      host,
+      port,
+      database,
+      user,
+      password,
+    ].any((v) => v == null || v.trim().isEmpty)) {
+      stderr.writeln(
+        'Missing required postgres options: --pg-host --pg-port --pg-db --pg-user --pg-password',
+      );
       exit(64);
     }
     final ssl = (options['pg-ssl'] ?? 'false').toLowerCase();
@@ -131,17 +143,9 @@ Future<void> _runMigrationRunner(
   final importUri = _resolveMigrationImport(migrationsPath, packageName);
   final runnerPath = await _writeRunner(importUri);
 
-  final runArgs = [
-    'run',
-    runnerPath,
-    ...args,
-    if (steps > 0) steps.toString(),
-  ];
+  final runArgs = ['run', runnerPath, ...args, if (steps > 0) steps.toString()];
 
-  final result = await Process.run(
-    Platform.resolvedExecutable,
-    runArgs,
-  );
+  final result = await Process.run(Platform.resolvedExecutable, runArgs);
 
   if (result.stdout != null && result.stdout.toString().trim().isNotEmpty) {
     stdout.write(result.stdout);
@@ -188,7 +192,9 @@ Future<String> _writeRunner(String importUri) async {
   if (!dir.existsSync()) {
     dir.createSync(recursive: true);
   }
-  final file = File('${dir.path}${Platform.pathSeparator}migration_runner.dart');
+  final file = File(
+    '${dir.path}${Platform.pathSeparator}migration_runner.dart',
+  );
   await file.writeAsString(_runnerSource(importUri));
   return file.path;
 }

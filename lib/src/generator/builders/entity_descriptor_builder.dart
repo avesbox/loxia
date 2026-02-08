@@ -16,16 +16,20 @@ class EntityDescriptorBuilder {
 
   /// Builds the EntityDescriptor field declaration.
   Field build(EntityGenerationContext context) {
-    return Field((b) => b
-      ..name = context.descriptorVarName
-      ..modifier = FieldModifier.final$
-      ..type = TypeReference((t) => t
-        ..symbol = 'EntityDescriptor'
-        ..types.addAll([
-          refer(context.entityName),
-          refer(context.partialEntityName),
-        ]))
-      ..assignment = _buildDescriptorInstance(context).code);
+    return Field(
+      (b) => b
+        ..name = context.descriptorVarName
+        ..modifier = FieldModifier.final$
+        ..type = TypeReference(
+          (t) => t
+            ..symbol = 'EntityDescriptor'
+            ..types.addAll([
+              refer(context.entityName),
+              refer(context.partialEntityName),
+            ]),
+        )
+        ..assignment = _buildDescriptorInstance(context).code,
+    );
   }
 
   Expression _buildDescriptorInstance(EntityGenerationContext context) {
@@ -39,18 +43,19 @@ class EntityDescriptorBuilder {
       'relations': _relationBuilder.buildConstList(context.relations),
       'fromRow': _buildFromRow(context),
       'toRow': _buildToRow(context),
-      'fieldsContext':
-          refer(context.fieldsContextName).constInstance([]),
-      'repositoryFactory': Method((m) => m
-        ..requiredParameters.add(Parameter((p) => p
-          ..name = 'engine'
-          ..type = refer('EngineAdapter')))
-        ..body = refer(repoName)
-            .newInstance([
-              refer('engine'),
-            ])
-            .code
-        ..lambda = true).closure,
+      'fieldsContext': refer(context.fieldsContextName).constInstance([]),
+      'repositoryFactory': Method(
+        (m) => m
+          ..requiredParameters.add(
+            Parameter(
+              (p) => p
+                ..name = 'engine'
+                ..type = refer('EngineAdapter'),
+            ),
+          )
+          ..body = refer(repoName).newInstance([refer('engine')]).code
+          ..lambda = true,
+      ).closure,
       if (_hasHooks(context)) 'hooks': _buildHooks(context),
     });
   }
@@ -65,7 +70,8 @@ class EntityDescriptorBuilder {
     final args = <String, Expression>{};
     final hookNames = <String>{
       ...context.hooks.keys,
-      if (context.createdAtFields.isNotEmpty || context.updatedAtFields.isNotEmpty)
+      if (context.createdAtFields.isNotEmpty ||
+          context.updatedAtFields.isNotEmpty)
         'prePersist',
       if (context.updatedAtFields.isNotEmpty) 'preUpdate',
     };
@@ -75,13 +81,18 @@ class EntityDescriptorBuilder {
       if (statements.isEmpty) continue;
       args[hookName] = _buildHookClosure(statements);
     }
-    final hooksType = TypeReference((t) => t
-      ..symbol = 'EntityHooks'
-      ..types.add(refer(context.entityName)));
+    final hooksType = TypeReference(
+      (t) => t
+        ..symbol = 'EntityHooks'
+        ..types.add(refer(context.entityName)),
+    );
     return hooksType.newInstance([], args);
   }
 
-  List<String> _buildHookStatements(EntityGenerationContext context, String hookName) {
+  List<String> _buildHookStatements(
+    EntityGenerationContext context,
+    String hookName,
+  ) {
     final statements = <String>[];
 
     if (hookName == 'prePersist') {
@@ -130,7 +141,6 @@ class EntityDescriptorBuilder {
         accessor = accessor.asA(refer(c.dartTypeCode));
       }
       assignments[c.prop] = accessor;
-      
     }
 
     // Add relation constructor literals
@@ -140,10 +150,12 @@ class EntityDescriptorBuilder {
       }
     }
 
-    return Method((m) => m
-      ..requiredParameters.add(Parameter((p) => p..name = 'row'))
-      ..body = refer(context.entityName).newInstance([], assignments).code
-      ..lambda = true).closure;
+    return Method(
+      (m) => m
+        ..requiredParameters.add(Parameter((p) => p..name = 'row'))
+        ..body = refer(context.entityName).newInstance([], assignments).code
+        ..lambda = true,
+    ).closure;
   }
 
   Expression _buildToRow(EntityGenerationContext context) {
@@ -159,14 +171,16 @@ class EntityDescriptorBuilder {
       final accessor = relation.targetPrimaryFieldName == null
           ? literalNull
           : refer('e')
-              .property(relation.fieldName)
-              .nullSafeProperty(relation.targetPrimaryFieldName!);
+                .property(relation.fieldName)
+                .nullSafeProperty(relation.targetPrimaryFieldName!);
       entries[literalString(relation.joinColumn!.name)] = accessor;
     }
 
-    return Method((m) => m
-      ..requiredParameters.add(Parameter((p) => p..name = 'e'))
-      ..body = literalMap(entries).code
-      ..lambda = true).closure;
+    return Method(
+      (m) => m
+        ..requiredParameters.add(Parameter((p) => p..name = 'e'))
+        ..body = literalMap(entries).code
+        ..lambda = true,
+    ).closure;
   }
 }

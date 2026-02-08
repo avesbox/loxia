@@ -13,77 +13,78 @@ typedef EntityToRow<T extends Entity> = Map<String, dynamic> Function(T entity);
 
 /// Runtime description of an entity, referenced by repositories and builders.
 class EntityDescriptor<T extends Entity, P extends PartialEntity<T>> {
-	static final Map<Type, EntityDescriptor> _registry = {};
+  static final Map<Type, EntityDescriptor> _registry = {};
 
-	static void registerAll(Iterable<EntityDescriptor> descriptors) {
-		_registry
-			..clear()
-			..addEntries(descriptors.map((d) => MapEntry(d.entityType, d)));
-	}
+  static void registerAll(Iterable<EntityDescriptor> descriptors) {
+    _registry
+      ..clear()
+      ..addEntries(descriptors.map((d) => MapEntry(d.entityType, d)));
+  }
 
-	static EntityDescriptor? lookup(Type type) => _registry[type];
+  static EntityDescriptor? lookup(Type type) => _registry[type];
 
-	EntityDescriptor({
-		required this.entityType,
-		required this.tableName,
-		this.schema,
-		required List<ColumnDescriptor> columns,
-		List<RelationDescriptor> relations = const [],
-		List<IndexDescriptor> indexes = const [],
-		required this.fromRow,
-		required this.toRow,
+  EntityDescriptor({
+    required this.entityType,
+    required this.tableName,
+    this.schema,
+    required List<ColumnDescriptor> columns,
+    List<RelationDescriptor> relations = const [],
+    List<IndexDescriptor> indexes = const [],
+    required this.fromRow,
+    required this.toRow,
     required this.fieldsContext,
     required this.repositoryFactory,
-		this.hooks,
-	})  : columns = List.unmodifiable(columns),
-				relations = List.unmodifiable(relations),
-				indexes = List.unmodifiable(indexes);
+    this.hooks,
+  }) : columns = List.unmodifiable(columns),
+       relations = List.unmodifiable(relations),
+       indexes = List.unmodifiable(indexes);
 
-	final Type entityType;
-	final String tableName;
-	final String? schema;
-	final List<ColumnDescriptor> columns;
-	final List<RelationDescriptor> relations;
-	final List<IndexDescriptor> indexes;
-	final EntityFromRow<T> fromRow;
-	final EntityToRow<T> toRow;
+  final Type entityType;
+  final String tableName;
+  final String? schema;
+  final List<ColumnDescriptor> columns;
+  final List<RelationDescriptor> relations;
+  final List<IndexDescriptor> indexes;
+  final EntityFromRow<T> fromRow;
+  final EntityToRow<T> toRow;
   final QueryFieldsContext<T> fieldsContext;
   final EntityRepository<T, P> Function(EngineAdapter engine) repositoryFactory;
-	final EntityHooks<T>? hooks;
+  final EntityHooks<T>? hooks;
 
-	ColumnDescriptor? get primaryKey {
-		for (final column in columns) {
-			if (column.isPrimaryKey) {
-				return column;
-			}
-		}
-		return null;
-	}
+  ColumnDescriptor? get primaryKey {
+    for (final column in columns) {
+      if (column.isPrimaryKey) {
+        return column;
+      }
+    }
+    return null;
+  }
 
-	String get qualifiedTableName => schema == null ? tableName : '$schema.$tableName';
+  String get qualifiedTableName =>
+      schema == null ? tableName : '$schema.$tableName';
 
-	Map<String, dynamic> toMap(T entity) => toRow(entity);
+  Map<String, dynamic> toMap(T entity) => toRow(entity);
 
-	T fromMap(Map<String, dynamic> row) => fromRow(row);
+  T fromMap(Map<String, dynamic> row) => fromRow(row);
 }
 
 /// Optional lifecycle hooks for an entity.
 class EntityHooks<T> {
-	const EntityHooks({
-		this.prePersist,
-		this.postPersist,
-		this.preUpdate,
-		this.postUpdate,
-		this.preRemove,
-		this.postRemove,
-		this.postLoad,
-	});
+  const EntityHooks({
+    this.prePersist,
+    this.postPersist,
+    this.preUpdate,
+    this.postUpdate,
+    this.preRemove,
+    this.postRemove,
+    this.postLoad,
+  });
 
-	final void Function(T entity)? prePersist;
-	final void Function(T entity)? postPersist;
-	final void Function(T entity)? preUpdate;
-	final void Function(T entity)? postUpdate;
-	final void Function(T entity)? preRemove;
-	final void Function(T entity)? postRemove;
-	final void Function(T entity)? postLoad;
+  final void Function(T entity)? prePersist;
+  final void Function(T entity)? postPersist;
+  final void Function(T entity)? preUpdate;
+  final void Function(T entity)? postUpdate;
+  final void Function(T entity)? preRemove;
+  final void Function(T entity)? postRemove;
+  final void Function(T entity)? postLoad;
 }

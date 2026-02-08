@@ -1,12 +1,7 @@
 import '../annotations/relations.dart';
 
 /// Enum describing the type of relationship.
-enum RelationType {
-  oneToOne,
-  oneToMany,
-  manyToOne,
-  manyToMany,
-}
+enum RelationType { oneToOne, oneToMany, manyToOne, manyToMany }
 
 class JoinColumnDescriptor {
   const JoinColumnDescriptor({
@@ -66,13 +61,19 @@ class RelationDescriptor {
 
   /// Returns true if this cascade should propagate persist operations.
   bool get shouldCascadePersist =>
-      cascadePersist || cascade.contains(RelationCascade.persist) || cascade.contains(RelationCascade.all);
+      cascadePersist ||
+      cascade.contains(RelationCascade.persist) ||
+      cascade.contains(RelationCascade.all);
 
   /// Returns true if this cascade should propagate merge/update operations.
   bool get shouldCascadeMerge =>
-      cascadeMerge || cascade.contains(RelationCascade.merge) || cascade.contains(RelationCascade.all);
+      cascadeMerge ||
+      cascade.contains(RelationCascade.merge) ||
+      cascade.contains(RelationCascade.all);
 
   /// Returns true if this cascade should propagate remove/delete operations.
   bool get shouldCascadeRemove =>
-      cascadeRemove || cascade.contains(RelationCascade.remove) || cascade.contains(RelationCascade.all);
+      cascadeRemove ||
+      cascade.contains(RelationCascade.remove) ||
+      cascade.contains(RelationCascade.all);
 }

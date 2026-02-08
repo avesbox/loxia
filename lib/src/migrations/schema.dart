@@ -3,7 +3,7 @@ import '../annotations/column.dart';
 /// Snapshot of the database schema as reported by an engine.
 class SchemaState {
   SchemaState({Map<String, SchemaTable>? tables})
-      : tables = Map.unmodifiable(tables ?? <String, SchemaTable>{});
+    : tables = Map.unmodifiable(tables ?? <String, SchemaTable>{});
 
   final Map<String, SchemaTable> tables;
 
@@ -18,10 +18,8 @@ class SchemaState {
 
 /// Describes a table in the schema.
 class SchemaTable {
-  SchemaTable({
-    required this.name,
-    Map<String, SchemaColumn>? columns,
-  }) : columns = Map.unmodifiable(columns ?? <String, SchemaColumn>{});
+  SchemaTable({required this.name, Map<String, SchemaColumn>? columns})
+    : columns = Map.unmodifiable(columns ?? <String, SchemaColumn>{});
 
   final String name;
   final Map<String, SchemaColumn> columns;

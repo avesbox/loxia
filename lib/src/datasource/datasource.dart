@@ -29,7 +29,8 @@ class DataSource {
   final Map<Type, EntityDescriptor> _registry = {};
   final Map<Type, EntityRepository> _repositories = {};
 
-  Map<Type, EntityRepository> get repositories => UnmodifiableMapView(_repositories);
+  Map<Type, EntityRepository> get repositories =>
+      UnmodifiableMapView(_repositories);
 
   Future<void> init() async {
     await _engine.open();
@@ -44,17 +45,20 @@ class DataSource {
     final applied = await _engine.getAppliedVersions();
     final migrations = options.migrations;
     final migrationVersions = migrations.map((m) => m.version).toSet();
-    final missingInCode = applied.where((v) => !migrationVersions.contains(v)).toList();
+    final missingInCode = applied
+        .where((v) => !migrationVersions.contains(v))
+        .toList();
     if (missingInCode.isNotEmpty) {
       throw StateError(
         'Migration history mismatch. Database contains versions not present in code: $missingInCode',
       );
     }
 
-    final pending = migrations
-        .where((m) => !applied.contains(m.version))
-        .toList(growable: false)
-      ..sort((a, b) => a.version.compareTo(b.version));
+    final pending =
+        migrations
+            .where((m) => !applied.contains(m.version))
+            .toList(growable: false)
+          ..sort((a, b) => a.version.compareTo(b.version));
 
     for (final migration in pending) {
       print('Applying migration ${migration.version}...');
@@ -80,13 +84,15 @@ class DataSource {
   }
 
   /// Returns a repository for the given entity type.
-  /// 
+  ///
   /// [T] is the entity type, [P] is the corresponding partial entity type.
   /// The partial type must match the one generated for the entity.
   EntityRepository<T, PartialEntity<T>> getRepository<T extends Entity>() {
     final repo = _repositories[T];
     if (repo == null) {
-      throw StateError('Entity ${T.toString()} is not registered in this DataSource');
+      throw StateError(
+        'Entity ${T.toString()} is not registered in this DataSource',
+      );
     }
     return repo as EntityRepository<T, PartialEntity<T>>;
   }
@@ -94,12 +100,18 @@ class DataSource {
   /// Returns a repository for the given entity descriptor.
   /// [T] is the entity type, [P] is the corresponding partial entity type.
   /// The partial type must match the one generated for the entity.
-  /// 
+  ///
   /// Throws a [StateError] if the entity type is not registered.
-  /// 
+  ///
   /// [descriptor] is the entity descriptor to get the repository for.
-  EntityRepository<T, PartialEntity<T>> getRepositoryFromDescriptor<T extends Entity>(EntityDescriptor<T, PartialEntity<T>> descriptor) {
-    return EntityRepository<T, PartialEntity<T>>(descriptor, _engine, descriptor.fieldsContext);
+  EntityRepository<T, PartialEntity<T>> getRepositoryFromDescriptor<
+    T extends Entity
+  >(EntityDescriptor<T, PartialEntity<T>> descriptor) {
+    return EntityRepository<T, PartialEntity<T>>(
+      descriptor,
+      _engine,
+      descriptor.fieldsContext,
+    );
   }
 
   /// Executes the provided action within a transactional context.
@@ -122,8 +134,11 @@ class LoxiaTransaction {
   EntityRepository<T, PartialEntity<T>> getRepository<T extends Entity>() {
     final descriptor = _registry[T];
     if (descriptor == null) {
-      throw StateError('Entity ${T.toString()} is not registered in this DataSource');
+      throw StateError(
+        'Entity ${T.toString()} is not registered in this DataSource',
+      );
     }
-    return (descriptor as EntityDescriptor<T, PartialEntity<T>>).repositoryFactory(_engine);
+    return (descriptor as EntityDescriptor<T, PartialEntity<T>>)
+        .repositoryFactory(_engine);
   }
 }

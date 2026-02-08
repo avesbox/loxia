@@ -7,9 +7,7 @@ import '../migrations/schema.dart';
 import 'datasource.dart';
 import 'engine_adapter.dart';
 
-
 final class PostgresDataSourceOptions extends DataSourceOptions {
-
   /// Creates options for a PostgreSQL DataSource.
   PostgresDataSourceOptions._({
     required super.engine,
@@ -35,7 +33,7 @@ final class PostgresDataSourceOptions extends DataSourceOptions {
         username: username,
         password: password,
       ),
-      settings: settings
+      settings: settings,
     );
     return PostgresDataSourceOptions._(
       engine: engine,
@@ -43,7 +41,6 @@ final class PostgresDataSourceOptions extends DataSourceOptions {
       migrations: migrations,
     );
   }
-
 }
 
 class PostgresEngine implements EngineAdapter {
@@ -55,8 +52,7 @@ class PostgresEngine implements EngineAdapter {
   static PostgresEngine connect(
     Endpoint endpoint, {
     ConnectionSettings? settings,
-  }) =>
-      PostgresEngine._(() => Connection.open(endpoint, settings: settings));
+  }) => PostgresEngine._(() => Connection.open(endpoint, settings: settings));
 
   static PostgresEngine fromConnection(Connection connection) =>
       PostgresEngine._(() async => connection);
@@ -83,10 +79,7 @@ class PostgresEngine implements EngineAdapter {
           "WHERE table_schema = @schema AND table_name = @table "
           "ORDER BY ordinal_position",
         ),
-        parameters: {
-          'schema': schema,
-          'table': name,
-        },
+        parameters: {'schema': schema, 'table': name},
       );
 
       final pkRows = await db.execute(
@@ -100,13 +93,12 @@ class PostgresEngine implements EngineAdapter {
           "  AND tc.table_schema = @schema "
           "  AND tc.table_name = @table",
         ),
-        parameters: {
-          'schema': schema,
-          'table': name,
-        },
+        parameters: {'schema': schema, 'table': name},
       );
 
-      final pkColumns = pkRows.map((r) => r.toColumnMap()['column_name'] as String).toSet();
+      final pkColumns = pkRows
+          .map((r) => r.toColumnMap()['column_name'] as String)
+          .toSet();
 
       for (final c in columnRows) {
         final cMap = c.toColumnMap();
@@ -161,7 +153,10 @@ class PostgresEngine implements EngineAdapter {
   }
 
   @override
-  Future<List<Map<String, dynamic>>> query(String sql, [List<Object?> params = const []]) async {
+  Future<List<Map<String, dynamic>>> query(
+    String sql, [
+    List<Object?> params = const [],
+  ]) async {
     final db = _ensureDb();
     final prepared = params.isEmpty ? sql : _convertPlaceholders(sql);
     final result = await db.execute(prepared, parameters: params);
@@ -176,7 +171,9 @@ class PostgresEngine implements EngineAdapter {
   }
 
   @override
-  Future<T> transaction<T>(Future<T> Function(EngineAdapter txEngine) action) async {
+  Future<T> transaction<T>(
+    Future<T> Function(EngineAdapter txEngine) action,
+  ) async {
     final db = _ensureDb();
     return db.runTx((session) async {
       final txEngine = _PostgresSessionEngine(session);
@@ -269,12 +266,20 @@ class PostgresEngine implements EngineAdapter {
     final type = (dataType ?? '').toUpperCase();
     final udt = (udtName ?? '').toUpperCase();
     if (type.contains('INT') || udt.contains('INT')) return ColumnType.integer;
-    if (type.contains('CHAR') || type.contains('TEXT') || udt.contains('CHAR')) return ColumnType.text;
+    if (type.contains('CHAR') ||
+        type.contains('TEXT') ||
+        udt.contains('CHAR')) {
+      return ColumnType.text;
+    }
     if (type.contains('BOOL')) return ColumnType.boolean;
-    if (type.contains('DOUBLE') || type.contains('REAL') || type.contains('NUMERIC')) {
+    if (type.contains('DOUBLE') ||
+        type.contains('REAL') ||
+        type.contains('NUMERIC')) {
       return ColumnType.doublePrecision;
     }
-    if (type.contains('TIMESTAMP') || type.contains('DATE') || type.contains('TIME')) {
+    if (type.contains('TIMESTAMP') ||
+        type.contains('DATE') ||
+        type.contains('TIME')) {
       return ColumnType.dateTime;
     }
     if (type.contains('JSON')) return ColumnType.json;
@@ -317,14 +322,21 @@ class _PostgresSessionEngine implements EngineAdapter {
   @override
   Future<int> execute(String sql, [List<Object?> params = const []]) async {
     final adapted = PostgresEngine._adaptSql(sql);
-    final prepared = params.isEmpty ? adapted : PostgresEngine._convertPlaceholders(adapted);
+    final prepared = params.isEmpty
+        ? adapted
+        : PostgresEngine._convertPlaceholders(adapted);
     final result = await _session.execute(prepared, parameters: params);
     return result.affectedRows;
   }
 
   @override
-  Future<List<Map<String, dynamic>>> query(String sql, [List<Object?> params = const []]) async {
-    final prepared = params.isEmpty ? sql : PostgresEngine._convertPlaceholders(sql);
+  Future<List<Map<String, dynamic>>> query(
+    String sql, [
+    List<Object?> params = const [],
+  ]) async {
+    final prepared = params.isEmpty
+        ? sql
+        : PostgresEngine._convertPlaceholders(sql);
     final result = await _session.execute(prepared, parameters: params);
     return result
         .map((row) => row.toColumnMap().cast<String, dynamic>())
@@ -337,7 +349,9 @@ class _PostgresSessionEngine implements EngineAdapter {
   }
 
   @override
-  Future<T> transaction<T>(Future<T> Function(EngineAdapter txEngine) action) async {
+  Future<T> transaction<T>(
+    Future<T> Function(EngineAdapter txEngine) action,
+  ) async {
     return action(this);
   }
 

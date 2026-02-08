@@ -51,20 +51,16 @@ class PaginatedResult<P> {
 }
 
 /// Represents an update operation for a ManyToMany relation.
-/// 
+///
 /// This class allows fine-grained control over how a ManyToMany collection
 /// is updated:
 /// - [add]: Add new target IDs to the collection
 /// - [remove]: Remove target IDs from the collection
 /// - [set]: Replace the entire collection with a new set of IDs
-/// 
+///
 /// If [set] is provided, [add] and [remove] are ignored.
 class ManyToManyCascadeUpdate {
-  const ManyToManyCascadeUpdate({
-    this.add,
-    this.remove,
-    this.set,
-  });
+  const ManyToManyCascadeUpdate({this.add, this.remove, this.set});
 
   /// Target IDs to add to the collection.
   final List<int>? add;

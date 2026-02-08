@@ -16,10 +16,10 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
   final QueryFieldsContext<T> _fieldsContext;
 
   /// Executes a query and returns partial entities based on the [select] options.
-  /// 
+  ///
   /// Use this method when you only need specific columns. The returned [P] partial
   /// entities have all fields nullable since not all columns may be selected.
-  /// 
+  ///
   /// To get full entities with type safety, use [findBy] instead.
   Future<List<P>> find({
     required SelectOptions<T, P> select,
@@ -39,11 +39,10 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     final offsetSql = offset != null ? ' OFFSET $offset' : '';
     final orderBySql = orderBy == null || orderBy.isEmpty
         ? ''
-        : ' ORDER BY ${orderBy
-            .map((o) => '"$alias"."${o.field}" ${o.ascending ? 'ASC' : 'DESC'}')
-            .join(', ')}';
+        : ' ORDER BY ${orderBy.map((o) => '"$alias"."${o.field}" ${o.ascending ? 'ASC' : 'DESC'}').join(', ')}';
     final joinsSql = runtime.joins.map(_renderJoinClause).join(' ');
-    final sql = 'SELECT $cols FROM ${_renderTableReference(_descriptor.qualifiedTableName)} AS "$alias"'
+    final sql =
+        'SELECT $cols FROM ${_renderTableReference(_descriptor.qualifiedTableName)} AS "$alias"'
         '${joinsSql.isEmpty ? '' : ' $joinsSql'}'
         '${whereSql != null ? ' WHERE $whereSql' : ''}'
         '$orderBySql$limitSql$offsetSql';
@@ -78,7 +77,9 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
   Future<T> save(P entity) async {
     final pk = _descriptor.primaryKey;
     if (pk == null) {
-      throw StateError('Cannot save without a primary key on ${_descriptor.tableName}');
+      throw StateError(
+        'Cannot save without a primary key on ${_descriptor.tableName}',
+      );
     }
     final pkValue = entity.primaryKeyValue;
     if (pkValue == null) {
@@ -141,7 +142,7 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
   }
 
   /// Executes a query and returns full entities.
-  /// 
+  ///
   /// This method always selects all columns and returns fully hydrated [T] entities.
   /// Use this when you need the complete entity with all fields.
   Future<List<T>> findBy({
@@ -153,18 +154,19 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     final alias = 't';
     final runtime = QueryRuntimeContext(rootAlias: alias);
     final boundContext = _fieldsContext.bind(runtime, alias);
-    final cols = _descriptor.columns.map((c) => '"$alias"."${c.name}"').join(', ');
+    final cols = _descriptor.columns
+        .map((c) => '"$alias"."${c.name}"')
+        .join(', ');
     final params = <Object?>[];
     final whereSql = where?.toSql(boundContext, params);
     final limitSql = limit != null ? ' LIMIT $limit' : '';
     final offsetSql = offset != null ? ' OFFSET $offset' : '';
     final orderBySql = orderBy == null || orderBy.isEmpty
         ? ''
-        : ' ORDER BY ${orderBy
-            .map((o) => '"$alias"."${o.field}" ${o.ascending ? 'ASC' : 'DESC'}')
-            .join(', ')}';
+        : ' ORDER BY ${orderBy.map((o) => '"$alias"."${o.field}" ${o.ascending ? 'ASC' : 'DESC'}').join(', ')}';
     final joinsSql = runtime.joins.map(_renderJoinClause).join(' ');
-    final sql = 'SELECT $cols FROM ${_renderTableReference(_descriptor.qualifiedTableName)} AS "$alias"'
+    final sql =
+        'SELECT $cols FROM ${_renderTableReference(_descriptor.qualifiedTableName)} AS "$alias"'
         '${joinsSql.isEmpty ? '' : ' $joinsSql'}'
         '${whereSql != null ? ' WHERE $whereSql' : ''}'
         '$orderBySql$limitSql$offsetSql';
@@ -202,7 +204,9 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
       final map = Map<String, dynamic>.from(_descriptor.toRow(entity));
       final pk = _descriptor.primaryKey;
       if (pk == null) {
-        throw StateError('Cannot insert without a primary key on ${_descriptor.tableName}');
+        throw StateError(
+          'Cannot insert without a primary key on ${_descriptor.tableName}',
+        );
       }
       final pkValue = map[pk.name];
       if (pkValue == null) {
@@ -228,11 +232,15 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
       final map = Map<String, dynamic>.from(_descriptor.toRow(entity));
       final pk = _descriptor.primaryKey;
       if (pk == null) {
-        throw StateError('Cannot update without a primary key on ${_descriptor.tableName}');
+        throw StateError(
+          'Cannot update without a primary key on ${_descriptor.tableName}',
+        );
       }
       final pkValue = map[pk.name];
       if (pkValue == null) {
-        throw StateError('Cannot update without primary key value for ${_descriptor.tableName}');
+        throw StateError(
+          'Cannot update without primary key value for ${_descriptor.tableName}',
+        );
       }
       map.remove(pk.name);
       final sets = <String>[];
@@ -245,10 +253,10 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
       final sql =
           'UPDATE ${_descriptor.tableName} SET ${sets.join(', ')} WHERE "${pk.name}" = ?';
       await txEngine.execute(sql, params);
-      
+
       // Cascade merge: update related entities if they are present
       await _cascadeMergeEntityRelations(entity, pkValue, txEngine);
-      
+
       _descriptor.hooks?.postUpdate?.call(entity);
       return entity;
     });
@@ -269,7 +277,8 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     final whereSql = where?.toSql(boundContext, params);
     final joinsSql = runtime.joins.map(_renderJoinClause).join(' ');
     final countTarget = _buildCountTarget(select, alias, fields);
-    final sql = 'SELECT $countTarget AS c FROM ${_renderTableReference(_descriptor.qualifiedTableName)} AS "$alias"'
+    final sql =
+        'SELECT $countTarget AS c FROM ${_renderTableReference(_descriptor.qualifiedTableName)} AS "$alias"'
         '${joinsSql.isEmpty ? '' : ' $joinsSql'}'
         '${whereSql != null ? ' WHERE $whereSql' : ''}';
     final rows = await _engine.query(sql, params);
@@ -277,11 +286,9 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
   }
 
   Future<int> update(
-    UpdateDto<T> values,
-    {
-      required QueryBuilder<T> where,
-    }
-  ) async {
+    UpdateDto<T> values, {
+    required QueryBuilder<T> where,
+  }) async {
     return _engine.transaction((txEngine) async {
       final txRepo = _descriptor.repositoryFactory(txEngine);
       return txRepo._updateWithCascade(values, where, txEngine);
@@ -304,11 +311,14 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     final boundContext = _fieldsContext.bind(runtime, 't');
     final whereSql = where.toSql(boundContext, params);
     if (runtime.joins.isNotEmpty) {
-      throw UnsupportedError('Relation filters are not yet supported for update queries.');
+      throw UnsupportedError(
+        'Relation filters are not yet supported for update queries.',
+      );
     }
-    
+
     // Execute main update
-    final sql = 'UPDATE ${_descriptor.tableName} AS "t" SET ${sets.join(', ')} WHERE $whereSql';
+    final sql =
+        'UPDATE ${_descriptor.tableName} AS "t" SET ${sets.join(', ')} WHERE $whereSql';
     final updated = await engine.execute(sql, params);
 
     // Handle cascade updates
@@ -327,13 +337,18 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
   ) async {
     for (final relation in _descriptor.relations) {
       if (!relation.shouldCascadeMerge) continue;
-      
+
       final cascadeDto = cascades[relation.fieldName];
       if (cascadeDto == null) continue;
 
       if (relation.type == RelationType.manyToMany) {
         // ManyToMany cascade update: sync the collection
-        await _cascadeUpdateManyToMany(relation, cascadeDto, parentWhere, engine);
+        await _cascadeUpdateManyToMany(
+          relation,
+          cascadeDto,
+          parentWhere,
+          engine,
+        );
         continue;
       }
 
@@ -364,12 +379,16 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     EngineAdapter engine,
   ) async {
     if (cascadeDto is! UpdateDto) {
-      throw StateError('Cascade value for ${relation.fieldName} must be an UpdateDto.');
+      throw StateError(
+        'Cascade value for ${relation.fieldName} must be an UpdateDto.',
+      );
     }
 
     final joinColumn = relation.joinColumn;
     if (joinColumn == null) {
-      throw StateError('Owning relation ${relation.fieldName} is missing joinColumn metadata.');
+      throw StateError(
+        'Owning relation ${relation.fieldName} is missing joinColumn metadata.',
+      );
     }
 
     // Get the FK values from parents matching the where clause
@@ -381,12 +400,16 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     final boundContext = _fieldsContext.bind(runtime, alias);
     final params = <Object?>[];
     final whereSql = parentWhere.toSql(boundContext, params);
-    final selectSql = 'SELECT DISTINCT "$alias"."${joinColumn.name}" FROM ${_renderTableReference(_descriptor.qualifiedTableName)} AS "$alias" WHERE $whereSql';
+    final selectSql =
+        'SELECT DISTINCT "$alias"."${joinColumn.name}" FROM ${_renderTableReference(_descriptor.qualifiedTableName)} AS "$alias" WHERE $whereSql';
     final rows = await engine.query(selectSql, params);
 
     if (rows.isEmpty) return;
 
-    final fkValues = rows.map((r) => r[joinColumn.name]).where((v) => v != null).toList();
+    final fkValues = rows
+        .map((r) => r[joinColumn.name])
+        .where((v) => v != null)
+        .toList();
     if (fkValues.isEmpty) return;
 
     // Update the target entities
@@ -407,8 +430,11 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     updateParams.addAll(fkValues);
 
     final placeholders = List.filled(fkValues.length, '?').join(', ');
-    final targetTable = _renderTableReference(targetDescriptor.qualifiedTableName);
-    final updateSql = 'UPDATE $targetTable SET ${sets.join(', ')} WHERE "${targetPk.name}" IN ($placeholders)';
+    final targetTable = _renderTableReference(
+      targetDescriptor.qualifiedTableName,
+    );
+    final updateSql =
+        'UPDATE $targetTable SET ${sets.join(', ')} WHERE "${targetPk.name}" IN ($placeholders)';
     await engine.execute(updateSql, updateParams);
   }
 
@@ -425,7 +451,9 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
 
     final mappedBy = relation.mappedBy;
     if (mappedBy == null || mappedBy.isEmpty) {
-      throw StateError('Inverse relation ${relation.fieldName} must define mappedBy.');
+      throw StateError(
+        'Inverse relation ${relation.fieldName} must define mappedBy.',
+      );
     }
 
     // Find the owning relation on the target entity
@@ -437,7 +465,9 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     );
     final joinColumn = owningRelation.joinColumn;
     if (joinColumn == null) {
-      throw StateError('Owning relation $mappedBy is missing joinColumn metadata.');
+      throw StateError(
+        'Owning relation $mappedBy is missing joinColumn metadata.',
+      );
     }
 
     // Get the parent PKs
@@ -449,19 +479,23 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     final boundContext = _fieldsContext.bind(runtime, alias);
     final params = <Object?>[];
     final whereSql = parentWhere.toSql(boundContext, params);
-    final selectSql = 'SELECT "$alias"."${pk.name}" FROM ${_renderTableReference(_descriptor.qualifiedTableName)} AS "$alias" WHERE $whereSql';
+    final selectSql =
+        'SELECT "$alias"."${pk.name}" FROM ${_renderTableReference(_descriptor.qualifiedTableName)} AS "$alias" WHERE $whereSql';
     final parentRows = await engine.query(selectSql, params);
 
     if (parentRows.isEmpty) return;
 
-    final parentIds = parentRows.map((r) => r[pk.name]).where((id) => id != null).toList();
+    final parentIds = parentRows
+        .map((r) => r[pk.name])
+        .where((id) => id != null)
+        .toList();
     if (parentIds.isEmpty) return;
 
     // Handle list of UpdateDtos or single UpdateDto
     final dtos = cascadeDto is List ? cascadeDto : [cascadeDto];
     for (final dto in dtos) {
       if (dto is! UpdateDto) continue;
-      
+
       final updateMap = dto.toMap();
       if (updateMap.isEmpty) continue;
 
@@ -474,14 +508,17 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
       updateParams.addAll(parentIds);
 
       final placeholders = List.filled(parentIds.length, '?').join(', ');
-      final targetTable = _renderTableReference(targetDescriptor.qualifiedTableName);
-      final updateSql = 'UPDATE $targetTable SET ${sets.join(', ')} WHERE "${joinColumn.name}" IN ($placeholders)';
+      final targetTable = _renderTableReference(
+        targetDescriptor.qualifiedTableName,
+      );
+      final updateSql =
+          'UPDATE $targetTable SET ${sets.join(', ')} WHERE "${joinColumn.name}" IN ($placeholders)';
       await engine.execute(updateSql, updateParams);
     }
   }
 
   /// Cascade update for ManyToMany relations (DTO-based).
-  /// 
+  ///
   /// The cascade DTO for ManyToMany can be:
   /// - A `ManyToManyCascadeUpdate` with `add`, `remove`, and `set` operations
   /// - A list of target IDs to set as the complete collection
@@ -493,10 +530,14 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
   ) async {
     final joinTable = relation.joinTable;
     if (joinTable == null) {
-      throw StateError('ManyToMany relation ${relation.fieldName} is missing joinTable metadata.');
+      throw StateError(
+        'ManyToMany relation ${relation.fieldName} is missing joinTable metadata.',
+      );
     }
     if (joinTable.joinColumns.isEmpty || joinTable.inverseJoinColumns.isEmpty) {
-      throw StateError('ManyToMany relation ${relation.fieldName} has incomplete joinTable metadata.');
+      throw StateError(
+        'ManyToMany relation ${relation.fieldName} has incomplete joinTable metadata.',
+      );
     }
 
     final ownerJoinColumn = joinTable.joinColumns.first;
@@ -511,12 +552,16 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     final boundContext = _fieldsContext.bind(runtime, alias);
     final params = <Object?>[];
     final whereSql = parentWhere.toSql(boundContext, params);
-    final selectSql = 'SELECT "$alias"."${pk.name}" FROM ${_renderTableReference(_descriptor.qualifiedTableName)} AS "$alias" WHERE $whereSql';
+    final selectSql =
+        'SELECT "$alias"."${pk.name}" FROM ${_renderTableReference(_descriptor.qualifiedTableName)} AS "$alias" WHERE $whereSql';
     final parentRows = await engine.query(selectSql, params);
 
     if (parentRows.isEmpty) return;
 
-    final parentIds = parentRows.map((r) => r[pk.name]).whereType<Object>().toList();
+    final parentIds = parentRows
+        .map((r) => r[pk.name])
+        .whereType<Object>()
+        .toList();
     if (parentIds.isEmpty) return;
 
     // Check what type of cascade update we're dealing with
@@ -524,12 +569,12 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
       // Structured update with add/remove/set operations
       for (final ownerId in parentIds) {
         await _applyManyToManyCascadeUpdate(
-          joinTable.name, 
-          ownerJoinColumn.name, 
-          targetJoinColumn.name, 
-          ownerId, 
-          cascadeDto, 
-          engine
+          joinTable.name,
+          ownerJoinColumn.name,
+          targetJoinColumn.name,
+          ownerId,
+          cascadeDto,
+          engine,
         );
       }
     } else if (cascadeDto is List) {
@@ -542,12 +587,12 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
           targetJoinColumn.name,
           ownerId,
           targetIds,
-          engine
+          engine,
         );
       }
     } else {
       throw StateError(
-        'Cascade value for ManyToMany ${relation.fieldName} must be ManyToManyCascadeUpdate or List<int>'
+        'Cascade value for ManyToMany ${relation.fieldName} must be ManyToManyCascadeUpdate or List<int>',
       );
     }
   }
@@ -563,7 +608,12 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     // Handle "set" - replace entire collection
     if (update.set != null) {
       await _setManyToManyCollection(
-        joinTableName, ownerColumn, targetColumn, ownerId, update.set!.toSet(), engine
+        joinTableName,
+        ownerColumn,
+        targetColumn,
+        ownerId,
+        update.set!.toSet(),
+        engine,
       );
       return;
     }
@@ -571,7 +621,8 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     // Handle "remove"
     if (update.remove != null && update.remove!.isNotEmpty) {
       final placeholders = List.filled(update.remove!.length, '?').join(', ');
-      final deleteSql = 'DELETE FROM $joinTableName WHERE "$ownerColumn" = ? AND "$targetColumn" IN ($placeholders)';
+      final deleteSql =
+          'DELETE FROM $joinTableName WHERE "$ownerColumn" = ? AND "$targetColumn" IN ($placeholders)';
       await engine.execute(deleteSql, [ownerId, ...update.remove!]);
     }
 
@@ -579,7 +630,8 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     if (update.add != null && update.add!.isNotEmpty) {
       for (final targetId in update.add!) {
         // Use INSERT OR IGNORE to avoid duplicate key errors
-        final insertSql = 'INSERT INTO $joinTableName ("$ownerColumn", "$targetColumn") VALUES (?, ?) ON CONFLICT DO NOTHING';
+        final insertSql =
+            'INSERT INTO $joinTableName ("$ownerColumn", "$targetColumn") VALUES (?, ?) ON CONFLICT DO NOTHING';
         await engine.execute(insertSql, [ownerId, targetId]);
       }
     }
@@ -594,9 +646,13 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     EngineAdapter engine,
   ) async {
     // Get current associations
-    final selectSql = 'SELECT "$targetColumn" FROM $joinTableName WHERE "$ownerColumn" = ?';
+    final selectSql =
+        'SELECT "$targetColumn" FROM $joinTableName WHERE "$ownerColumn" = ?';
     final currentRows = await engine.query(selectSql, [ownerId]);
-    final currentIds = currentRows.map((r) => r[targetColumn]).whereType<int>().toSet();
+    final currentIds = currentRows
+        .map((r) => r[targetColumn])
+        .whereType<int>()
+        .toSet();
 
     // Determine what to add and remove
     final toRemove = currentIds.difference(targetIds);
@@ -605,13 +661,15 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     // Delete removed associations
     if (toRemove.isNotEmpty) {
       final placeholders = List.filled(toRemove.length, '?').join(', ');
-      final deleteSql = 'DELETE FROM $joinTableName WHERE "$ownerColumn" = ? AND "$targetColumn" IN ($placeholders)';
+      final deleteSql =
+          'DELETE FROM $joinTableName WHERE "$ownerColumn" = ? AND "$targetColumn" IN ($placeholders)';
       await engine.execute(deleteSql, [ownerId, ...toRemove]);
     }
 
     // Insert new associations
     for (final targetId in toAdd) {
-      final insertSql = 'INSERT INTO $joinTableName ("$ownerColumn", "$targetColumn") VALUES (?, ?)';
+      final insertSql =
+          'INSERT INTO $joinTableName ("$ownerColumn", "$targetColumn") VALUES (?, ?)';
       await engine.execute(insertSql, [ownerId, targetId]);
     }
   }
@@ -634,20 +692,25 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     });
   }
 
-  Future<int> _deleteWithCascade(QueryBuilder<T> where, EngineAdapter engine) async {
+  Future<int> _deleteWithCascade(
+    QueryBuilder<T> where,
+    EngineAdapter engine,
+  ) async {
     final params = <Object?>[];
     final runtime = QueryRuntimeContext(rootAlias: 't');
     final boundContext = _fieldsContext.bind(runtime, 't');
     final whereSql = where.toSql(boundContext, params);
     if (runtime.joins.isNotEmpty) {
-      throw UnsupportedError('Relation filters are not yet supported for delete queries.');
+      throw UnsupportedError(
+        'Relation filters are not yet supported for delete queries.',
+      );
     }
 
     // Cascade delete: handle inverse-side relations (one-to-many, one-to-one mappedBy)
     // For these, the foreign key is on the child table, so we need to delete children first
     for (final relation in _descriptor.relations) {
       if (!relation.shouldCascadeRemove) continue;
-      
+
       if (relation.type == RelationType.manyToMany) {
         // ManyToMany: delete join table entries (and optionally target entities)
         await _cascadeDeleteManyToMany(relation, where, engine);
@@ -667,7 +730,7 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
       if (!relation.shouldCascadeRemove) continue;
       if (!relation.isOwningSide) continue;
       if (relation.type == RelationType.manyToMany) continue;
-      
+
       final joinColumn = relation.joinColumn;
       if (joinColumn == null) continue;
 
@@ -677,7 +740,8 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
       final selectBoundContext = _fieldsContext.bind(selectRuntime, alias);
       final selectParams = <Object?>[];
       final selectWhereSql = where.toSql(selectBoundContext, selectParams);
-      final selectSql = 'SELECT DISTINCT "$alias"."${joinColumn.name}" FROM ${_renderTableReference(_descriptor.qualifiedTableName)} AS "$alias" WHERE $selectWhereSql';
+      final selectSql =
+          'SELECT DISTINCT "$alias"."${joinColumn.name}" FROM ${_renderTableReference(_descriptor.qualifiedTableName)} AS "$alias" WHERE $selectWhereSql';
       final rows = await engine.query(selectSql, selectParams);
 
       final fkValues = rows
@@ -722,8 +786,11 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     }
 
     final placeholders = List.filled(fkValues.length, '?').join(', ');
-    final targetTable = _renderTableReference(targetDescriptor.qualifiedTableName);
-    final deleteSql = 'DELETE FROM $targetTable WHERE "${targetPk.name}" IN ($placeholders)';
+    final targetTable = _renderTableReference(
+      targetDescriptor.qualifiedTableName,
+    );
+    final deleteSql =
+        'DELETE FROM $targetTable WHERE "${targetPk.name}" IN ($placeholders)';
     await engine.execute(deleteSql, fkValues);
   }
 
@@ -738,7 +805,9 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     }
     final mappedBy = relation.mappedBy;
     if (mappedBy == null || mappedBy.isEmpty) {
-      throw StateError('Inverse relation ${relation.fieldName} must define mappedBy.');
+      throw StateError(
+        'Inverse relation ${relation.fieldName} must define mappedBy.',
+      );
     }
 
     // Find the owning relation on the target entity
@@ -750,13 +819,17 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     );
     final joinColumn = owningRelation.joinColumn;
     if (joinColumn == null) {
-      throw StateError('Owning relation $mappedBy is missing joinColumn metadata.');
+      throw StateError(
+        'Owning relation $mappedBy is missing joinColumn metadata.',
+      );
     }
 
     // Get the primary key of this entity
     final pk = _descriptor.primaryKey;
     if (pk == null) {
-      throw StateError('Cannot cascade delete without primary key on ${_descriptor.tableName}');
+      throw StateError(
+        'Cannot cascade delete without primary key on ${_descriptor.tableName}',
+      );
     }
 
     // Select the parent IDs that match the where clause
@@ -765,23 +838,30 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     final boundContext = _fieldsContext.bind(runtime, alias);
     final params = <Object?>[];
     final whereSql = parentWhere.toSql(boundContext, params);
-    final selectSql = 'SELECT "$alias"."${pk.name}" FROM ${_renderTableReference(_descriptor.qualifiedTableName)} AS "$alias" WHERE $whereSql';
+    final selectSql =
+        'SELECT "$alias"."${pk.name}" FROM ${_renderTableReference(_descriptor.qualifiedTableName)} AS "$alias" WHERE $whereSql';
     final parentRows = await engine.query(selectSql, params);
 
     if (parentRows.isEmpty) return;
 
-    final parentIds = parentRows.map((r) => r[pk.name]).where((id) => id != null).toList();
+    final parentIds = parentRows
+        .map((r) => r[pk.name])
+        .where((id) => id != null)
+        .toList();
     if (parentIds.isEmpty) return;
 
     // Delete children where the foreign key is in parentIds
     final placeholders = List.filled(parentIds.length, '?').join(', ');
-    final targetTable = _renderTableReference(targetDescriptor.qualifiedTableName);
-    final childDeleteSql = 'DELETE FROM $targetTable WHERE "${joinColumn.name}" IN ($placeholders)';
+    final targetTable = _renderTableReference(
+      targetDescriptor.qualifiedTableName,
+    );
+    final childDeleteSql =
+        'DELETE FROM $targetTable WHERE "${joinColumn.name}" IN ($placeholders)';
     await engine.execute(childDeleteSql, parentIds);
   }
 
   /// Cascade delete for ManyToMany relations.
-  /// 
+  ///
   /// This deletes the join table entries linking the parent entities to the target entities.
   /// If the cascade is configured, it also deletes the target entities themselves (those that
   /// become orphaned).
@@ -792,15 +872,21 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
   ) async {
     final joinTable = relation.joinTable;
     if (joinTable == null) {
-      throw StateError('ManyToMany relation ${relation.fieldName} is missing joinTable metadata.');
+      throw StateError(
+        'ManyToMany relation ${relation.fieldName} is missing joinTable metadata.',
+      );
     }
     if (joinTable.joinColumns.isEmpty) {
-      throw StateError('ManyToMany relation ${relation.fieldName} has no joinColumns defined.');
+      throw StateError(
+        'ManyToMany relation ${relation.fieldName} has no joinColumns defined.',
+      );
     }
 
     final pk = _descriptor.primaryKey;
     if (pk == null) {
-      throw StateError('Cannot cascade delete without primary key on ${_descriptor.tableName}');
+      throw StateError(
+        'Cannot cascade delete without primary key on ${_descriptor.tableName}',
+      );
     }
 
     // Get the join column that references the owner (this entity)
@@ -812,17 +898,22 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     final boundContext = _fieldsContext.bind(runtime, alias);
     final params = <Object?>[];
     final whereSql = parentWhere.toSql(boundContext, params);
-    final selectSql = 'SELECT "$alias"."${pk.name}" FROM ${_renderTableReference(_descriptor.qualifiedTableName)} AS "$alias" WHERE $whereSql';
+    final selectSql =
+        'SELECT "$alias"."${pk.name}" FROM ${_renderTableReference(_descriptor.qualifiedTableName)} AS "$alias" WHERE $whereSql';
     final parentRows = await engine.query(selectSql, params);
 
     if (parentRows.isEmpty) return;
 
-    final parentIds = parentRows.map((r) => r[pk.name]).where((id) => id != null).toList();
+    final parentIds = parentRows
+        .map((r) => r[pk.name])
+        .where((id) => id != null)
+        .toList();
     if (parentIds.isEmpty) return;
 
     // Delete from the join table where the owner FK matches
     final placeholders = List.filled(parentIds.length, '?').join(', ');
-    final deleteJoinSql = 'DELETE FROM ${joinTable.name} WHERE "${ownerJoinColumn.name}" IN ($placeholders)';
+    final deleteJoinSql =
+        'DELETE FROM ${joinTable.name} WHERE "${ownerJoinColumn.name}" IN ($placeholders)';
     await engine.execute(deleteJoinSql, parentIds);
   }
 
@@ -834,17 +925,22 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
   ) async {
     final joinTable = relation.joinTable;
     if (joinTable == null) {
-      throw StateError('ManyToMany relation ${relation.fieldName} is missing joinTable metadata.');
+      throw StateError(
+        'ManyToMany relation ${relation.fieldName} is missing joinTable metadata.',
+      );
     }
     if (joinTable.joinColumns.isEmpty) {
-      throw StateError('ManyToMany relation ${relation.fieldName} has no joinColumns defined.');
+      throw StateError(
+        'ManyToMany relation ${relation.fieldName} has no joinColumns defined.',
+      );
     }
 
     // Get the join column that references the owner (this entity)
     final ownerJoinColumn = joinTable.joinColumns.first;
 
     // Delete from the join table where the owner FK matches this entity's PK
-    final deleteJoinSql = 'DELETE FROM ${joinTable.name} WHERE "${ownerJoinColumn.name}" = ?';
+    final deleteJoinSql =
+        'DELETE FROM ${joinTable.name} WHERE "${ownerJoinColumn.name}" = ?';
     await engine.execute(deleteJoinSql, [pkValue]);
   }
 
@@ -853,27 +949,31 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
       _descriptor.hooks?.preRemove?.call(entity);
       final pk = _descriptor.primaryKey;
       if (pk == null) {
-        throw StateError('Cannot delete without a primary key on ${_descriptor.tableName}');
+        throw StateError(
+          'Cannot delete without a primary key on ${_descriptor.tableName}',
+        );
       }
       final map = _descriptor.toRow(entity);
       final pkValue = map[pk.name];
       if (pkValue == null) {
-        throw StateError('Cannot delete without primary key value for ${_descriptor.tableName}');
+        throw StateError(
+          'Cannot delete without primary key value for ${_descriptor.tableName}',
+        );
       }
-      
+
       // Cascade delete: inverse-side relations first (children before parent)
       await _cascadeDeleteEntityInverseRelations(entity, pkValue, txEngine);
-      
+
       // Collect FK values for owning-side cascade BEFORE deleting the parent
       final owningCascadeTargets = _collectOwningCascadeTargets(entity);
-      
+
       // Delete the parent entity
       final sql = 'DELETE FROM ${_descriptor.tableName} WHERE "${pk.name}" = ?';
       await txEngine.execute(sql, [pkValue]);
-      
+
       // Cascade delete: owning-side relations AFTER parent is deleted
       await _cascadeDeleteEntityOwningRelations(owningCascadeTargets, txEngine);
-      
+
       _descriptor.hooks?.postRemove?.call(entity);
     });
   }
@@ -881,15 +981,15 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
   Map<RelationDescriptor, Object> _collectOwningCascadeTargets(T entity) {
     final targets = <RelationDescriptor, Object>{};
     final entityRow = _descriptor.toRow(entity);
-    
+
     for (final relation in _descriptor.relations) {
       if (!relation.shouldCascadeRemove) continue;
       if (!relation.isOwningSide) continue;
       if (relation.type == RelationType.manyToMany) continue;
-      
+
       final joinColumn = relation.joinColumn;
       if (joinColumn == null) continue;
-      
+
       final fkValue = entityRow[joinColumn.name];
       if (fkValue != null) {
         targets[relation] = fkValue;
@@ -898,10 +998,14 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     return targets;
   }
 
-  Future<void> _cascadeDeleteEntityInverseRelations(T entity, Object pkValue, EngineAdapter engine) async {
+  Future<void> _cascadeDeleteEntityInverseRelations(
+    T entity,
+    Object pkValue,
+    EngineAdapter engine,
+  ) async {
     for (final relation in _descriptor.relations) {
       if (!relation.shouldCascadeRemove) continue;
-      
+
       if (relation.type == RelationType.manyToMany) {
         // ManyToMany: delete join table entries
         await _cascadeDeleteEntityManyToMany(relation, pkValue, engine);
@@ -925,8 +1029,11 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
         final joinColumn = owningRelation.joinColumn;
         if (joinColumn == null) continue;
 
-        final targetTable = _renderTableReference(targetDescriptor.qualifiedTableName);
-        final deleteChildrenSql = 'DELETE FROM $targetTable WHERE "${joinColumn.name}" = ?';
+        final targetTable = _renderTableReference(
+          targetDescriptor.qualifiedTableName,
+        );
+        final deleteChildrenSql =
+            'DELETE FROM $targetTable WHERE "${joinColumn.name}" = ?';
         await engine.execute(deleteChildrenSql, [pkValue]);
       }
     }
@@ -939,23 +1046,29 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     for (final entry in targets.entries) {
       final relation = entry.key;
       final fkValue = entry.value;
-      
+
       final targetDescriptor = EntityDescriptor.lookup(relation.target);
       if (targetDescriptor == null) continue;
-      
+
       final targetPk = targetDescriptor.primaryKey;
       if (targetPk == null) continue;
 
-      final targetTable = _renderTableReference(targetDescriptor.qualifiedTableName);
+      final targetTable = _renderTableReference(
+        targetDescriptor.qualifiedTableName,
+      );
       final deleteSql = 'DELETE FROM $targetTable WHERE "${targetPk.name}" = ?';
       await engine.execute(deleteSql, [fkValue]);
     }
   }
 
-  Future<void> _cascadeMergeEntityRelations(T entity, Object pkValue, EngineAdapter engine) async {
+  Future<void> _cascadeMergeEntityRelations(
+    T entity,
+    Object pkValue,
+    EngineAdapter engine,
+  ) async {
     for (final relation in _descriptor.relations) {
       if (!relation.shouldCascadeMerge) continue;
-      
+
       if (relation.type == RelationType.manyToMany) {
         // ManyToMany: sync the join table with the current collection
         await _cascadeMergeEntityManyToMany(entity, pkValue, relation, engine);
@@ -968,7 +1081,7 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
 
       final targetDescriptor = EntityDescriptor.lookup(relation.target);
       if (targetDescriptor == null) continue;
-      
+
       final targetPk = targetDescriptor.primaryKey;
       if (targetPk == null) continue;
 
@@ -978,7 +1091,12 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
           final relatedRow = targetDescriptor.toRow(relatedValue);
           final relatedPkValue = relatedRow[targetPk.name];
           if (relatedPkValue != null) {
-            await _updateRelatedEntity(targetDescriptor, relatedValue, relatedPkValue, engine);
+            await _updateRelatedEntity(
+              targetDescriptor,
+              relatedValue,
+              relatedPkValue,
+              engine,
+            );
           }
         }
       } else {
@@ -989,7 +1107,12 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
           final childRow = targetDescriptor.toRow(child);
           final childPkValue = childRow[targetPk.name];
           if (childPkValue != null) {
-            await _updateRelatedEntity(targetDescriptor, child, childPkValue, engine);
+            await _updateRelatedEntity(
+              targetDescriptor,
+              child,
+              childPkValue,
+              engine,
+            );
           }
         }
       }
@@ -997,7 +1120,7 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
   }
 
   /// Cascade merge for ManyToMany relations (entity-based).
-  /// 
+  ///
   /// This syncs the join table to match the current collection in the entity.
   /// - Deletes join table entries for items no longer in the collection
   /// - Inserts join table entries for new items in the collection
@@ -1010,10 +1133,14 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
   ) async {
     final joinTable = relation.joinTable;
     if (joinTable == null) {
-      throw StateError('ManyToMany relation ${relation.fieldName} is missing joinTable metadata.');
+      throw StateError(
+        'ManyToMany relation ${relation.fieldName} is missing joinTable metadata.',
+      );
     }
     if (joinTable.joinColumns.isEmpty || joinTable.inverseJoinColumns.isEmpty) {
-      throw StateError('ManyToMany relation ${relation.fieldName} has incomplete joinTable metadata.');
+      throw StateError(
+        'ManyToMany relation ${relation.fieldName} has incomplete joinTable metadata.',
+      );
     }
 
     final targetDescriptor = EntityDescriptor.lookup(relation.target);
@@ -1030,7 +1157,9 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
 
     // Get the current collection from the entity
     final relatedValue = _getRelationValue(entity, relation.fieldName);
-    final newCollection = relatedValue is List ? relatedValue : (relatedValue != null ? [relatedValue] : []);
+    final newCollection = relatedValue is List
+        ? relatedValue
+        : (relatedValue != null ? [relatedValue] : []);
 
     // Extract target IDs from the new collection
     final newTargetIds = <int>{};
@@ -1047,7 +1176,8 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     }
 
     // Get current join table entries
-    final selectJoinSql = 'SELECT "${targetJoinColumn.name}" FROM ${joinTable.name} WHERE "${ownerJoinColumn.name}" = ?';
+    final selectJoinSql =
+        'SELECT "${targetJoinColumn.name}" FROM ${joinTable.name} WHERE "${ownerJoinColumn.name}" = ?';
     final currentRows = await engine.query(selectJoinSql, [pkValue]);
     final currentTargetIds = currentRows
         .map((r) => r[targetJoinColumn.name])
@@ -1061,13 +1191,15 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     // Delete removed associations
     if (toRemove.isNotEmpty) {
       final placeholders = List.filled(toRemove.length, '?').join(', ');
-      final deleteJoinSql = 'DELETE FROM ${joinTable.name} WHERE "${ownerJoinColumn.name}" = ? AND "${targetJoinColumn.name}" IN ($placeholders)';
+      final deleteJoinSql =
+          'DELETE FROM ${joinTable.name} WHERE "${ownerJoinColumn.name}" = ? AND "${targetJoinColumn.name}" IN ($placeholders)';
       await engine.execute(deleteJoinSql, [pkValue, ...toRemove]);
     }
 
     // Insert new associations
     for (final targetId in toAdd) {
-      final insertJoinSql = 'INSERT INTO ${joinTable.name} ("${ownerJoinColumn.name}", "${targetJoinColumn.name}") VALUES (?, ?)';
+      final insertJoinSql =
+          'INSERT INTO ${joinTable.name} ("${ownerJoinColumn.name}", "${targetJoinColumn.name}") VALUES (?, ?)';
       await engine.execute(insertJoinSql, [pkValue, targetId]);
     }
   }
@@ -1075,7 +1207,8 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
   Object? _getRelationValue(T entity, String fieldName) {
     try {
       final dyn = entity as dynamic;
-      return (dyn as Map<String, dynamic>?)?[fieldName] ?? _getFieldByReflection(dyn, fieldName);
+      return (dyn as Map<String, dynamic>?)?[fieldName] ??
+          _getFieldByReflection(dyn, fieldName);
     } catch (_) {
       return null;
     }
@@ -1103,7 +1236,7 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     final map = Map<String, dynamic>.from(targetDescriptor.toRow(entity));
     final pk = targetDescriptor.primaryKey;
     if (pk == null) return;
-    
+
     map.remove(pk.name);
     if (map.isEmpty) return;
 
@@ -1114,14 +1247,19 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
       params.add(entry.value);
     }
     params.add(pkValue);
-    
-    final targetTable = _renderTableReference(targetDescriptor.qualifiedTableName);
-    final sql = 'UPDATE $targetTable SET ${sets.join(', ')} WHERE "${pk.name}" = ?';
+
+    final targetTable = _renderTableReference(
+      targetDescriptor.qualifiedTableName,
+    );
+    final sql =
+        'UPDATE $targetTable SET ${sets.join(', ')} WHERE "${pk.name}" = ?';
     await engine.execute(sql, params);
   }
 
   /// Executes the provided action within a transactional context.
-  Future<R> transaction<R>(Future<R> Function(EntityRepository<T, P> txRepo) action) {
+  Future<R> transaction<R>(
+    Future<R> Function(EntityRepository<T, P> txRepo) action,
+  ) {
     return _engine.transaction((txEngine) async {
       final txRepo = _descriptor.repositoryFactory(txEngine);
       return action(txRepo);
@@ -1135,29 +1273,41 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     // Pre-insert: owning side (many-to-one / one-to-one owning)
     for (final relation in _descriptor.relations) {
       if (!relation.isOwningSide) continue;
-      if (relation.type != RelationType.manyToOne && relation.type != RelationType.oneToOne) {
+      if (relation.type != RelationType.manyToOne &&
+          relation.type != RelationType.oneToOne) {
         continue;
       }
       final cascadeDto = cascades[relation.fieldName];
       if (cascadeDto == null) continue;
       if (relation.joinColumn == null) {
-        throw StateError('Owning relation ${relation.fieldName} is missing joinColumn metadata.');
+        throw StateError(
+          'Owning relation ${relation.fieldName} is missing joinColumn metadata.',
+        );
       }
       if (cascadeDto is List) {
-        throw StateError('Owning relation ${relation.fieldName} must be a single DTO, not a list.');
+        throw StateError(
+          'Owning relation ${relation.fieldName} must be a single DTO, not a list.',
+        );
       }
       if (cascadeDto is! InsertDto) {
-        throw StateError('Cascade value for ${relation.fieldName} must be an InsertDto.');
+        throw StateError(
+          'Cascade value for ${relation.fieldName} must be an InsertDto.',
+        );
       }
       final targetRepo = _resolveRepository(relation.target, engine);
-      final childId = await targetRepo._insertWithEngine(cascadeDto as dynamic, engine);
+      final childId = await targetRepo._insertWithEngine(
+        cascadeDto as dynamic,
+        engine,
+      );
       map[relation.joinColumn!.name] = childId;
     }
 
     // Main insert
     final primaryKey = _descriptor.primaryKey?.name;
     if (primaryKey == null || primaryKey.isEmpty) {
-      throw StateError('Cannot insert without a primary key on ${_descriptor.tableName}');
+      throw StateError(
+        'Cannot insert without a primary key on ${_descriptor.tableName}',
+      );
     }
     final cols = map.keys.map((k) => '"$k"').join(', ');
     final placeholders = List.filled(map.length, '?').join(', ');
@@ -1165,14 +1315,17 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
         'INSERT INTO ${_descriptor.tableName} ($cols) VALUES ($placeholders) RETURNING "$primaryKey"';
     final result = await engine.query(sql, map.values.toList());
     if (result.isEmpty || !result.first.containsKey(primaryKey)) {
-      throw StateError('Insert did not return a primary key for ${_descriptor.tableName}');
+      throw StateError(
+        'Insert did not return a primary key for ${_descriptor.tableName}',
+      );
     }
     final newId = result.first[primaryKey] as int;
 
     // Post-insert: inverse side (one-to-many / one-to-one mappedBy)
     for (final relation in _descriptor.relations) {
       if (relation.isOwningSide) continue;
-      if (relation.type != RelationType.oneToMany && relation.type != RelationType.oneToOne) {
+      if (relation.type != RelationType.oneToMany &&
+          relation.type != RelationType.oneToOne) {
         continue;
       }
       final cascadeDto = cascades[relation.fieldName];
@@ -1183,15 +1336,21 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
       }
       final mappedBy = relation.mappedBy;
       if (mappedBy == null || mappedBy.isEmpty) {
-        throw StateError('Inverse relation ${relation.fieldName} must define mappedBy.');
+        throw StateError(
+          'Inverse relation ${relation.fieldName} must define mappedBy.',
+        );
       }
-      final owningRelation = targetDescriptor.relations
-          .firstWhere((r) => r.fieldName == mappedBy, orElse: () => throw StateError(
-                'Owning relation $mappedBy not found on ${targetDescriptor.tableName}',
-              ));
+      final owningRelation = targetDescriptor.relations.firstWhere(
+        (r) => r.fieldName == mappedBy,
+        orElse: () => throw StateError(
+          'Owning relation $mappedBy not found on ${targetDescriptor.tableName}',
+        ),
+      );
       final joinColumn = owningRelation.joinColumn;
       if (joinColumn == null) {
-        throw StateError('Owning relation $mappedBy is missing joinColumn metadata.');
+        throw StateError(
+          'Owning relation $mappedBy is missing joinColumn metadata.',
+        );
       }
 
       final targetRepo = _resolveRepository(relation.target, engine);
@@ -1199,16 +1358,22 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
         for (final child in cascadeDto) {
           if (child == null) continue;
           if (child is! InsertDto) {
-            throw StateError('Cascade value for ${relation.fieldName} must be InsertDto entries.');
+            throw StateError(
+              'Cascade value for ${relation.fieldName} must be InsertDto entries.',
+            );
           }
           final injected = _InjectedInsertDto(child, {joinColumn.name: newId});
           await targetRepo._insertWithEngine(injected as dynamic, engine);
         }
       } else {
         if (cascadeDto is! InsertDto) {
-          throw StateError('Cascade value for ${relation.fieldName} must be an InsertDto.');
+          throw StateError(
+            'Cascade value for ${relation.fieldName} must be an InsertDto.',
+          );
         }
-        final injected = _InjectedInsertDto(cascadeDto, {joinColumn.name: newId});
+        final injected = _InjectedInsertDto(cascadeDto, {
+          joinColumn.name: newId,
+        });
         await targetRepo._insertWithEngine(injected as dynamic, engine);
       }
     }
@@ -1217,10 +1382,10 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     for (final relation in _descriptor.relations) {
       if (relation.type != RelationType.manyToMany) continue;
       if (!relation.shouldCascadePersist) continue;
-      
+
       final cascadeDto = cascades[relation.fieldName];
       if (cascadeDto == null) continue;
-      
+
       await _cascadePersistManyToMany(relation, newId, cascadeDto, engine);
     }
 
@@ -1228,7 +1393,7 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
   }
 
   /// Cascade persist for ManyToMany relations.
-  /// 
+  ///
   /// For each item in the cascade:
   /// - If it's an InsertDto: insert the target entity and get its new ID
   /// - Insert a join table entry linking the owner to the target
@@ -1240,10 +1405,14 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
   ) async {
     final joinTable = relation.joinTable;
     if (joinTable == null) {
-      throw StateError('ManyToMany relation ${relation.fieldName} is missing joinTable metadata.');
+      throw StateError(
+        'ManyToMany relation ${relation.fieldName} is missing joinTable metadata.',
+      );
     }
     if (joinTable.joinColumns.isEmpty || joinTable.inverseJoinColumns.isEmpty) {
-      throw StateError('ManyToMany relation ${relation.fieldName} has incomplete joinTable metadata.');
+      throw StateError(
+        'ManyToMany relation ${relation.fieldName} has incomplete joinTable metadata.',
+      );
     }
 
     final targetDescriptor = EntityDescriptor.lookup(relation.target);
@@ -1263,9 +1432,9 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
 
     for (final item in items) {
       if (item == null) continue;
-      
+
       int targetId;
-      
+
       if (item is InsertDto) {
         // Insert the target entity and get its new ID
         targetId = await targetRepo._insertWithEngine(item as dynamic, engine);
@@ -1274,12 +1443,13 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
         targetId = item;
       } else {
         throw StateError(
-          'Cascade value for ManyToMany ${relation.fieldName} must be InsertDto or int ID, got ${item.runtimeType}'
+          'Cascade value for ManyToMany ${relation.fieldName} must be InsertDto or int ID, got ${item.runtimeType}',
         );
       }
 
       // Insert the join table entry
-      final joinSql = 'INSERT INTO ${joinTable.name} ("${ownerJoinColumn.name}", "${targetJoinColumn.name}") VALUES (?, ?)';
+      final joinSql =
+          'INSERT INTO ${joinTable.name} ("${ownerJoinColumn.name}", "${targetJoinColumn.name}") VALUES (?, ?)';
       await engine.execute(joinSql, [ownerId, targetId]);
     }
   }
@@ -1344,7 +1514,9 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
   }
 
   String _renderJoinClause(RelationJoinSpec spec) {
-    final joinKeyword = spec.joinType == JoinType.left ? 'LEFT JOIN' : 'INNER JOIN';
+    final joinKeyword = spec.joinType == JoinType.left
+        ? 'LEFT JOIN'
+        : 'INNER JOIN';
     final tableRef = _renderTableReference(spec.tableName);
     final left = '"${spec.alias}"."${spec.foreignColumn}"';
     final right = '"${spec.localAlias}"."${spec.localColumn}"';
@@ -1380,8 +1552,6 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     }
     return [OrderBy(primaryKey)];
   }
-
-  
 
   String _renderTableReference(String name) =>
       name.split('.').map((part) => '"$part"').join('.');

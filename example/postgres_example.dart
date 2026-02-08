@@ -43,12 +43,13 @@ class User extends Entity {
           name: row['name'] as String,
         ),
         toRow: (u) => {'id': u.id, 'email': u.email, 'name': u.name},
-        fieldsContext: const UserFieldsContext(), 
-        repositoryFactory: (EngineAdapter engine) => EntityRepository<User, UserPartial>(
-          User.entity,
-          engine,
-          User.entity.fieldsContext
-        )
+        fieldsContext: const UserFieldsContext(),
+        repositoryFactory: (EngineAdapter engine) =>
+            EntityRepository<User, UserPartial>(
+              User.entity,
+              engine,
+              User.entity.fieldsContext,
+            ),
       );
 }
 
@@ -73,11 +74,7 @@ class UserPartial extends PartialEntity<User> {
         'Cannot convert UserPartial to User: missing required fields: ${missing.join(', ')}',
       );
     }
-    return User(
-      id: id!,
-      email: email!,
-      name: name!,
-    );
+    return User(id: id!, email: email!, name: name!);
   }
 
   @override
@@ -132,10 +129,7 @@ class UserUpdateDto extends UpdateDto<User> {
 
   @override
   Map<String, dynamic> toMap() {
-    return {
-      if (email != null) 'email': email,
-      if (name != null) 'name': name,
-    };
+    return {if (email != null) 'email': email, if (name != null) 'name': name};
   }
 }
 
@@ -149,16 +143,14 @@ Future<void> main() async {
       username: 'loxia',
       password: 'loxia',
     ),
-    settings: ConnectionSettings(
-      timeZone: 'UTC',
-    ),
+    settings: ConnectionSettings(timeZone: 'UTC'),
   );
 
   final ds = DataSource(
     DataSourceOptions(
       engine: postgresEngine,
       entities: [User.entity],
-      migrations: []
+      migrations: [],
     ),
   );
 

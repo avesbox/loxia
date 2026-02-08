@@ -8,36 +8,31 @@ class User extends Entity {
   String email;
 
   static EntityDescriptor<User> get entity => EntityDescriptor<User>(
-        entityType: User,
-        tableName: 'users',
-        columns: [
-          ColumnDescriptor(
-            name: 'id',
-            propertyName: 'id',
-            type: ColumnType.integer,
-            nullable: true,
-            isPrimaryKey: true,
-            autoIncrement: true,
-          ),
-          ColumnDescriptor(
-            name: 'email',
-            propertyName: 'email',
-            type: ColumnType.text,
-            nullable: false,
-            unique: true,
-          ),
-        ],
-        relations: const [],
-        fromRow: (row) => User(
-          id: row['id'] as int?,
-          email: row['email'] as String,
-        ),
-        toRow: (u) => {
-          'id': u.id,
-          'email': u.email,
-        },
-        fieldsContext: const UserFieldsContext(),
-      );
+    entityType: User,
+    tableName: 'users',
+    columns: [
+      ColumnDescriptor(
+        name: 'id',
+        propertyName: 'id',
+        type: ColumnType.integer,
+        nullable: true,
+        isPrimaryKey: true,
+        autoIncrement: true,
+      ),
+      ColumnDescriptor(
+        name: 'email',
+        propertyName: 'email',
+        type: ColumnType.text,
+        nullable: false,
+        unique: true,
+      ),
+    ],
+    relations: const [],
+    fromRow: (row) =>
+        User(id: row['id'] as int?, email: row['email'] as String),
+    toRow: (u) => {'id': u.id, 'email': u.email},
+    fieldsContext: const UserFieldsContext(),
+  );
 }
 
 class UserFieldsContext extends QueryFieldsContext<User> {
@@ -45,7 +40,7 @@ class UserFieldsContext extends QueryFieldsContext<User> {
 
   QueryField<int?> get id => field('id');
   QueryField<String> get email => field('email');
-  
+
   @override
   QueryFieldsContext<User> bind(QueryRuntimeContext runtime, String alias) {
     return UserFieldsContext(runtime, alias);
@@ -59,9 +54,7 @@ class UserInsertDto extends InsertDto<User> {
 
   @override
   Map<String, dynamic> toMap() {
-    return {
-      'email': email,
-    };
+    return {'email': email};
   }
 }
 
@@ -83,7 +76,9 @@ Future<void> main() async {
 
   // Query it back
   final found = await users.find(
-    where: queryWhere<User>((q) => q.field<String>('email').equals('john.doe@example.com')),
+    where: queryWhere<User>(
+      (q) => q.field<String>('email').equals('john.doe@example.com'),
+    ),
   );
 
   for (final u in found) {

@@ -30,22 +30,29 @@ class MigrationPlanner {
         for (final jc in joinColumns) {
           cols.add(_joinColumnDDL(jc));
         }
-        final create = 'CREATE TABLE IF NOT EXISTS ${entity.tableName} (\n  ${cols.join(',\n  ')}\n)';
+        final create =
+            'CREATE TABLE IF NOT EXISTS ${entity.tableName} (\n  ${cols.join(',\n  ')}\n)';
         stmts.add(create);
       } else {
         for (final c in entity.columns) {
           if (!table.columns.containsKey(c.name)) {
-            stmts.add('ALTER TABLE ${entity.tableName} ADD COLUMN ${_columnDDL(c)}');
+            stmts.add(
+              'ALTER TABLE ${entity.tableName} ADD COLUMN ${_columnDDL(c)}',
+            );
           }
         }
         for (final jc in joinColumns) {
           if (!table.columns.containsKey(jc.name)) {
-            stmts.add('ALTER TABLE ${entity.tableName} ADD COLUMN ${_joinColumnDDL(jc)}');
+            stmts.add(
+              'ALTER TABLE ${entity.tableName} ADD COLUMN ${_joinColumnDDL(jc)}',
+            );
           }
         }
       }
 
-      for (final relation in entity.relations.where((r) => r.isOwningSide && r.joinTable != null)) {
+      for (final relation in entity.relations.where(
+        (r) => r.isOwningSide && r.joinTable != null,
+      )) {
         final joinSpec = _buildJoinTableSpec(entity, relation, entityByType);
         if (!processedJoinTables.add(joinSpec.name)) {
           continue;
@@ -53,12 +60,15 @@ class MigrationPlanner {
         final schemaTable = current.tables[joinSpec.name];
         if (schemaTable == null) {
           final cols = joinSpec.columns.map(_joinColumnDDL).join(',\n  ');
-          final create = 'CREATE TABLE IF NOT EXISTS ${joinSpec.name} (\n  $cols\n)';
+          final create =
+              'CREATE TABLE IF NOT EXISTS ${joinSpec.name} (\n  $cols\n)';
           stmts.add(create);
         } else {
           for (final col in joinSpec.columns) {
             if (!schemaTable.columns.containsKey(col.name)) {
-              stmts.add('ALTER TABLE ${joinSpec.name} ADD COLUMN ${_joinColumnDDL(col)}');
+              stmts.add(
+                'ALTER TABLE ${joinSpec.name} ADD COLUMN ${_joinColumnDDL(col)}',
+              );
             }
           }
         }
@@ -72,9 +82,13 @@ class MigrationPlanner {
     final parts = <String>['"${c.name}" $type'];
     if (!c.nullable) parts.add('NOT NULL');
     if (c.isPrimaryKey) parts.add('PRIMARY KEY');
-    if (c.autoIncrement) parts.add('AUTOINCREMENT'); // SQLite specific; engine will adapt
+    if (c.autoIncrement) {
+      parts.add('AUTOINCREMENT'); // SQLite specific; engine will adapt
+    }
     if (c.unique) parts.add('UNIQUE');
-    if (c.defaultValue != null) parts.add('DEFAULT ${_defaultLiteral(c.defaultValue)}');
+    if (c.defaultValue != null) {
+      parts.add('DEFAULT ${_defaultLiteral(c.defaultValue)}');
+    }
     return parts.join(' ');
   }
 
@@ -82,7 +96,9 @@ class MigrationPlanner {
     final parts = <String>['"${spec.name}" ${_typeToSql(spec.type)}'];
     if (!spec.nullable) parts.add('NOT NULL');
     if (spec.unique) parts.add('UNIQUE');
-    parts.add('REFERENCES ${_quoteQualified(spec.referencesTable)}("${spec.referencesColumn}")');
+    parts.add(
+      'REFERENCES ${_quoteQualified(spec.referencesTable)}("${spec.referencesColumn}")',
+    );
     return parts.join(' ');
   }
 
@@ -169,7 +185,10 @@ class MigrationPlanner {
     );
   }
 
-  EntityDescriptor _descriptorForType(Type type, Map<Type, EntityDescriptor> index) {
+  EntityDescriptor _descriptorForType(
+    Type type,
+    Map<Type, EntityDescriptor> index,
+  ) {
     final descriptor = index[type];
     if (descriptor == null) {
       throw StateError('Missing entity descriptor for $type');
@@ -189,7 +208,8 @@ class MigrationPlanner {
 class MigrationGenerator {
   final MigrationPlanner _planner;
 
-  MigrationGenerator({MigrationPlanner? planner}) : _planner = planner ?? MigrationPlanner();
+  MigrationGenerator({MigrationPlanner? planner})
+    : _planner = planner ?? MigrationPlanner();
 
   String generate({
     required int version,
@@ -286,10 +306,7 @@ class _JoinColumnSpec {
 }
 
 class _JoinTableSpec {
-  const _JoinTableSpec({
-    required this.name,
-    required this.columns,
-  });
+  const _JoinTableSpec({required this.name, required this.columns});
 
   final String name;
   final List<_JoinColumnSpec> columns;

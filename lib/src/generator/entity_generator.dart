@@ -1,7 +1,3 @@
-/// Entity code generator using code_builder.
-///
-/// This generator processes classes annotated with [EntityMeta] and generates
-/// the corresponding entity descriptors, query builders, DTOs, and related classes.
 import 'dart:async';
 
 import 'package:analyzer/dart/constant/value.dart';
@@ -15,25 +11,25 @@ import 'package:source_gen/source_gen.dart';
 
 import '../../loxia.dart'
     show
-      Column,
-      ColumnType,
-      CreatedAt,
-      UpdatedAt,
-      EntityMeta,
-      JoinColumn,
-      JoinTable,
-      ManyToMany,
-      ManyToOne,
-      OneToMany,
-      OneToOne,
-      PrePersist,
-      PostPersist,
-      PreUpdate,
-      PostUpdate,
-      PreRemove,
-      PostRemove,
-      PostLoad,
-      PrimaryKey;
+        Column,
+        ColumnType,
+        CreatedAt,
+        UpdatedAt,
+        EntityMeta,
+        JoinColumn,
+        JoinTable,
+        ManyToMany,
+        ManyToOne,
+        OneToMany,
+        OneToOne,
+        PrePersist,
+        PostPersist,
+        PreUpdate,
+        PostUpdate,
+        PreRemove,
+        PostRemove,
+        PostLoad,
+        PrimaryKey;
 import 'builders/builders.dart';
 
 /// Code generator for entities annotated with [EntityMeta].
@@ -51,7 +47,9 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
   final _emitter = DartEmitter(useNullSafetySyntax: true);
 
   /// Formatter for generated code.
-  final _formatter = DartFormatter(languageVersion: DartFormatter.latestLanguageVersion);
+  final _formatter = DartFormatter(
+    languageVersion: DartFormatter.latestLanguageVersion,
+  );
 
   /// Builders for each generated component.
   final _entityDescriptorBuilder = const EntityDescriptorBuilder();
@@ -78,16 +76,18 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
     final context = _parseEntityContext(clazz, annotation);
 
     // Build all code components
-    final library = Library((lib) => lib
-      ..body.add(_entityDescriptorBuilder.build(context))
-      ..body.add(_fieldsContextBuilder.build(context))
-      ..body.add(_queryClassBuilder.build(context))
-      ..body.add(_selectOptionsBuilder.build(context))
-      ..body.add(_relationsClassBuilder.build(context))
-      ..body.add(_partialEntityBuilder.build(context))
-      ..body.add(_insertDtoBuilder.build(context))
-      ..body.add(_updateDtoBuilder.build(context))
-      ..body.add(_repositoryClassBuilder.build(context)));
+    final library = Library(
+      (lib) => lib
+        ..body.add(_entityDescriptorBuilder.build(context))
+        ..body.add(_fieldsContextBuilder.build(context))
+        ..body.add(_queryClassBuilder.build(context))
+        ..body.add(_selectOptionsBuilder.build(context))
+        ..body.add(_relationsClassBuilder.build(context))
+        ..body.add(_partialEntityBuilder.build(context))
+        ..body.add(_insertDtoBuilder.build(context))
+        ..body.add(_updateDtoBuilder.build(context))
+        ..body.add(_repositoryClassBuilder.build(context)),
+    );
 
     // Emit and format the generated code
     final code = library.accept(_emitter).toString();
@@ -195,8 +195,9 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
   bool _hasAnnotation(MethodElement method, Type t) {
     final want = t.toString();
     final metas = (method.metadata as dynamic);
-    final iterable =
-        (metas is Iterable) ? metas : (metas.annotations as Iterable);
+    final iterable = (metas is Iterable)
+        ? metas
+        : (metas.annotations as Iterable);
     for (final meta in iterable) {
       final obj = meta.computeConstantValue();
       if (obj == null) continue;
@@ -233,7 +234,8 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
 
     for (final field in clazz.fields.where((f) => !f.isStatic)) {
       final colAnnObj =
-          _firstAnnotation(field, Column) ?? _firstAnnotation(field, PrimaryKey);
+          _firstAnnotation(field, Column) ??
+          _firstAnnotation(field, PrimaryKey);
       final createdAtAnn = _firstAnnotation(field, CreatedAt);
       final updatedAtAnn = _firstAnnotation(field, UpdatedAt);
       if (colAnnObj == null && createdAtAnn == null && updatedAtAnn == null) {
@@ -242,34 +244,37 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
       final colAnn = colAnnObj == null ? null : ConstantReader(colAnnObj);
 
       final isPk = _firstAnnotation(field, PrimaryKey) != null;
-        final colName =
+      final colName =
           colAnn?.peek('name')?.stringValue ?? _toSnake(field.displayName);
       final dartType = field.type;
       final nullable = dartType.nullabilitySuffix != NullabilitySuffix.none;
       final unique = colAnn?.peek('unique')?.boolValue ?? false;
       final defaultValue = colAnn?.peek('defaultValue')?.objectValue;
 
-        final autoInc =
-          isPk ? (colAnn?.peek('autoIncrement')?.boolValue ?? false) : false;
-        final uuid = isPk ? (colAnn?.peek('uuid')?.boolValue ?? false) : false;
+      final autoInc = isPk
+          ? (colAnn?.peek('autoIncrement')?.boolValue ?? false)
+          : false;
+      final uuid = isPk ? (colAnn?.peek('uuid')?.boolValue ?? false) : false;
 
-        final type = (createdAtAnn != null || updatedAtAnn != null)
+      final type = (createdAtAnn != null || updatedAtAnn != null)
           ? ColumnType.dateTime
           : _resolveColumnType(colAnn!, dartType);
       final dartTypeCode = dartType.getDisplayString();
 
-      columns.add(GenColumn(
-        name: colName,
-        prop: field.displayName,
-        type: type,
-        dartTypeCode: dartTypeCode,
-        nullable: nullable,
-        unique: unique,
-        isPk: isPk,
-        autoIncrement: autoInc,
-        uuid: uuid,
-        defaultLiteral: _dartObjToLiteral(defaultValue),
-      ));
+      columns.add(
+        GenColumn(
+          name: colName,
+          prop: field.displayName,
+          type: type,
+          dartTypeCode: dartTypeCode,
+          nullable: nullable,
+          unique: unique,
+          isPk: isPk,
+          autoIncrement: autoInc,
+          uuid: uuid,
+          defaultLiteral: _dartObjToLiteral(defaultValue),
+        ),
+      );
     }
 
     return columns;
@@ -296,8 +301,9 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
   DartObject? _firstAnnotation(FieldElement field, Type t) {
     final want = t.toString();
     final metas = (field.metadata as dynamic);
-    final iterable =
-        (metas is Iterable) ? metas : (metas.annotations as Iterable);
+    final iterable = (metas is Iterable)
+        ? metas
+        : (metas.annotations as Iterable);
     for (final meta in iterable) {
       final obj = meta.computeConstantValue();
       if (obj == null) continue;
@@ -336,8 +342,9 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
       );
     }
     String? mappedBy = reader.peek('mappedBy')?.stringValue;
-    mappedBy =
-        (mappedBy == null || mappedBy.trim().isEmpty) ? null : mappedBy.trim();
+    mappedBy = (mappedBy == null || mappedBy.trim().isEmpty)
+        ? null
+        : mappedBy.trim();
     var isOwning = mappedBy == null;
 
     switch (match.kind) {
@@ -373,8 +380,9 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
     );
 
     final cascadeReader = reader.peek('cascade');
-    final cascadeValues =
-        cascadeReader == null ? const <DartObject>[] : cascadeReader.listValue;
+    final cascadeValues = cascadeReader == null
+        ? const <DartObject>[]
+        : cascadeReader.listValue;
     final cascadeLiteral = _enumListLiteral(
       cascadeValues,
       _relationCascadeNames,
@@ -385,7 +393,8 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
     final cascadeRemove = _hasCascadeRemove(cascadeValues);
 
     final joinColumnAnn = _firstAnnotation(field, JoinColumn);
-    final needsJoinColumn = isOwning &&
+    final needsJoinColumn =
+        isOwning &&
         (match.kind == RelationKind.oneToOne ||
             match.kind == RelationKind.manyToOne);
     final fieldIsNullable =
@@ -426,7 +435,8 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
       }
       final ownerColFallback =
           '${_toSnake(entityName)}_${_toSnake(field.displayName)}_id';
-      final inverseFallback = '${simpleTypeName(targetTypeCode).toLowerCase()}_id';
+      final inverseFallback =
+          '${simpleTypeName(targetTypeCode).toLowerCase()}_id';
       joinTable = _joinTableFromConstant(
         joinTableAnn,
         defaultName: '${tableName}_${_toSnake(field.displayName)}_join',
@@ -455,7 +465,8 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
     }
 
     final isCollection =
-        match.kind == RelationKind.oneToMany || match.kind == RelationKind.manyToMany;
+        match.kind == RelationKind.oneToMany ||
+        match.kind == RelationKind.manyToMany;
 
     return GenRelation(
       fieldName: field.displayName,
@@ -489,7 +500,11 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
     for (final entry in mappings.entries) {
       final ann = _firstAnnotation(field, entry.key);
       if (ann != null) {
-        return _RelationMatch(entry.value, ConstantReader(ann), entry.key.toString());
+        return _RelationMatch(
+          entry.value,
+          ConstantReader(ann),
+          entry.key.toString(),
+        );
       }
     }
     return null;
@@ -595,8 +610,9 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
     final name = reader.peek('name')?.stringValue ?? defaultName;
     final ownerListReader = reader.peek('joinColumns');
     final inverseListReader = reader.peek('inverseJoinColumns');
-    final ownerObjs =
-        ownerListReader == null ? const <DartObject>[] : ownerListReader.listValue;
+    final ownerObjs = ownerListReader == null
+        ? const <DartObject>[]
+        : ownerListReader.listValue;
     final inverseObjs = inverseListReader == null
         ? const <DartObject>[]
         : inverseListReader.listValue;
@@ -610,13 +626,15 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
             ),
           ]
         : ownerObjs
-            .map((o) => _joinColumnFromConstant(
+              .map(
+                (o) => _joinColumnFromConstant(
                   o,
                   fallbackName: ownerFallback,
                   fallbackReference: 'id',
                   fallbackNullable: false,
-                ))
-            .toList();
+                ),
+              )
+              .toList();
     final inverseCols = inverseObjs.isEmpty
         ? [
             GenJoinColumn(
@@ -627,13 +645,15 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
             ),
           ]
         : inverseObjs
-            .map((o) => _joinColumnFromConstant(
+              .map(
+                (o) => _joinColumnFromConstant(
                   o,
                   fallbackName: inverseFallback,
                   fallbackReference: 'id',
                   fallbackNullable: false,
-                ))
-            .toList();
+                ),
+              )
+              .toList();
     return GenJoinTable(
       name: name,
       joinColumns: ownerCols,
@@ -673,7 +693,8 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
   String? _collectionElementType(DartType type) {
     if (type is! InterfaceType || type.typeArguments.isEmpty) return null;
     final elementType = type.typeArguments.first.getDisplayString();
-    return type.typeArguments.first.nullabilitySuffix == NullabilitySuffix.question
+    return type.typeArguments.first.nullabilitySuffix ==
+            NullabilitySuffix.question
         ? elementType.substring(0, elementType.length - 1)
         : elementType;
   }
@@ -686,7 +707,7 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
         final columnName = columnAnnObj == null
             ? _toSnake(field.displayName)
             : (ConstantReader(columnAnnObj).peek('name')?.stringValue ??
-                _toSnake(field.displayName));
+                  _toSnake(field.displayName));
         var dartType = field.type.getDisplayString();
         if (field.type.nullabilitySuffix != NullabilitySuffix.none) {
           dartType = dartType.substring(0, dartType.length - 1);
@@ -788,7 +809,7 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
     'remove',
     'detach',
     'refresh',
-    'all'
+    'all',
   ];
 }
 

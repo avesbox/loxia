@@ -131,9 +131,9 @@ class EntityGenerationContext {
     Map<String, List<String>>? hooks,
     List<GenTimestampField>? createdAtFields,
     List<GenTimestampField>? updatedAtFields,
-  })  : hooks = hooks ?? const {},
-        createdAtFields = createdAtFields ?? const [],
-        updatedAtFields = updatedAtFields ?? const [];
+  }) : hooks = hooks ?? const {},
+       createdAtFields = createdAtFields ?? const [],
+       updatedAtFields = updatedAtFields ?? const [];
 
   final String className;
   final String tableName;
@@ -176,23 +176,28 @@ class EntityGenerationContext {
       relations.where((r) => r.joinColumn != null && r.isOwningSide).toList();
 
   /// ManyToMany relations (owning side with join table).
-  List<GenRelation> get manyToManyRelations =>
-      relations.where((r) => r.type == RelationKind.manyToMany && r.isOwningSide).toList();
+  List<GenRelation> get manyToManyRelations => relations
+      .where((r) => r.type == RelationKind.manyToMany && r.isOwningSide)
+      .toList();
 
   /// Inverse relations (not owning side with mappedBy).
   List<GenRelation> get inverseRelations =>
       relations.where((r) => !r.isOwningSide && r.mappedBy != null).toList();
 
   /// All selectable relations (owning, manyToMany, and inverse).
-  List<GenRelation> get allSelectableRelations =>
-      [...owningJoinColumns, ...manyToManyRelations, ...inverseRelations];
+  List<GenRelation> get allSelectableRelations => [
+    ...owningJoinColumns,
+    ...manyToManyRelations,
+    ...inverseRelations,
+  ];
 
   /// Primary key column.
   GenColumn get primaryKeyColumn =>
       columns.firstWhere((c) => c.isPk, orElse: () => columns.first);
 
   /// Whether the entity has collection relations.
-  bool get hasCollectionRelations => inverseRelations.any((r) => r.isCollection);
+  bool get hasCollectionRelations =>
+      inverseRelations.any((r) => r.isCollection);
 }
 
 /// Represents a timestamp field to be managed by lifecycle hooks.
