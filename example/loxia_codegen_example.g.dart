@@ -342,12 +342,12 @@ final EntityDescriptor<Post, PostPartial> $PostEntityDescriptor =
         ColumnDescriptor(
           name: 'id',
           propertyName: 'id',
-          type: ColumnType.integer,
+          type: ColumnType.uuid,
           nullable: false,
           unique: false,
           isPrimaryKey: true,
           autoIncrement: true,
-          uuid: false,
+          uuid: true,
         ),
         ColumnDescriptor(
           name: 'title',
@@ -451,7 +451,7 @@ final EntityDescriptor<Post, PostPartial> $PostEntityDescriptor =
         ),
       ],
       fromRow: (row) => Post(
-        id: (row['id'] as int),
+        id: (row['id'] as String),
         title: (row['title'] as String),
         content: (row['content'] as String),
         likes: (row['likes'] as int),
@@ -495,7 +495,7 @@ class PostFieldsContext extends QueryFieldsContext<Post> {
   PostFieldsContext bind(QueryRuntimeContext runtime, String alias) =>
       PostFieldsContext(runtime, alias);
 
-  QueryField<int> get id => field<int>('id');
+  QueryField<String> get id => field<String>('id');
 
   QueryField<String> get title => field<String>('title');
 
@@ -674,7 +674,7 @@ class PostSelect extends SelectOptions<Post, PostPartial> {
       userPartial = userSelect.hydrate(row, path: extendPath(path, 'user'));
     }
     return PostPartial(
-      id: id ? readValue(row, 'id', path: path) as int : null,
+      id: id ? readValue(row, 'id', path: path) as String : null,
       title: title ? readValue(row, 'title', path: path) as String : null,
       content: content ? readValue(row, 'content', path: path) as String : null,
       likes: likes ? readValue(row, 'likes', path: path) as int : null,
@@ -743,7 +743,7 @@ class PostPartial extends PartialEntity<Post> {
     this.tags,
   });
 
-  final int? id;
+  final String? id;
 
   final String? title;
 

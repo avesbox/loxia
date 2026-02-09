@@ -244,6 +244,8 @@ class SchemaSnapshotBuilder implements Builder {
         return 'json';
       case ColumnType.binary:
         return 'blob';
+      case ColumnType.uuid:
+        return 'uuid';
     }
   }
 

@@ -78,12 +78,12 @@ class ManyToManyCascadeUpdate {
   const ManyToManyCascadeUpdate({this.add, this.remove, this.set});
 
   /// Target IDs to add to the collection.
-  final List<int>? add;
+  final List<Object>? add;
 
   /// Target IDs to remove from the collection.
-  final List<int>? remove;
+  final List<Object>? remove;
 
   /// Replace the entire collection with these target IDs.
   /// If set, [add] and [remove] are ignored.
-  final List<int>? set;
+  final List<Object>? set;
 }

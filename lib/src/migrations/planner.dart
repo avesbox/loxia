@@ -88,7 +88,7 @@ class MigrationPlanner {
     final parts = <String>['"${c.name}" $type'];
     if (!c.nullable) parts.add('NOT NULL');
     if (c.isPrimaryKey) parts.add('PRIMARY KEY');
-    if (c.autoIncrement) {
+    if (c.autoIncrement && c.type == ColumnType.integer) {
       parts.add('AUTOINCREMENT'); // SQLite specific; engine will adapt
     }
     if (c.unique) parts.add('UNIQUE');
@@ -124,6 +124,8 @@ class MigrationPlanner {
         return 'JSON';
       case ColumnType.binary:
         return 'BLOB';
+      case ColumnType.uuid:
+        return 'UUID';
     }
   }
 

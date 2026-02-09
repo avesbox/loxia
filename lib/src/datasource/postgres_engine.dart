@@ -275,6 +275,7 @@ class PostgresEngine implements EngineAdapter {
     final type = (dataType ?? '').toUpperCase();
     final udt = (udtName ?? '').toUpperCase();
     if (type.contains('INT') || udt.contains('INT')) return ColumnType.integer;
+    if (type.contains('UUID') || udt.contains('UUID')) return ColumnType.uuid;
     if (type.contains('CHAR') ||
         type.contains('TEXT') ||
         udt.contains('CHAR')) {

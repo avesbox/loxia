@@ -22,8 +22,8 @@ class User extends Entity {
 
 @EntityMeta(table: 'posts')
 class Post extends Entity {
-  @PrimaryKey(autoIncrement: true)
-  final int id;
+  @PrimaryKey(uuid: true)
+  final String id;
 
   @Column()
   final String title;

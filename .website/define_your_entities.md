@@ -55,6 +55,11 @@ The values you pass to the `@Column` annotation are optional and they change the
 The `@PrimaryKey` annotation is used to define the primary key of your entity. You can specify options such as whether the primary key is auto-incremented.
 
 - `autoIncrement`: Indicates whether the primary key should be auto-incremented. Defaults to `false`.
+- `uuid`: Indicates whether the primary key should be a UUID. Defaults to `false`. If set to `true`, the primary key will be generated as a UUID string.
+
+::: warning
+Autoincrement can only be used with integer primary keys, while uuid can only be used with string primary keys. Make sure to choose the appropriate option based on your primary key type.
+:::
 
 ## Relationships
 

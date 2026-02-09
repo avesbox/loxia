@@ -18,8 +18,9 @@ class Column {
 /// Marks a primary key column.
 class PrimaryKey {
   final bool autoIncrement;
+  final bool uuid;
 
-  const PrimaryKey({this.autoIncrement = false});
+  const PrimaryKey({this.autoIncrement = false, this.uuid = false});
 }
 
 /// Marks a column that should be indexed.
@@ -39,4 +40,5 @@ enum ColumnType {
   dateTime,
   json,
   binary,
+  uuid,
 }

@@ -235,17 +235,20 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
     final columns = <GenColumn>[];
 
     for (final field in clazz.fields.where((f) => !f.isStatic)) {
+      final primaryAnnObj = _firstAnnotation(field, PrimaryKey);
       final colAnnObj =
-          _firstAnnotation(field, Column) ??
-          _firstAnnotation(field, PrimaryKey);
+        _firstAnnotation(field, Column) ??
+        primaryAnnObj;
       final createdAtAnn = _firstAnnotation(field, CreatedAt);
       final updatedAtAnn = _firstAnnotation(field, UpdatedAt);
       if (colAnnObj == null && createdAtAnn == null && updatedAtAnn == null) {
         continue;
       }
       final colAnn = colAnnObj == null ? null : ConstantReader(colAnnObj);
+      final primaryAnn =
+        primaryAnnObj == null ? null : ConstantReader(primaryAnnObj);
 
-      final isPk = _firstAnnotation(field, PrimaryKey) != null;
+      final isPk = primaryAnnObj != null;
       final colName =
           colAnn?.peek('name')?.stringValue ?? _toSnake(field.displayName);
       final dartType = field.type;
@@ -254,16 +257,19 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
       final defaultValue = colAnn?.peek('defaultValue')?.objectValue;
 
       final autoInc = isPk
-          ? (colAnn?.peek('autoIncrement')?.boolValue ?? false)
-          : false;
-      final uuid = isPk ? (colAnn?.peek('uuid')?.boolValue ?? false) : false;
+        ? (primaryAnn?.peek('autoIncrement')?.boolValue ?? false)
+        : false;
+      final uuid = isPk ? (primaryAnn?.peek('uuid')?.boolValue ?? false) : false;
 
       final isCreatedAt = createdAtAnn != null;
       final isUpdatedAt = updatedAtAnn != null;
 
-      final type = (createdAtAnn != null || updatedAtAnn != null)
-          ? ColumnType.dateTime
-          : _resolveColumnType(colAnn!, dartType);
+      var type = (createdAtAnn != null || updatedAtAnn != null)
+        ? ColumnType.dateTime
+        : _resolveColumnType(colAnn, dartType);
+      if (uuid) {
+      type = ColumnType.uuid;
+      }
       final dartTypeCode = dartType.getDisplayString();
 
       columns.add(
@@ -752,13 +758,14 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
     return result;
   }
 
-  ColumnType _resolveColumnType(ConstantReader ann, DartType type) {
-    final explicit = ann.peek('type');
-    if (explicit != null && !explicit.isNull) {
-      final ev = explicit.objectValue;
-      final typeName = ev.type?.getDisplayString();
-      if (typeName != null && typeName.endsWith('ColumnType')) {
-        // Not reliable across analyzer versions; fall back to inference.
+  ColumnType _resolveColumnType(ConstantReader? ann, DartType type) {
+    if (ann != null) {
+      final explicit = ann.peek('type');
+      if (explicit != null && !explicit.isNull) {
+        final index = explicit.objectValue.getField('index')?.toIntValue();
+        if (index != null && index >= 0 && index < ColumnType.values.length) {
+          return ColumnType.values[index];
+        }
       }
     }
     return _inferColumnType(type);

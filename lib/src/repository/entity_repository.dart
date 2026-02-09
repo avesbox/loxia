@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:loxia/src/repository/dtos.dart';
 
@@ -14,6 +15,7 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
   final EntityDescriptor<T, P> _descriptor;
   final EngineAdapter _engine;
   final QueryFieldsContext<T> _fieldsContext;
+  static final Random _uuidRandom = Random.secure();
 
   /// Executes a query and returns partial entities based on the [select] options.
   ///
@@ -198,7 +200,7 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     return results.firstOrNull;
   }
 
-  Future<int> insert(InsertDto<T> values) async {
+  Future<Object?> insert(InsertDto<T> values) async {
     return _engine.transaction((txEngine) async {
       final txRepo = _descriptor.repositoryFactory(txEngine);
       return txRepo._insertWithEngine(values, txEngine);
@@ -586,7 +588,7 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
       }
     } else if (cascadeDto is List) {
       // List of target IDs - treat as a "set" operation
-      final targetIds = cascadeDto.whereType<int>().toSet();
+      final targetIds = cascadeDto.whereType<Object>().toSet();
       for (final ownerId in parentIds) {
         await _setManyToManyCollection(
           joinTable.name,
@@ -599,7 +601,7 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
       }
     } else {
       throw StateError(
-        'Cascade value for ManyToMany ${relation.fieldName} must be ManyToManyCascadeUpdate or List<int>',
+        'Cascade value for ManyToMany ${relation.fieldName} must be ManyToManyCascadeUpdate or List of IDs',
       );
     }
   }
@@ -649,7 +651,7 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     String ownerColumn,
     String targetColumn,
     Object ownerId,
-    Set<int> targetIds,
+    Set<Object> targetIds,
     EngineAdapter engine,
   ) async {
     // Get current associations
@@ -658,7 +660,7 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     final currentRows = await engine.query(selectSql, [ownerId]);
     final currentIds = currentRows
         .map((r) => r[targetColumn])
-        .whereType<int>()
+      .whereType<Object>()
         .toSet();
 
     // Determine what to add and remove
@@ -1273,7 +1275,7 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     });
   }
 
-  Future<int> _insertWithEngine(InsertDto values, EngineAdapter engine) async {
+  Future<Object?> _insertWithEngine(InsertDto values, EngineAdapter engine) async {
     final map = Map<String, dynamic>.from(values.toMap());
     final cascades = _readCascades(values);
 
@@ -1310,11 +1312,15 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     }
 
     // Main insert
-    final primaryKey = _descriptor.primaryKey?.name;
-    if (primaryKey == null || primaryKey.isEmpty) {
+    final primaryKeyDescriptor = _descriptor.primaryKey;
+    final primaryKey = primaryKeyDescriptor?.name;
+    if (primaryKey == null || primaryKey.isEmpty || primaryKeyDescriptor == null) {
       throw StateError(
         'Cannot insert without a primary key on ${_descriptor.tableName}',
       );
+    }
+    if (primaryKeyDescriptor.uuid && !map.containsKey(primaryKey)) {
+      map[primaryKey] = _generateUuid();
     }
     final cols = map.keys.map((k) => '"$k"').join(', ');
     final placeholders = List.filled(map.length, '?').join(', ');
@@ -1326,7 +1332,7 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
         'Insert did not return a primary key for ${_descriptor.tableName}',
       );
     }
-    final newId = result.first[primaryKey] as int;
+    final newId = result.first[primaryKey];
 
     // Post-insert: inverse side (one-to-many / one-to-one mappedBy)
     for (final relation in _descriptor.relations) {
@@ -1406,7 +1412,7 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
   /// - Insert a join table entry linking the owner to the target
   Future<void> _cascadePersistManyToMany(
     RelationDescriptor relation,
-    int ownerId,
+    Object? ownerId,
     dynamic cascadeData,
     EngineAdapter engine,
   ) async {
@@ -1440,17 +1446,24 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     for (final item in items) {
       if (item == null) continue;
 
-      int targetId;
+      late final Object targetId;
 
       if (item is InsertDto) {
         // Insert the target entity and get its new ID
-        targetId = await targetRepo._insertWithEngine(item as dynamic, engine);
-      } else if (item is int) {
+        final insertedId =
+            await targetRepo._insertWithEngine(item as dynamic, engine);
+        if (insertedId == null) {
+          throw StateError(
+            'Insert on ${relation.fieldName} did not return an ID',
+          );
+        }
+        targetId = insertedId;
+      } else if (item is num || item is String) {
         // Item is just an ID reference to an existing entity
         targetId = item;
       } else {
         throw StateError(
-          'Cascade value for ManyToMany ${relation.fieldName} must be InsertDto or int ID, got ${item.runtimeType}',
+          'Cascade value for ManyToMany ${relation.fieldName} must be InsertDto or scalar ID, got ${item.runtimeType}',
         );
       }
 
@@ -1510,6 +1523,20 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
       throw StateError('Unable to reload ${_descriptor.tableName} after save.');
     }
     return items.first;
+  }
+
+  String _generateUuid() {
+    final bytes = List<int>.generate(16, (_) => _uuidRandom.nextInt(256));
+    bytes[6] = (bytes[6] & 0x0f) | 0x40; // version 4
+    bytes[8] = (bytes[8] & 0x3f) | 0x80; // variant 1
+
+    String hex(int value) => value.toRadixString(16).padLeft(2, '0');
+
+    return '${hex(bytes[0])}${hex(bytes[1])}${hex(bytes[2])}${hex(bytes[3])}-'
+        '${hex(bytes[4])}${hex(bytes[5])}-'
+        '${hex(bytes[6])}${hex(bytes[7])}-'
+        '${hex(bytes[8])}${hex(bytes[9])}-'
+        '${hex(bytes[10])}${hex(bytes[11])}${hex(bytes[12])}${hex(bytes[13])}${hex(bytes[14])}${hex(bytes[15])}';
   }
 
   void _trySetPrimaryKey(Object entity, String propertyName, Object? value) {

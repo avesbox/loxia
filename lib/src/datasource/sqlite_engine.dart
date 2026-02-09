@@ -169,6 +169,9 @@ class SqliteEngine implements EngineAdapter {
     if (up.contains('TIME') || up.contains('DATE')) {
       return ColumnType.dateTime;
     }
+    if (up.contains('UUID')) {
+      return ColumnType.uuid;
+    }
     // Fallback to text affinity per SQLite rules
     return ColumnType.text;
   }
