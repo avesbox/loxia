@@ -16,6 +16,9 @@ Future<void> main(List<String> args) async {
     case 'migrate:revert':
       await _revertMigrations(options);
       return;
+    case 'inspect':
+      await _runInspect(options);
+      return;
     default:
       stderr.writeln('Unknown command: $command');
       _printUsage();
@@ -31,6 +34,7 @@ void _printUsage() {
   stdout.writeln('Commands:');
   stdout.writeln('  migrate:run       Apply pending migrations');
   stdout.writeln('  migrate:revert    Revert applied migrations');
+  stdout.writeln('  inspect           Inspect database and generate entities');
   stdout.writeln('');
   stdout.writeln('Options:');
   stdout.writeln(
@@ -55,6 +59,9 @@ void _printUsage() {
   );
   stdout.writeln(
     '  --migrations <path>  Dart migrations file (default: lib/migrations.dart)',
+  );
+  stdout.writeln(
+    '  --output <path>      Output directory for entities (default: lib/src/entities)',
   );
   stdout.writeln(
     '  --steps <n>       Number of migrations to revert (default: 1)',
@@ -97,6 +104,58 @@ Future<void> _revertMigrations(Map<String, String> options) async {
     exit(64);
   }
   await _runMigrationRunner(options, mode: 'revert', steps: steps);
+}
+
+Future<void> _runInspect(Map<String, String> options) async {
+  final output = options['output'] ?? 'lib/src/entities';
+  final engine = (options['engine'] ?? 'sqlite').toLowerCase();
+  
+  final args = <String>[engine, output];
+  if (engine == 'sqlite') {
+    final dbPath = options['db'];
+    if (dbPath == null || dbPath.trim().isEmpty) {
+      stderr.writeln('Missing required option: --db');
+      exit(64);
+    }
+    args.add(dbPath);
+  } else if (engine == 'postgres') {
+     final host = options['pg-host'];
+    final port = options['pg-port'];
+    final database = options['pg-db'];
+    final user = options['pg-user'];
+    final password = options['pg-password'];
+    if ([
+      host,
+      port,
+      database,
+      user,
+      password,
+    ].any((v) => v == null || v.trim().isEmpty)) {
+      stderr.writeln(
+        'Missing required postgres options: --pg-host --pg-port --pg-db --pg-user --pg-password',
+      );
+      exit(64);
+    }
+    final ssl = (options['pg-ssl'] ?? 'false').toLowerCase();
+    args.addAll([host!, port!, database!, user!, password!, ssl]);
+  } else {
+    stderr.writeln('Unknown engine: $engine');
+    exit(64);
+  }
+
+  final runnerPath = await _writeInspectRunner();
+  final runArgs = ['run', runnerPath, ...args];
+  final result = await Process.run(Platform.resolvedExecutable, runArgs);
+  
+  if (result.stdout != null && result.stdout.toString().trim().isNotEmpty) {
+    stdout.write(result.stdout);
+  }
+  if (result.stderr != null && result.stderr.toString().trim().isNotEmpty) {
+    stderr.write(result.stderr);
+  }
+  if (result.exitCode != 0) {
+    exit(result.exitCode);
+  }
 }
 
 Future<void> _runMigrationRunner(
@@ -196,6 +255,18 @@ Future<String> _writeRunner(String importUri) async {
     '${dir.path}${Platform.pathSeparator}migration_runner.dart',
   );
   await file.writeAsString(_runnerSource(importUri));
+  return file.path;
+}
+
+Future<String> _writeInspectRunner() async {
+  final dir = Directory('.loxia');
+  if (!dir.existsSync()) {
+    dir.createSync(recursive: true);
+  }
+  final file = File(
+    '${dir.path}${Platform.pathSeparator}inspect_runner.dart',
+  );
+  await file.writeAsString(_inspectRunnerSource());
   return file.path;
 }
 
@@ -310,3 +381,88 @@ Future<void> main(List<String> args) async {
 }
 ''';
 }
+
+String _inspectRunnerSource() {
+  return '''
+import 'dart:io';
+
+import 'package:loxia/loxia.dart';
+import 'package:loxia/src/datasource/sqlite_engine.dart';
+import 'package:loxia/src/datasource/postgres_engine.dart';
+import 'package:loxia/src/inspection/entity_writer.dart';
+import 'package:postgres/postgres.dart';
+
+Future<void> main(List<String> args) async {
+  if (args.length < 2) {
+    stderr.writeln('Usage: inspect <sqlite|postgres> <output> <db args...>');
+    exit(64);
+  }
+  final engineType = args[0];
+  final outputPath = args[1];
+
+  EngineAdapter engine;
+  if (engineType == 'sqlite') {
+    if (args.length < 3) {
+       stderr.writeln('Usage: inspect sqlite <output> <dbPath>');
+       exit(64);
+    }
+    final dbPath = args[2];
+    engine = SqliteEngine.file(dbPath);
+  } else if (engineType == 'postgres') {
+    if (args.length < 8) {
+      stderr.writeln('Usage: inspect postgres <output> <host> <port> <db> <user> <password> <ssl>');
+      exit(64);
+    }
+    final host = args[2];
+    final port = int.tryParse(args[3]) ?? 5432;
+    final database = args[4];
+    final userName = args[5];
+    final password = args[6];
+    final useSSL = args[7].toLowerCase() == 'true';
+    engine = PostgresEngine.connect(
+      Endpoint(host: host, port: port, database: database),
+      settings: ConnectionSettings(
+        username: userName,
+        password: password,
+        sslMode: useSSL ? SslMode.require : SslMode.disable,
+      ),
+    );
+  } else {
+    stderr.writeln('Unknown engine: \$engineType');
+    exit(64);
+  }
+
+  stdout.writeln('Connecting to database...');
+  await engine.open();
+  
+  try {
+    stdout.writeln('Reading schema...');
+    final schema = await engine.readSchema();
+    
+    stdout.writeln('Generating entities...');
+    final writer = EntityWriter(schema);
+    final files = writer.generate();
+    
+    final outputDir = Directory(outputPath);
+    if (!outputDir.existsSync()) {
+      outputDir.createSync(recursive: true);
+    }
+    
+    for (final entry in files.entries) {
+      final file = File('\${outputDir.path}\${Platform.pathSeparator}\${entry.key}');
+      await file.writeAsString(entry.value);
+      stdout.writeln('Generated: \${entry.key}');
+    }
+    
+    stdout.writeln('Inspection complete. Generated \${files.length} files in \$outputPath');
+  } catch (e, stack) {
+    stderr.writeln('Error during inspection: \$e');
+    stderr.writeln(stack);
+    exit(1);
+  } finally {
+    await engine.close();
+  }
+}
+''';
+}
+

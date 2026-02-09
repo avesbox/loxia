@@ -124,9 +124,10 @@ Future<void> main() async {
       userId: user?.id,
     ),
   );
-  final post = await posts.findOneBy(
+  final post = await posts.findOne(
     where: PostQuery((q) => q.title.equals('Hello World')),
   );
+  final partialPost = post as PostPartial?;
   print(
     'Post: id=${post?.id}, title=${post?.title}, content=${post?.content}, likes=${post?.likes}, userId=${post?.user?.id} - ${post?.createdAt} - ${post?.lastUpdatedAt}',
   );

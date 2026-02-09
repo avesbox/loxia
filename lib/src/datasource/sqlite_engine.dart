@@ -119,7 +119,25 @@ class SqliteEngine implements EngineAdapter {
           isPrimaryKey: pk,
         );
       }
-      tables[name] = SchemaTable(name: name, columns: cols);
+
+      final fkRs = db.select('PRAGMA foreign_key_list("$name")');
+      final fks = <SchemaForeignKey>[];
+      for (final fk in fkRs) {
+        final table = fk['table'] as String;
+        final from = fk['from'] as String;
+        final to = fk['to'] as String;
+        final onDelete = (fk['on_delete'] as String?)?.toUpperCase() ?? '';
+        fks.add(
+          SchemaForeignKey(
+            sourceColumn: from,
+            targetTable: table,
+            targetColumn: to,
+            onDeleteCascade: onDelete == 'CASCADE',
+          ),
+        );
+      }
+
+      tables[name] = SchemaTable(name: name, columns: cols, foreignKeys: fks);
     }
     return SchemaState(tables: tables);
   }
