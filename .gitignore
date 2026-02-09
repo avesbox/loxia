@@ -23,4 +23,6 @@ build/
 **/**/.vitepress/cache
 **/pubspec.lock
 
+.loxia/
+
 pubspec_overrides.yaml

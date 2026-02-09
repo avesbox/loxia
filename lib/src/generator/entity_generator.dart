@@ -61,6 +61,7 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
   final _insertDtoBuilder = const InsertDtoBuilder();
   final _updateDtoBuilder = const UpdateDtoBuilder();
   final _repositoryClassBuilder = const RepositoryClassBuilder();
+  final _jsonExtensionBuilder = const JsonExtensionBuilder();
 
   @override
   Future<String> generateForAnnotatedElement(
@@ -86,7 +87,8 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
         ..body.add(_partialEntityBuilder.build(context))
         ..body.add(_insertDtoBuilder.build(context))
         ..body.add(_updateDtoBuilder.build(context))
-        ..body.add(_repositoryClassBuilder.build(context)),
+        ..body.add(_repositoryClassBuilder.build(context))
+        ..body.add(_jsonExtensionBuilder.build(context)),
     );
 
     // Emit and format the generated code

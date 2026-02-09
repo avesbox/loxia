@@ -63,61 +63,63 @@ class PostgresEngine implements EngineAdapter {
   static Future<SchemaState> _readSchemaWithSession(Session db) async {
     final tables = <String, SchemaTable>{};
 
-    final tableRows = await db.execute(
-      "SELECT table_schema, table_name FROM information_schema.tables "
-      "WHERE table_type = 'BASE TABLE' "
-      "AND table_schema NOT IN ('pg_catalog', 'information_schema')",
+    final columnRows = await db.execute(
+      "SELECT c.table_schema, c.table_name, c.column_name, c.is_nullable, c.data_type, c.udt_name "
+      "FROM information_schema.columns c "
+      "JOIN information_schema.tables t "
+      "  ON c.table_schema = t.table_schema AND c.table_name = t.table_name "
+      "WHERE t.table_type = 'BASE TABLE' "
+      "AND t.table_schema NOT IN ('pg_catalog', 'information_schema') "
+      "ORDER BY c.table_schema, c.table_name, c.ordinal_position",
     );
 
-    for (final row in tableRows) {
-      final rowMap = row.toColumnMap();
-      final schema = rowMap['table_schema'] as String;
-      final name = rowMap['table_name'] as String;
+    final pkRows = await db.execute(
+      "SELECT tc.table_schema, tc.table_name, kcu.column_name "
+      "FROM information_schema.table_constraints tc "
+      "JOIN information_schema.key_column_usage kcu "
+      "  ON tc.constraint_name = kcu.constraint_name "
+      " AND tc.table_schema = kcu.table_schema "
+      "WHERE tc.constraint_type = 'PRIMARY KEY' "
+      "  AND tc.table_schema NOT IN ('pg_catalog', 'information_schema')",
+    );
 
-      final columns = <String, SchemaColumn>{};
-      final columnRows = await db.execute(
-        Sql.named(
-          "SELECT column_name, is_nullable, data_type, udt_name "
-          "FROM information_schema.columns "
-          "WHERE table_schema = @schema AND table_name = @table "
-          "ORDER BY ordinal_position",
-        ),
-        parameters: {'schema': schema, 'table': name},
+    final pkMap = <String, Set<String>>{};
+    for (final row in pkRows) {
+      final map = row.toColumnMap();
+      final scheme = map['table_schema'] as String;
+      final table = map['table_name'] as String;
+      final col = map['column_name'] as String;
+      pkMap.putIfAbsent('$scheme.$table', () => {}).add(col);
+    }
+
+    final tableColumns = <String, Map<String, SchemaColumn>>{};
+    final tableNames = <String, String>{};
+
+    for (final row in columnRows) {
+      final map = row.toColumnMap();
+      final scheme = map['table_schema'] as String;
+      final table = map['table_name'] as String;
+      final key = '$scheme.$table';
+
+      tableNames[key] = table;
+
+      final cname = map['column_name'] as String;
+      final nullable = (map['is_nullable'] as String?) == 'YES';
+      final dataType = map['data_type'] as String?;
+      final udtName = map['udt_name'] as String?;
+      final isPk = pkMap[key]?.contains(cname) ?? false;
+
+      tableColumns.putIfAbsent(key, () => {})[cname] = SchemaColumn(
+        name: cname,
+        type: _mapType(dataType, udtName),
+        nullable: nullable,
+        isPrimaryKey: isPk,
       );
+    }
 
-      final pkRows = await db.execute(
-        Sql.named(
-          "SELECT kcu.column_name "
-          "FROM information_schema.table_constraints tc "
-          "JOIN information_schema.key_column_usage kcu "
-          "  ON tc.constraint_name = kcu.constraint_name "
-          " AND tc.table_schema = kcu.table_schema "
-          "WHERE tc.constraint_type = 'PRIMARY KEY' "
-          "  AND tc.table_schema = @schema "
-          "  AND tc.table_name = @table",
-        ),
-        parameters: {'schema': schema, 'table': name},
-      );
-
-      final pkColumns = pkRows
-          .map((r) => r.toColumnMap()['column_name'] as String)
-          .toSet();
-
-      for (final c in columnRows) {
-        final cMap = c.toColumnMap();
-        final cname = cMap['column_name'] as String;
-        final nullable = (cMap['is_nullable'] as String?) == 'YES';
-        final dataType = cMap['data_type'] as String?;
-        final udtName = cMap['udt_name'] as String?;
-        columns[cname] = SchemaColumn(
-          name: cname,
-          type: _mapType(dataType, udtName),
-          nullable: nullable,
-          isPrimaryKey: pkColumns.contains(cname),
-        );
-      }
-
-      tables[name] = SchemaTable(name: name, columns: columns);
+    for (final key in tableNames.keys) {
+      final name = tableNames[key]!;
+      tables[name] = SchemaTable(name: name, columns: tableColumns[key]!);
     }
 
     return SchemaState(tables: tables);

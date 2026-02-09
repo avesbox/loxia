@@ -22,7 +22,7 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
   ///
   /// To get full entities with type safety, use [findBy] instead.
   Future<List<P>> find({
-    required SelectOptions<T, P> select,
+    SelectOptions<T, P>? select,
     QueryBuilder<T>? where,
     List<OrderBy>? orderBy,
     int? limit,
@@ -31,7 +31,14 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     final alias = 't';
     final runtime = QueryRuntimeContext(rootAlias: alias);
     final boundContext = _fieldsContext.bind(runtime, alias);
-    final projection = select.compile(boundContext);
+    final effectiveSelect = select ?? _descriptor.defaultSelect?.call();
+    if (effectiveSelect == null) {
+      throw ArgumentError(
+        'select is optional only if defaultSelect is provided in '
+        'EntityDescriptor. Otherwise, it must be provided.',
+      );
+    }
+    final projection = effectiveSelect.compile(boundContext);
     final cols = projection.sql;
     final params = <Object?>[];
     final whereSql = where?.toSql(boundContext, params);
@@ -59,7 +66,7 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
 
   /// Executes a query and returns a single partial entity, or null if not found.
   Future<P?> findOne({
-    required SelectOptions<T, P> select,
+    SelectOptions<T, P>? select,
     QueryBuilder<T>? where,
     List<OrderBy>? orderBy,
     int? offset,
@@ -103,7 +110,7 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
   /// Throws [RangeError] if [page] or [pageSize] are less than 1, or if
   /// [maxPageSize] is provided and [pageSize] exceeds it.
   Future<PaginatedResult<P>> paginate({
-    required SelectOptions<T, P> select,
+    SelectOptions<T, P>? select,
     QueryBuilder<T>? where,
     List<OrderBy>? orderBy,
     required int page,

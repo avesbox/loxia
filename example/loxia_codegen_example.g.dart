@@ -54,6 +54,7 @@ final EntityDescriptor<User, UserPartial> $UserEntityDescriptor =
       toRow: (e) => {'id': e.id, 'email': e.email},
       fieldsContext: const UserFieldsContext(),
       repositoryFactory: (EngineAdapter engine) => UserRepository(engine),
+      defaultSelect: () => UserSelect(),
     );
 
 class UserFieldsContext extends QueryFieldsContext<User> {
@@ -268,6 +269,15 @@ class UserPartial extends PartialEntity<User> {
       posts: posts?.map((p) => p.toEntity()).toList() ?? const <Post>[],
     );
   }
+
+  @override
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'email': email,
+      'posts': posts?.map((e) => e.toJson()).toList(),
+    };
+  }
 }
 
 class UserInsertDto implements InsertDto<User> {
@@ -312,6 +322,16 @@ class UserUpdateDto implements UpdateDto<User> {
 class UserRepository extends EntityRepository<User, UserPartial> {
   UserRepository(EngineAdapter engine)
     : super($UserEntityDescriptor, engine, $UserEntityDescriptor.fieldsContext);
+}
+
+extension UserJson on User {
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'email': email,
+      'posts': posts.map((e) => e.toJson()).toList(),
+    };
+  }
 }
 
 final EntityDescriptor<Post, PostPartial> $PostEntityDescriptor =
@@ -465,6 +485,7 @@ final EntityDescriptor<Post, PostPartial> $PostEntityDescriptor =
           e.lastUpdatedAt = DateTime.now().millisecondsSinceEpoch;
         },
       ),
+      defaultSelect: () => PostSelect(),
     );
 
 class PostFieldsContext extends QueryFieldsContext<Post> {
@@ -801,6 +822,21 @@ class PostPartial extends PartialEntity<Post> {
       tags: tags?.map((p) => p.toEntity()).toList() ?? const <Tag>[],
     );
   }
+
+  @override
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'title': title,
+      'content': content,
+      'likes': likes,
+      'createdAt': createdAt?.toIso8601String(),
+      'lastUpdatedAt': lastUpdatedAt,
+      'user': user?.toJson(),
+      'tags': tags?.map((e) => e.toJson()).toList(),
+      'userId': userId,
+    };
+  }
 }
 
 class PostInsertDto implements InsertDto<Post> {
@@ -913,6 +949,21 @@ class PostRepository extends EntityRepository<Post, PostPartial> {
     : super($PostEntityDescriptor, engine, $PostEntityDescriptor.fieldsContext);
 }
 
+extension PostJson on Post {
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'title': title,
+      'content': content,
+      'likes': likes,
+      'createdAt': createdAt?.toIso8601String(),
+      'lastUpdatedAt': lastUpdatedAt,
+      'user': user?.toJson(),
+      'tags': tags.map((e) => e.toJson()).toList(),
+    };
+  }
+}
+
 final EntityDescriptor<Tag, TagPartial> $TagEntityDescriptor = EntityDescriptor(
   entityType: Tag,
   tableName: 'tag',
@@ -960,6 +1011,7 @@ final EntityDescriptor<Tag, TagPartial> $TagEntityDescriptor = EntityDescriptor(
   toRow: (e) => {'id': e.id, 'name': e.name},
   fieldsContext: const TagFieldsContext(),
   repositoryFactory: (EngineAdapter engine) => TagRepository(engine),
+  defaultSelect: () => TagSelect(),
 );
 
 class TagFieldsContext extends QueryFieldsContext<Tag> {
@@ -1171,6 +1223,15 @@ class TagPartial extends PartialEntity<Tag> {
       posts: posts?.map((p) => p.toEntity()).toList() ?? const <Post>[],
     );
   }
+
+  @override
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'posts': posts?.map((e) => e.toJson()).toList(),
+    };
+  }
 }
 
 class TagInsertDto implements InsertDto<Tag> {
@@ -1210,4 +1271,14 @@ class TagUpdateDto implements UpdateDto<Tag> {
 class TagRepository extends EntityRepository<Tag, TagPartial> {
   TagRepository(EngineAdapter engine)
     : super($TagEntityDescriptor, engine, $TagEntityDescriptor.fieldsContext);
+}
+
+extension TagJson on Tag {
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'posts': posts.map((e) => e.toJson()).toList(),
+    };
+  }
 }

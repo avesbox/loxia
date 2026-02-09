@@ -35,6 +35,7 @@ class EntityDescriptor<T extends Entity, P extends PartialEntity<T>> {
     required this.fieldsContext,
     required this.repositoryFactory,
     this.hooks,
+    this.defaultSelect,
   }) : columns = List.unmodifiable(columns),
        relations = List.unmodifiable(relations),
        indexes = List.unmodifiable(indexes);
@@ -50,6 +51,7 @@ class EntityDescriptor<T extends Entity, P extends PartialEntity<T>> {
   final QueryFieldsContext<T> fieldsContext;
   final EntityRepository<T, P> Function(EngineAdapter engine) repositoryFactory;
   final EntityHooks<T>? hooks;
+  final SelectOptions<T, P> Function()? defaultSelect;
 
   ColumnDescriptor? get primaryKey {
     for (final column in columns) {

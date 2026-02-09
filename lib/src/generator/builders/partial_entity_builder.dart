@@ -3,6 +3,7 @@ library;
 
 import 'package:code_builder/code_builder.dart';
 
+import '../../annotations/column.dart';
 import 'models.dart';
 import 'utils.dart';
 
@@ -27,7 +28,8 @@ class PartialEntityBuilder {
         ..methods.add(_buildPrimaryKeyGetter(context))
         ..methods.add(_buildToInsertDtoMethod(context))
         ..methods.add(_buildToUpdateDtoMethod(context))
-        ..methods.add(_buildToEntityMethod(context)),
+        ..methods.add(_buildToEntityMethod(context))
+        ..methods.add(_buildToJsonMethod(context)),
     );
   }
 
@@ -347,6 +349,55 @@ if (missing.isNotEmpty) {
         ..name = 'toUpdateDto'
         ..returns = refer(context.updateDtoName)
         ..body = Code('return ${context.updateDtoName}(${args.join(', ')});'),
+    );
+  }
+
+  Method _buildToJsonMethod(EntityGenerationContext context) {
+    final entries = <String>[];
+
+    // Columns
+    for (final c in context.columns) {
+      final key = "'${c.prop}'";
+      var value = c.prop;
+      if (c.type == ColumnType.dateTime && c.dartTypeCode.contains('DateTime')) {
+        if (c.nullable) {
+          value = '$value?.toIso8601String()';
+        } else {
+          value = '$value.toIso8601String()';
+        }
+      }
+      entries.add('$key: $value');
+    }
+    
+    // Relations
+    for (final r in context.allSelectableRelations) {
+      final key = "'${r.fieldName}'";
+      var value = r.fieldName;
+      if (r.isCollection) {
+        // List<Partial>?
+        value = '$value?.map((e) => e.toJson()).toList()';
+        // If join table relation or such, assume .toJson exists on target partial
+      } else {
+        // Partial?
+        value = '$value?.toJson()';
+      }
+      entries.add('$key: $value');
+    }
+
+    // Join Columns (exposed as IDs usually, e.g. userId)
+    for (final r in context.owningJoinColumns) {
+      final prop = r.joinColumnPropertyName;
+      if (prop != null) {
+        entries.add("'$prop': $prop");
+      }
+    }
+
+    return Method(
+      (m) => m
+        ..annotations.add(refer('override'))
+        ..name = 'toJson'
+        ..returns = refer('Map<String, dynamic>')
+        ..body = Code('return { ${entries.join(', ')} };'),
     );
   }
 }

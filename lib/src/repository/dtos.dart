@@ -28,6 +28,9 @@ abstract class PartialEntity<T extends Entity> {
 
   /// Converts this partial to an UpdateDto.
   UpdateDto<T> toUpdateDto();
+
+  /// Converts this partial entity to a JSON map.
+  Map<String, dynamic> toJson();
 }
 
 /// Standard pagination result for repository queries.
@@ -48,6 +51,18 @@ class PaginatedResult<P> {
 
   bool get hasNextPage => page < pageCount;
   bool get hasPreviousPage => page > 1;
+
+  Map<String, dynamic> toJson() => {
+    'items': items is List<PartialEntity>
+      ? (items as List<PartialEntity>).map((e) => e.toJson()).toList()
+      : items,
+    'total': total,
+    'page': page,
+    'pageSize': pageSize,
+    'pageCount': pageCount,
+    'hasNextPage': hasNextPage,
+    'hasPreviousPage': hasPreviousPage,
+  };
 }
 
 /// Represents an update operation for a ManyToMany relation.
