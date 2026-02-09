@@ -359,7 +359,8 @@ if (missing.isNotEmpty) {
     for (final c in context.columns) {
       final key = "'${c.prop}'";
       var value = c.prop;
-      if (c.type == ColumnType.dateTime && c.dartTypeCode.contains('DateTime')) {
+      if (c.type == ColumnType.dateTime &&
+          c.dartTypeCode.contains('DateTime')) {
         if (c.nullable) {
           value = '$value?.toIso8601String()';
         } else {
@@ -368,7 +369,7 @@ if (missing.isNotEmpty) {
       }
       entries.add('$key: $value');
     }
-    
+
     // Relations
     for (final r in context.allSelectableRelations) {
       final key = "'${r.fieldName}'";

@@ -94,7 +94,7 @@ class UserPartial extends PartialEntity<User> {
   UpdateDto<User> toUpdateDto() {
     return UserUpdateDto(email: email, name: name);
   }
-  
+
   @override
   Map<String, dynamic> toJson() {
     return {'id': id, 'email': email, 'name': name};

@@ -24,7 +24,8 @@ class JsonExtensionBuilder {
     for (final c in context.columns) {
       final key = "'${c.prop}'";
       var value = c.prop;
-      if (c.type == ColumnType.dateTime && c.dartTypeCode.contains('DateTime')) {
+      if (c.type == ColumnType.dateTime &&
+          c.dartTypeCode.contains('DateTime')) {
         if (c.nullable) {
           value = '$value?.toIso8601String()';
         } else {

@@ -236,17 +236,16 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
 
     for (final field in clazz.fields.where((f) => !f.isStatic)) {
       final primaryAnnObj = _firstAnnotation(field, PrimaryKey);
-      final colAnnObj =
-        _firstAnnotation(field, Column) ??
-        primaryAnnObj;
+      final colAnnObj = _firstAnnotation(field, Column) ?? primaryAnnObj;
       final createdAtAnn = _firstAnnotation(field, CreatedAt);
       final updatedAtAnn = _firstAnnotation(field, UpdatedAt);
       if (colAnnObj == null && createdAtAnn == null && updatedAtAnn == null) {
         continue;
       }
       final colAnn = colAnnObj == null ? null : ConstantReader(colAnnObj);
-      final primaryAnn =
-        primaryAnnObj == null ? null : ConstantReader(primaryAnnObj);
+      final primaryAnn = primaryAnnObj == null
+          ? null
+          : ConstantReader(primaryAnnObj);
 
       final isPk = primaryAnnObj != null;
       final colName =
@@ -257,18 +256,20 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
       final defaultValue = colAnn?.peek('defaultValue')?.objectValue;
 
       final autoInc = isPk
-        ? (primaryAnn?.peek('autoIncrement')?.boolValue ?? false)
-        : false;
-      final uuid = isPk ? (primaryAnn?.peek('uuid')?.boolValue ?? false) : false;
+          ? (primaryAnn?.peek('autoIncrement')?.boolValue ?? false)
+          : false;
+      final uuid = isPk
+          ? (primaryAnn?.peek('uuid')?.boolValue ?? false)
+          : false;
 
       final isCreatedAt = createdAtAnn != null;
       final isUpdatedAt = updatedAtAnn != null;
 
       var type = (createdAtAnn != null || updatedAtAnn != null)
-        ? ColumnType.dateTime
-        : _resolveColumnType(colAnn, dartType);
+          ? ColumnType.dateTime
+          : _resolveColumnType(colAnn, dartType);
       if (uuid) {
-      type = ColumnType.uuid;
+        type = ColumnType.uuid;
       }
       final dartTypeCode = dartType.getDisplayString();
 

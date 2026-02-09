@@ -59,9 +59,7 @@ class EntityDescriptorBuilder {
       if (_hasHooks(context)) 'hooks': _buildHooks(context),
       'defaultSelect': Method(
         (m) => m
-          ..body = refer('${context.entityName}Select').newInstance(
-            [],
-          ).code
+          ..body = refer('${context.entityName}Select').newInstance([]).code
           ..lambda = true,
       ).closure,
     });

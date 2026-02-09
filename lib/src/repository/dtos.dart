@@ -54,8 +54,8 @@ class PaginatedResult<P> {
 
   Map<String, dynamic> toJson() => {
     'items': items is List<PartialEntity>
-      ? (items as List<PartialEntity>).map((e) => e.toJson()).toList()
-      : items,
+        ? (items as List<PartialEntity>).map((e) => e.toJson()).toList()
+        : items,
     'total': total,
     'page': page,
     'pageSize': pageSize,

@@ -660,7 +660,7 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     final currentRows = await engine.query(selectSql, [ownerId]);
     final currentIds = currentRows
         .map((r) => r[targetColumn])
-      .whereType<Object>()
+        .whereType<Object>()
         .toSet();
 
     // Determine what to add and remove
@@ -1275,7 +1275,10 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     });
   }
 
-  Future<Object?> _insertWithEngine(InsertDto values, EngineAdapter engine) async {
+  Future<Object?> _insertWithEngine(
+    InsertDto values,
+    EngineAdapter engine,
+  ) async {
     final map = Map<String, dynamic>.from(values.toMap());
     final cascades = _readCascades(values);
 
@@ -1314,7 +1317,9 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     // Main insert
     final primaryKeyDescriptor = _descriptor.primaryKey;
     final primaryKey = primaryKeyDescriptor?.name;
-    if (primaryKey == null || primaryKey.isEmpty || primaryKeyDescriptor == null) {
+    if (primaryKey == null ||
+        primaryKey.isEmpty ||
+        primaryKeyDescriptor == null) {
       throw StateError(
         'Cannot insert without a primary key on ${_descriptor.tableName}',
       );
@@ -1450,8 +1455,10 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
 
       if (item is InsertDto) {
         // Insert the target entity and get its new ID
-        final insertedId =
-            await targetRepo._insertWithEngine(item as dynamic, engine);
+        final insertedId = await targetRepo._insertWithEngine(
+          item as dynamic,
+          engine,
+        );
         if (insertedId == null) {
           throw StateError(
             'Insert on ${relation.fieldName} did not return an ID',
