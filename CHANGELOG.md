@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.0.3
+
+- Added support for UUID primary keys in both SQLite and PostgreSQL drivers. You can now define a primary key as a UUID string by using the `@PrimaryKey(uuid: true)` annotation on your entity fields.
+- Added support for `toJson` method in entities and partial entities, allowing you to easily convert your entities to JSON format for serialization or API responses.
+- Improve Postgres schema synchronization.
+- Added default select allowing for less verbose queries when you want to select all columns of an entity without needing to specify them explicitly.
+
 ## 0.0.2
 
 - Fixed a bug in the generated code where `createdAt` and `updatedAt` fields won't assign the value returned by the database, causing them to always be set to null,
