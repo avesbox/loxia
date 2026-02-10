@@ -115,20 +115,22 @@ class PostgresEngine implements EngineAdapter {
       final scheme = map['table_schema'] as String;
       final table = map['table_name'] as String;
       final key = '$scheme.$table';
-      
+
       final sourceCol = map['column_name'] as String;
       final targetTable = map['foreign_table_name'] as String;
       final targetCol = map['foreign_column_name'] as String;
       final deleteRule = map['delete_rule'] as String?;
-      
-      fkMap.putIfAbsent(key, () => []).add(
-        SchemaForeignKey(
-          sourceColumn: sourceCol,
-          targetTable: targetTable,
-          targetColumn: targetCol,
-          onDeleteCascade: deleteRule == 'CASCADE',
-        ),
-      );
+
+      fkMap
+          .putIfAbsent(key, () => [])
+          .add(
+            SchemaForeignKey(
+              sourceColumn: sourceCol,
+              targetTable: targetTable,
+              targetColumn: targetCol,
+              onDeleteCascade: deleteRule == 'CASCADE',
+            ),
+          );
     }
 
     final tableColumns = <String, Map<String, SchemaColumn>>{};

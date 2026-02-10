@@ -222,10 +222,12 @@ class SchemaSnapshotBuilder implements Builder {
 
     if (explicitType != null) {
       if (!isEnum) return explicitType;
-      if (explicitType == ColumnType.text || explicitType == ColumnType.integer) {
+      if (explicitType == ColumnType.text ||
+          explicitType == ColumnType.integer) {
         return explicitType;
       }
-      final className = field?.enclosingElement.displayName ?? '<unknown class>';
+      final className =
+          field?.enclosingElement.displayName ?? '<unknown class>';
       final fieldName = field?.displayName ?? '<unknown field>';
       throw InvalidGenerationSourceError(
         'Enum column $className.$fieldName must use ColumnType.text or ColumnType.integer.',

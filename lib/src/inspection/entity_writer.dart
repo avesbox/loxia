@@ -18,7 +18,11 @@ class EntityWriter {
 
       final className = _toPascalCase(table.name);
       final fileName = _toSnakeCase(className);
-      files['$fileName.dart'] = _generateFileContent(table, className, fileName);
+      files['$fileName.dart'] = _generateFileContent(
+        table,
+        className,
+        fileName,
+      );
     }
 
     return files;
@@ -46,7 +50,7 @@ class EntityWriter {
         imports.add("import '$targetFile.dart';");
       }
     }
-    
+
     for (final import in imports) {
       buffer.writeln(import);
     }
@@ -67,7 +71,7 @@ class EntityWriter {
       // Usually ORMS map both or just relation.
       // The prompt says: "Generate a field for the relation... Type: PascalCase of target... @JoinColumn...".
       // It implies replacing the raw column with the relation field.
-      
+
       // Let's check if this column is a FK source.
       final fk = table.foreignKeys
           .where((f) => f.sourceColumn == col.name)
@@ -80,10 +84,10 @@ class EntityWriter {
         // e.g. author_id -> author.
         // If column is 'user_id', field 'user'.
         String relFieldName = _relationFieldName(col.name);
-        
-        // If multiple relations to same table, name conflict? 
+
+        // If multiple relations to same table, name conflict?
         // Simple logic for now as requested.
-        
+
         final nullable = col.nullable ? '?' : '';
         final requiredMod = col.nullable ? '' : 'required ';
 
@@ -91,21 +95,21 @@ class EntityWriter {
         buffer.writeln("  @ManyToOne(on: $targetClass)");
         buffer.writeln("  @JoinColumn(name: '${col.name}')");
         buffer.writeln("  final $targetClass$nullable $relFieldName;");
-        
+
         constructorParams.add('${requiredMod}this.$relFieldName');
       } else {
         // Normal column
         String type;
         if (col.isPrimaryKey) {
-           buffer.writeln();
-           buffer.writeln('  @PrimaryKey()');
-           type = _dartType(col.type);
+          buffer.writeln();
+          buffer.writeln('  @PrimaryKey()');
+          type = _dartType(col.type);
         } else {
-           buffer.writeln();
-           buffer.writeln("  @Column(name: '${col.name}')");
-           type = _dartType(col.type);
+          buffer.writeln();
+          buffer.writeln("  @Column(name: '${col.name}')");
+          type = _dartType(col.type);
         }
-        
+
         final nullable = col.nullable ? '?' : '';
         final requiredMod = col.nullable ? '' : 'required ';
         final fieldName = _toCamelCase(col.name);
@@ -123,7 +127,7 @@ class EntityWriter {
     buffer.writeln('  });');
 
     buffer.writeln('}');
-    
+
     return buffer.toString();
   }
 
@@ -162,11 +166,14 @@ class EntityWriter {
   String _toPascalCase(String input) {
     return input
         .split('_')
-        .map((e) =>
-            e.isEmpty ? '' : '${e[0].toUpperCase()}${e.substring(1).toLowerCase()}')
+        .map(
+          (e) => e.isEmpty
+              ? ''
+              : '${e[0].toUpperCase()}${e.substring(1).toLowerCase()}',
+        )
         .join();
   }
-  
+
   String _toCamelCase(String input) {
     final pas = _toPascalCase(input);
     if (pas.isEmpty) return '';
@@ -176,7 +183,10 @@ class EntityWriter {
   String _toSnakeCase(String input) {
     // Crude snake_case for file names from PascalCase
     return input
-        .replaceAllMapped(RegExp(r'[A-Z]'), (match) => '_${match.group(0)!.toLowerCase()}')
+        .replaceAllMapped(
+          RegExp(r'[A-Z]'),
+          (match) => '_${match.group(0)!.toLowerCase()}',
+        )
         .replaceAll(RegExp(r'^_'), '');
   }
 }

@@ -109,7 +109,7 @@ Future<void> _revertMigrations(Map<String, String> options) async {
 Future<void> _runInspect(Map<String, String> options) async {
   final output = options['output'] ?? 'lib/src/entities';
   final engine = (options['engine'] ?? 'sqlite').toLowerCase();
-  
+
   final args = <String>[engine, output];
   if (engine == 'sqlite') {
     final dbPath = options['db'];
@@ -119,7 +119,7 @@ Future<void> _runInspect(Map<String, String> options) async {
     }
     args.add(dbPath);
   } else if (engine == 'postgres') {
-     final host = options['pg-host'];
+    final host = options['pg-host'];
     final port = options['pg-port'];
     final database = options['pg-db'];
     final user = options['pg-user'];
@@ -146,7 +146,7 @@ Future<void> _runInspect(Map<String, String> options) async {
   final runnerPath = await _writeInspectRunner();
   final runArgs = ['run', runnerPath, ...args];
   final result = await Process.run(Platform.resolvedExecutable, runArgs);
-  
+
   if (result.stdout != null && result.stdout.toString().trim().isNotEmpty) {
     stdout.write(result.stdout);
   }
@@ -263,9 +263,7 @@ Future<String> _writeInspectRunner() async {
   if (!dir.existsSync()) {
     dir.createSync(recursive: true);
   }
-  final file = File(
-    '${dir.path}${Platform.pathSeparator}inspect_runner.dart',
-  );
+  final file = File('${dir.path}${Platform.pathSeparator}inspect_runner.dart');
   await file.writeAsString(_inspectRunnerSource());
   return file.path;
 }
@@ -465,4 +463,3 @@ Future<void> main(List<String> args) async {
 }
 ''';
 }
-

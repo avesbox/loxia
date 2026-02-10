@@ -252,8 +252,7 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
           colAnn?.peek('name')?.stringValue ?? _toSnake(field.displayName);
       final dartType = field.type;
       final isEnumType =
-          dartType is InterfaceType &&
-          dartType.element is EnumElement;
+          dartType is InterfaceType && dartType.element is EnumElement;
       final enumTypeName = isEnumType
           ? _stripNullability(dartType.getDisplayString())
           : null;
@@ -791,10 +790,12 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
 
     if (explicitType != null) {
       if (!isEnum) return explicitType;
-      if (explicitType == ColumnType.text || explicitType == ColumnType.integer) {
+      if (explicitType == ColumnType.text ||
+          explicitType == ColumnType.integer) {
         return explicitType;
       }
-      final className = field?.enclosingElement.displayName ?? '<unknown class>';
+      final className =
+          field?.enclosingElement.displayName ?? '<unknown class>';
       final fieldName = field?.displayName ?? '<unknown field>';
       throw InvalidGenerationSourceError(
         'Enum column $className.$fieldName must use ColumnType.text or ColumnType.integer.',

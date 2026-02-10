@@ -412,11 +412,9 @@ class UpdateDtoBuilder {
       final valueExpr = _enumToStorage(
         c,
         _timestampPropToDateTime(c, c.prop),
-        true
+        true,
       );
-      entries.add(
-        "if(${c.prop} != null) '${c.name}': $valueExpr",
-      );
+      entries.add("if(${c.prop} != null) '${c.name}': $valueExpr");
     }
 
     for (final relation in context.owningJoinColumns) {

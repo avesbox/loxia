@@ -3,11 +3,7 @@ import 'package:postgres/postgres.dart';
 
 part 'loxia_codegen_example.g.dart';
 
-enum Role {
-  admin,
-  user,
-  guest,
-}
+enum Role { admin, user, guest }
 
 @EntityMeta(table: 'users')
 class User extends Entity {
@@ -23,7 +19,12 @@ class User extends Entity {
   @Column(type: ColumnType.text)
   final Role role;
 
-  User({required this.id, required this.email, this.posts = const [], this.role = Role.user});
+  User({
+    required this.id,
+    required this.email,
+    this.posts = const [],
+    this.role = Role.user,
+  });
 
   static EntityDescriptor<User, UserPartial> get entity =>
       $UserEntityDescriptor;
@@ -180,7 +181,7 @@ Future<void> main() async {
   );
   final partialPost = post as PostPartial?;
   print(
-    'Post: id=${post?.id}, title=${post?.title}, content=${post?.content}, likes=${post?.likes}, userId=${post?.user?.id} - ${post?.createdAt} - ${post?.lastUpdatedAt}',
+    'Post: id=${partialPost?.id}, title=${partialPost?.title}, content=${partialPost?.content}, likes=${partialPost?.likes}, userId=${partialPost?.user?.id} - ${partialPost?.createdAt} - ${partialPost?.lastUpdatedAt}',
   );
   await ds.dispose();
 }
