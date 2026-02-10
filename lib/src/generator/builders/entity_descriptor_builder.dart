@@ -165,7 +165,7 @@ class EntityDescriptorBuilder {
     
       if (c.type == ColumnType.dateTime && baseType == 'DateTime') {
         final source = "row['${c.name}']";
-        final parsed = '$source is String ? DateTime.parse($source) : $source as DateTime';
+        final parsed = '$source is String ? DateTime.parse($source.toString()) : $source as DateTime';
         final expr = isNullable
             ? '$source == null ? null : $parsed'
             : parsed;
@@ -192,7 +192,7 @@ class EntityDescriptorBuilder {
 
     if (c.isCreatedAt || c.isUpdatedAt) {
       final source = "row['${c.name}']";
-      final parsed = '($source is String ? DateTime.parse($source) : $source as DateTime)';
+      final parsed = '($source is String ? DateTime.parse($source.toString()) : $source as DateTime)';
       switch (baseType) {
         case 'int':
           final expr = '$parsed.millisecondsSinceEpoch';

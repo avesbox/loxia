@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.7
+
+- Fix generation for fromRow method to handle DateTime fields correctly.
+
 ## 0.0.6
 
 - Fix JSON serialization of fields in entities, mainly List and Map fields

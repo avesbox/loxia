@@ -88,7 +88,9 @@ class MigrationPlanner {
       ? 'INTEGER'
       : _typeToSql(c.type);
     final parts = <String>['"${c.name}" $type'];
-    if (!c.nullable) parts.add('NOT NULL');
+    // SQLite: INTEGER PRIMARY KEY AUTOINCREMENT columns must not have NOT NULL
+    final skipNotNull = c.autoIncrement && c.isPrimaryKey;
+    if (!c.nullable && !skipNotNull) parts.add('NOT NULL');
     if (c.isPrimaryKey) parts.add('PRIMARY KEY');
     if (c.autoIncrement && c.type == ColumnType.integer) {
       parts.add('AUTOINCREMENT'); // SQLite specific; engine will adapt
