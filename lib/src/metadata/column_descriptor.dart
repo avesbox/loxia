@@ -6,7 +6,7 @@ class ColumnDescriptor {
     required this.name,
     required this.propertyName,
     required this.type,
-    this.nullable = true,
+    this.nullable = false,
     this.unique = false,
     this.isPrimaryKey = false,
     this.autoIncrement = false,

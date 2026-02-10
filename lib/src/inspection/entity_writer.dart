@@ -76,7 +76,6 @@ class EntityWriter {
       if (fk != null) {
         // Generate relation instead
         final targetClass = _toPascalCase(fk.targetTable);
-        final fieldName = _toCamelCase(fk.targetTable); // simplistic naming from table
         // Or maybe strictly based on column name if multiple FKs to same table?
         // e.g. author_id -> author.
         // If column is 'user_id', field 'user'.
@@ -155,7 +154,7 @@ class EntityWriter {
         return 'List<int>'; // Assuming bytes
       case ColumnType.json:
         return 'Map<String, dynamic>'; // Or specific list?
-      default:
+      case ColumnType.uuid:
         return 'String';
     }
   }

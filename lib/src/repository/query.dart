@@ -45,15 +45,15 @@ class QueryRuntimeContext {
 }
 
 abstract class QueryFieldsContext<E> {
-  const QueryFieldsContext([this.runtime, this.alias]);
+  const QueryFieldsContext([this.runtimeContext, this.alias]);
 
-  final QueryRuntimeContext? runtime;
+  final QueryRuntimeContext? runtimeContext;
   final String? alias;
 
   QueryFieldsContext<E> bind(QueryRuntimeContext runtime, String alias);
 
   String get currentAlias {
-    final resolved = alias ?? runtime?.rootAlias;
+    final resolved = alias ?? runtimeContext?.rootAlias;
     if (resolved == null) {
       throw StateError('QueryFieldsContext is not bound to a runtime.');
     }
@@ -61,7 +61,7 @@ abstract class QueryFieldsContext<E> {
   }
 
   QueryRuntimeContext get runtimeOrThrow {
-    final value = runtime;
+    final value = runtimeContext;
     if (value == null) {
       throw StateError('QueryFieldsContext is not bound to a runtime.');
     }

@@ -359,7 +359,13 @@ if (missing.isNotEmpty) {
     for (final c in context.columns) {
       final key = "'${c.prop}'";
       var value = c.prop;
-      if (c.type == ColumnType.dateTime &&
+      if (c.isEnum) {
+        if (c.type == ColumnType.text) {
+          value = '$value?.name';
+        } else if (c.type == ColumnType.integer) {
+          value = '$value?.index';
+        }
+      } else if (c.type == ColumnType.dateTime &&
           c.dartTypeCode.contains('DateTime')) {
         if (c.nullable) {
           value = '$value?.toIso8601String()';

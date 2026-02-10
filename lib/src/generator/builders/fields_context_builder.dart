@@ -37,7 +37,7 @@ class FieldsContextBuilder {
         ..optionalParameters.addAll([
           Parameter(
             (p) => p
-              ..name = 'runtime'
+              ..name = 'runtimeContext'
               ..toSuper = true,
           ),
           Parameter(
@@ -58,7 +58,7 @@ class FieldsContextBuilder {
         ..requiredParameters.addAll([
           Parameter(
             (p) => p
-              ..name = 'runtime'
+              ..name = 'runtimeContext'
               ..type = refer('QueryRuntimeContext'),
           ),
           Parameter(
@@ -69,7 +69,7 @@ class FieldsContextBuilder {
         ])
         ..body = refer(
           context.fieldsContextName,
-        ).newInstance([refer('runtime'), refer('alias')]).code
+        ).newInstance([refer('runtimeContext'), refer('alias')]).code
         ..lambda = true,
     );
   }

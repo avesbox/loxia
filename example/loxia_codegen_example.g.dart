@@ -31,6 +31,16 @@ final EntityDescriptor<User, UserPartial> $UserEntityDescriptor =
           autoIncrement: false,
           uuid: false,
         ),
+        ColumnDescriptor(
+          name: 'role',
+          propertyName: 'role',
+          type: ColumnType.text,
+          nullable: false,
+          unique: false,
+          isPrimaryKey: false,
+          autoIncrement: false,
+          uuid: false,
+        ),
       ],
       relations: const [
         RelationDescriptor(
@@ -49,24 +59,27 @@ final EntityDescriptor<User, UserPartial> $UserEntityDescriptor =
       fromRow: (row) => User(
         id: (row['id'] as int),
         email: (row['email'] as String),
+        role: Role.values.byName(row['role'] as String),
         posts: const <Post>[],
       ),
-      toRow: (e) => {'id': e.id, 'email': e.email},
+      toRow: (e) => {'id': e.id, 'email': e.email, 'role': e.role.name},
       fieldsContext: const UserFieldsContext(),
       repositoryFactory: (EngineAdapter engine) => UserRepository(engine),
       defaultSelect: () => UserSelect(),
     );
 
 class UserFieldsContext extends QueryFieldsContext<User> {
-  const UserFieldsContext([super.runtime, super.alias]);
+  const UserFieldsContext([super.runtimeContext, super.alias]);
 
   @override
-  UserFieldsContext bind(QueryRuntimeContext runtime, String alias) =>
-      UserFieldsContext(runtime, alias);
+  UserFieldsContext bind(QueryRuntimeContext runtimeContext, String alias) =>
+      UserFieldsContext(runtimeContext, alias);
 
   QueryField<int> get id => field<int>('id');
 
   QueryField<String> get email => field<String>('email');
+
+  QueryField<Role> get role => field<Role>('role');
 
   /// Find the owning relation on the target entity to get join column info
   PostFieldsContext get posts {
@@ -100,16 +113,24 @@ class UserQuery extends QueryBuilder<User> {
 }
 
 class UserSelect extends SelectOptions<User, UserPartial> {
-  const UserSelect({this.id = true, this.email = true, this.relations});
+  const UserSelect({
+    this.id = true,
+    this.email = true,
+    this.role = true,
+    this.relations,
+  });
 
   final bool id;
 
   final bool email;
 
+  final bool role;
+
   final UserRelations? relations;
 
   @override
-  bool get hasSelections => id || email || (relations?.hasSelections ?? false);
+  bool get hasSelections =>
+      id || email || role || (relations?.hasSelections ?? false);
 
   @override
   void collect(
@@ -136,6 +157,11 @@ class UserSelect extends SelectOptions<User, UserPartial> {
         SelectField('email', tableAlias: tableAlias, alias: aliasFor('email')),
       );
     }
+    if (role) {
+      out.add(
+        SelectField('role', tableAlias: tableAlias, alias: aliasFor('role')),
+      );
+    }
     final rels = relations;
     if (rels != null && rels.hasSelections) {
       rels.collect(scoped, out, path: path);
@@ -148,6 +174,7 @@ class UserSelect extends SelectOptions<User, UserPartial> {
     return UserPartial(
       id: id ? readValue(row, 'id', path: path) as int : null,
       email: email ? readValue(row, 'email', path: path) as String : null,
+      role: role ? readValue(row, 'role', path: path) as Role : null,
       posts: null,
     );
   }
@@ -191,7 +218,12 @@ class UserSelect extends SelectOptions<User, UserPartial> {
           }
         }
       }
-      return UserPartial(id: base.id, email: base.email, posts: postsList);
+      return UserPartial(
+        id: base.id,
+        email: base.email,
+        role: base.role,
+        posts: postsList,
+      );
     }).toList();
   }
 }
@@ -220,11 +252,13 @@ class UserRelations {
 }
 
 class UserPartial extends PartialEntity<User> {
-  const UserPartial({this.id, this.email, this.posts});
+  const UserPartial({this.id, this.email, this.role, this.posts});
 
   final int? id;
 
   final String? email;
+
+  final Role? role;
 
   final List<PostPartial>? posts;
 
@@ -237,6 +271,7 @@ class UserPartial extends PartialEntity<User> {
   UserInsertDto toInsertDto() {
     final missing = <String>[];
     if (email == null) missing.add('email');
+    if (role == null) missing.add('role');
     if (missing.isNotEmpty) {
       throw StateError(
         'Cannot convert UserPartial to UserInsertDto: missing required fields: ${missing.join(', ')}',
@@ -244,13 +279,14 @@ class UserPartial extends PartialEntity<User> {
     }
     return UserInsertDto(
       email: email!,
+      role: role!,
       posts: posts?.map((p) => p.toInsertDto()).toList(),
     );
   }
 
   @override
   UserUpdateDto toUpdateDto() {
-    return UserUpdateDto(email: email);
+    return UserUpdateDto(email: email, role: role);
   }
 
   @override
@@ -258,6 +294,7 @@ class UserPartial extends PartialEntity<User> {
     final missing = <String>[];
     if (id == null) missing.add('id');
     if (email == null) missing.add('email');
+    if (role == null) missing.add('role');
     if (missing.isNotEmpty) {
       throw StateError(
         'Cannot convert UserPartial to User: missing required fields: ${missing.join(', ')}',
@@ -266,6 +303,7 @@ class UserPartial extends PartialEntity<User> {
     return User(
       id: id!,
       email: email!,
+      role: role!,
       posts: posts?.map((p) => p.toEntity()).toList() ?? const <Post>[],
     );
   }
@@ -275,43 +313,56 @@ class UserPartial extends PartialEntity<User> {
     return {
       'id': id,
       'email': email,
+      'role': role?.name,
       'posts': posts?.map((e) => e.toJson()).toList(),
     };
   }
 }
 
 class UserInsertDto implements InsertDto<User> {
-  const UserInsertDto({required this.email, this.posts});
+  const UserInsertDto({required this.email, required this.role, this.posts});
 
   final String email;
+
+  final Role role;
 
   final List<PostInsertDto>? posts;
 
   @override
   Map<String, dynamic> toMap() {
-    return {'email': email};
+    return {'email': email, 'role': role.name};
   }
 
   Map<String, dynamic> get cascades {
     return {if (posts != null) 'posts': posts};
   }
 
-  UserInsertDto copyWith({String? email, List<PostInsertDto>? posts}) {
+  UserInsertDto copyWith({
+    String? email,
+    Role? role,
+    List<PostInsertDto>? posts,
+  }) {
     return UserInsertDto(
       email: email ?? this.email,
+      role: role ?? this.role,
       posts: posts ?? this.posts,
     );
   }
 }
 
 class UserUpdateDto implements UpdateDto<User> {
-  const UserUpdateDto({this.email});
+  const UserUpdateDto({this.email, this.role});
 
   final String? email;
 
+  final Role? role;
+
   @override
   Map<String, dynamic> toMap() {
-    return {if (email != null) 'email': email};
+    return {
+      if (email != null) 'email': email,
+      if (role != null) 'role': role?.name,
+    };
   }
 
   Map<String, dynamic> get cascades {
@@ -329,6 +380,7 @@ extension UserJson on User {
     return {
       'id': id,
       'email': email,
+      'role': role.name,
       'posts': posts.map((e) => e.toJson()).toList(),
     };
   }
@@ -346,7 +398,7 @@ final EntityDescriptor<Post, PostPartial> $PostEntityDescriptor =
           nullable: false,
           unique: false,
           isPrimaryKey: true,
-          autoIncrement: true,
+          autoIncrement: false,
           uuid: true,
         ),
         ColumnDescriptor(
@@ -489,11 +541,11 @@ final EntityDescriptor<Post, PostPartial> $PostEntityDescriptor =
     );
 
 class PostFieldsContext extends QueryFieldsContext<Post> {
-  const PostFieldsContext([super.runtime, super.alias]);
+  const PostFieldsContext([super.runtimeContext, super.alias]);
 
   @override
-  PostFieldsContext bind(QueryRuntimeContext runtime, String alias) =>
-      PostFieldsContext(runtime, alias);
+  PostFieldsContext bind(QueryRuntimeContext runtimeContext, String alias) =>
+      PostFieldsContext(runtimeContext, alias);
 
   QueryField<String> get id => field<String>('id');
 
@@ -1015,11 +1067,11 @@ final EntityDescriptor<Tag, TagPartial> $TagEntityDescriptor = EntityDescriptor(
 );
 
 class TagFieldsContext extends QueryFieldsContext<Tag> {
-  const TagFieldsContext([super.runtime, super.alias]);
+  const TagFieldsContext([super.runtimeContext, super.alias]);
 
   @override
-  TagFieldsContext bind(QueryRuntimeContext runtime, String alias) =>
-      TagFieldsContext(runtime, alias);
+  TagFieldsContext bind(QueryRuntimeContext runtimeContext, String alias) =>
+      TagFieldsContext(runtimeContext, alias);
 
   QueryField<int> get id => field<int>('id');
 
@@ -1279,6 +1331,621 @@ extension TagJson on Tag {
       'id': id,
       'name': name,
       'posts': posts.map((e) => e.toJson()).toList(),
+    };
+  }
+}
+
+final EntityDescriptor<Movie, MoviePartial> $MovieEntityDescriptor =
+    EntityDescriptor(
+      entityType: Movie,
+      tableName: 'movies',
+      columns: [
+        ColumnDescriptor(
+          name: 'id',
+          propertyName: 'id',
+          type: ColumnType.uuid,
+          nullable: false,
+          unique: false,
+          isPrimaryKey: true,
+          autoIncrement: false,
+          uuid: true,
+        ),
+        ColumnDescriptor(
+          name: 'title',
+          propertyName: 'title',
+          type: ColumnType.text,
+          nullable: false,
+          unique: false,
+          isPrimaryKey: false,
+          autoIncrement: false,
+          uuid: false,
+        ),
+        ColumnDescriptor(
+          name: 'overview',
+          propertyName: 'overview',
+          type: ColumnType.text,
+          nullable: true,
+          unique: false,
+          isPrimaryKey: false,
+          autoIncrement: false,
+          uuid: false,
+        ),
+        ColumnDescriptor(
+          name: 'release_year',
+          propertyName: 'releaseYear',
+          type: ColumnType.integer,
+          nullable: false,
+          unique: false,
+          isPrimaryKey: false,
+          autoIncrement: false,
+          uuid: false,
+        ),
+        ColumnDescriptor(
+          name: 'genres',
+          propertyName: 'genres',
+          type: ColumnType.text,
+          nullable: false,
+          unique: false,
+          isPrimaryKey: false,
+          autoIncrement: false,
+          uuid: false,
+        ),
+        ColumnDescriptor(
+          name: 'runtime',
+          propertyName: 'runtime',
+          type: ColumnType.integer,
+          nullable: true,
+          unique: false,
+          isPrimaryKey: false,
+          autoIncrement: false,
+          uuid: false,
+        ),
+        ColumnDescriptor(
+          name: 'poster_url',
+          propertyName: 'posterUrl',
+          type: ColumnType.text,
+          nullable: true,
+          unique: false,
+          isPrimaryKey: false,
+          autoIncrement: false,
+          uuid: false,
+        ),
+        ColumnDescriptor(
+          name: 'created_at',
+          propertyName: 'createdAt',
+          type: ColumnType.dateTime,
+          nullable: true,
+          unique: false,
+          isPrimaryKey: false,
+          autoIncrement: false,
+          uuid: false,
+        ),
+        ColumnDescriptor(
+          name: 'updated_at',
+          propertyName: 'updatedAt',
+          type: ColumnType.dateTime,
+          nullable: true,
+          unique: false,
+          isPrimaryKey: false,
+          autoIncrement: false,
+          uuid: false,
+        ),
+      ],
+      relations: const [],
+      fromRow: (row) => Movie(
+        id: (row['id'] as String),
+        title: (row['title'] as String),
+        overview: (row['overview'] as String?),
+        releaseYear: (row['release_year'] as int),
+        genres: (row['genres'] as List<String>),
+        runtime: (row['runtime'] as int?),
+        posterUrl: (row['poster_url'] as String?),
+        createdAt: (row['created_at'] as DateTime?),
+        updatedAt: (row['updated_at'] as DateTime?),
+      ),
+      toRow: (e) => {
+        'id': e.id,
+        'title': e.title,
+        'overview': e.overview,
+        'release_year': e.releaseYear,
+        'genres': e.genres,
+        'runtime': e.runtime,
+        'poster_url': e.posterUrl,
+        'created_at': e.createdAt,
+        'updated_at': e.updatedAt,
+      },
+      fieldsContext: const MovieFieldsContext(),
+      repositoryFactory: (EngineAdapter engine) => MovieRepository(engine),
+      hooks: EntityHooks<Movie>(
+        prePersist: (e) {
+          e.createdAt = DateTime.now();
+          e.updatedAt = DateTime.now();
+        },
+        preUpdate: (e) {
+          e.updatedAt = DateTime.now();
+        },
+      ),
+      defaultSelect: () => MovieSelect(),
+    );
+
+class MovieFieldsContext extends QueryFieldsContext<Movie> {
+  const MovieFieldsContext([super.runtimeContext, super.alias]);
+
+  @override
+  MovieFieldsContext bind(QueryRuntimeContext runtimeContext, String alias) =>
+      MovieFieldsContext(runtimeContext, alias);
+
+  QueryField<String> get id => field<String>('id');
+
+  QueryField<String> get title => field<String>('title');
+
+  QueryField<String?> get overview => field<String?>('overview');
+
+  QueryField<int> get releaseYear => field<int>('release_year');
+
+  QueryField<List<String>> get genres => field<List<String>>('genres');
+
+  QueryField<int?> get runtime => field<int?>('runtime');
+
+  QueryField<String?> get posterUrl => field<String?>('poster_url');
+
+  QueryField<DateTime?> get createdAt => field<DateTime?>('created_at');
+
+  QueryField<DateTime?> get updatedAt => field<DateTime?>('updated_at');
+}
+
+class MovieQuery extends QueryBuilder<Movie> {
+  const MovieQuery(this._builder);
+
+  final WhereExpression Function(MovieFieldsContext) _builder;
+
+  @override
+  WhereExpression build(QueryFieldsContext<Movie> context) {
+    if (context is! MovieFieldsContext) {
+      throw ArgumentError('Expected MovieFieldsContext for MovieQuery');
+    }
+    return _builder(context);
+  }
+}
+
+class MovieSelect extends SelectOptions<Movie, MoviePartial> {
+  const MovieSelect({
+    this.id = true,
+    this.title = true,
+    this.overview = true,
+    this.releaseYear = true,
+    this.genres = true,
+    this.runtime = true,
+    this.posterUrl = true,
+    this.createdAt = true,
+    this.updatedAt = true,
+    this.relations,
+  });
+
+  final bool id;
+
+  final bool title;
+
+  final bool overview;
+
+  final bool releaseYear;
+
+  final bool genres;
+
+  final bool runtime;
+
+  final bool posterUrl;
+
+  final bool createdAt;
+
+  final bool updatedAt;
+
+  final MovieRelations? relations;
+
+  @override
+  bool get hasSelections =>
+      id ||
+      title ||
+      overview ||
+      releaseYear ||
+      genres ||
+      runtime ||
+      posterUrl ||
+      createdAt ||
+      updatedAt ||
+      (relations?.hasSelections ?? false);
+
+  @override
+  void collect(
+    QueryFieldsContext<Movie> context,
+    List<SelectField> out, {
+    String? path,
+  }) {
+    if (context is! MovieFieldsContext) {
+      throw ArgumentError('Expected MovieFieldsContext for MovieSelect');
+    }
+    final MovieFieldsContext scoped = context;
+    String? aliasFor(String column) {
+      final current = path;
+      if (current == null || current.isEmpty) return null;
+      return '${current}_$column';
+    }
+
+    final tableAlias = scoped.currentAlias;
+    if (id) {
+      out.add(SelectField('id', tableAlias: tableAlias, alias: aliasFor('id')));
+    }
+    if (title) {
+      out.add(
+        SelectField('title', tableAlias: tableAlias, alias: aliasFor('title')),
+      );
+    }
+    if (overview) {
+      out.add(
+        SelectField(
+          'overview',
+          tableAlias: tableAlias,
+          alias: aliasFor('overview'),
+        ),
+      );
+    }
+    if (releaseYear) {
+      out.add(
+        SelectField(
+          'release_year',
+          tableAlias: tableAlias,
+          alias: aliasFor('release_year'),
+        ),
+      );
+    }
+    if (genres) {
+      out.add(
+        SelectField(
+          'genres',
+          tableAlias: tableAlias,
+          alias: aliasFor('genres'),
+        ),
+      );
+    }
+    if (runtime) {
+      out.add(
+        SelectField(
+          'runtime',
+          tableAlias: tableAlias,
+          alias: aliasFor('runtime'),
+        ),
+      );
+    }
+    if (posterUrl) {
+      out.add(
+        SelectField(
+          'poster_url',
+          tableAlias: tableAlias,
+          alias: aliasFor('poster_url'),
+        ),
+      );
+    }
+    if (createdAt) {
+      out.add(
+        SelectField(
+          'created_at',
+          tableAlias: tableAlias,
+          alias: aliasFor('created_at'),
+        ),
+      );
+    }
+    if (updatedAt) {
+      out.add(
+        SelectField(
+          'updated_at',
+          tableAlias: tableAlias,
+          alias: aliasFor('updated_at'),
+        ),
+      );
+    }
+    final rels = relations;
+    if (rels != null && rels.hasSelections) {
+      rels.collect(scoped, out, path: path);
+    }
+  }
+
+  @override
+  MoviePartial hydrate(Map<String, dynamic> row, {String? path}) {
+    return MoviePartial(
+      id: id ? readValue(row, 'id', path: path) as String : null,
+      title: title ? readValue(row, 'title', path: path) as String : null,
+      overview: overview
+          ? readValue(row, 'overview', path: path) as String?
+          : null,
+      releaseYear: releaseYear
+          ? readValue(row, 'release_year', path: path) as int
+          : null,
+      genres: genres
+          ? readValue(row, 'genres', path: path) as List<String>
+          : null,
+      runtime: runtime ? readValue(row, 'runtime', path: path) as int? : null,
+      posterUrl: posterUrl
+          ? readValue(row, 'poster_url', path: path) as String?
+          : null,
+      createdAt: createdAt
+          ? readValue(row, 'created_at', path: path) as DateTime?
+          : null,
+      updatedAt: updatedAt
+          ? readValue(row, 'updated_at', path: path) as DateTime?
+          : null,
+    );
+  }
+
+  @override
+  bool get hasCollectionRelations => false;
+
+  @override
+  String? get primaryKeyColumn => 'id';
+}
+
+class MovieRelations {
+  const MovieRelations();
+
+  bool get hasSelections => false;
+
+  void collect(
+    MovieFieldsContext context,
+    List<SelectField> out, {
+    String? path,
+  }) {}
+}
+
+class MoviePartial extends PartialEntity<Movie> {
+  const MoviePartial({
+    this.id,
+    this.title,
+    this.overview,
+    this.releaseYear,
+    this.genres,
+    this.runtime,
+    this.posterUrl,
+    this.createdAt,
+    this.updatedAt,
+  });
+
+  final String? id;
+
+  final String? title;
+
+  final String? overview;
+
+  final int? releaseYear;
+
+  final List<String>? genres;
+
+  final int? runtime;
+
+  final String? posterUrl;
+
+  final DateTime? createdAt;
+
+  final DateTime? updatedAt;
+
+  @override
+  Object? get primaryKeyValue {
+    return id;
+  }
+
+  @override
+  MovieInsertDto toInsertDto() {
+    final missing = <String>[];
+    if (title == null) missing.add('title');
+    if (releaseYear == null) missing.add('releaseYear');
+    if (genres == null) missing.add('genres');
+    if (missing.isNotEmpty) {
+      throw StateError(
+        'Cannot convert MoviePartial to MovieInsertDto: missing required fields: ${missing.join(', ')}',
+      );
+    }
+    return MovieInsertDto(
+      title: title!,
+      overview: overview,
+      releaseYear: releaseYear!,
+      genres: genres!,
+      runtime: runtime,
+      posterUrl: posterUrl,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+    );
+  }
+
+  @override
+  MovieUpdateDto toUpdateDto() {
+    return MovieUpdateDto(
+      title: title,
+      overview: overview,
+      releaseYear: releaseYear,
+      genres: genres,
+      runtime: runtime,
+      posterUrl: posterUrl,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+    );
+  }
+
+  @override
+  Movie toEntity() {
+    final missing = <String>[];
+    if (id == null) missing.add('id');
+    if (title == null) missing.add('title');
+    if (releaseYear == null) missing.add('releaseYear');
+    if (genres == null) missing.add('genres');
+    if (missing.isNotEmpty) {
+      throw StateError(
+        'Cannot convert MoviePartial to Movie: missing required fields: ${missing.join(', ')}',
+      );
+    }
+    return Movie(
+      id: id!,
+      title: title!,
+      overview: overview,
+      releaseYear: releaseYear!,
+      genres: genres!,
+      runtime: runtime,
+      posterUrl: posterUrl,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+    );
+  }
+
+  @override
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'title': title,
+      'overview': overview,
+      'releaseYear': releaseYear,
+      'genres': genres,
+      'runtime': runtime,
+      'posterUrl': posterUrl,
+      'createdAt': createdAt?.toIso8601String(),
+      'updatedAt': updatedAt?.toIso8601String(),
+    };
+  }
+}
+
+class MovieInsertDto implements InsertDto<Movie> {
+  const MovieInsertDto({
+    required this.title,
+    this.overview,
+    required this.releaseYear,
+    required this.genres,
+    this.runtime,
+    this.posterUrl,
+    this.createdAt,
+    this.updatedAt,
+  });
+
+  final String title;
+
+  final String? overview;
+
+  final int releaseYear;
+
+  final List<String> genres;
+
+  final int? runtime;
+
+  final String? posterUrl;
+
+  final DateTime? createdAt;
+
+  final DateTime? updatedAt;
+
+  @override
+  Map<String, dynamic> toMap() {
+    return {
+      'title': title,
+      'overview': overview,
+      'release_year': releaseYear,
+      'genres': genres,
+      'runtime': runtime,
+      'poster_url': posterUrl,
+      'created_at': DateTime.now(),
+      'updated_at': DateTime.now(),
+    };
+  }
+
+  Map<String, dynamic> get cascades {
+    return const {};
+  }
+
+  MovieInsertDto copyWith({
+    String? title,
+    String? overview,
+    int? releaseYear,
+    List<String>? genres,
+    int? runtime,
+    String? posterUrl,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) {
+    return MovieInsertDto(
+      title: title ?? this.title,
+      overview: overview ?? this.overview,
+      releaseYear: releaseYear ?? this.releaseYear,
+      genres: genres ?? this.genres,
+      runtime: runtime ?? this.runtime,
+      posterUrl: posterUrl ?? this.posterUrl,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+}
+
+class MovieUpdateDto implements UpdateDto<Movie> {
+  const MovieUpdateDto({
+    this.title,
+    this.overview,
+    this.releaseYear,
+    this.genres,
+    this.runtime,
+    this.posterUrl,
+    this.createdAt,
+    this.updatedAt,
+  });
+
+  final String? title;
+
+  final String? overview;
+
+  final int? releaseYear;
+
+  final List<String>? genres;
+
+  final int? runtime;
+
+  final String? posterUrl;
+
+  final DateTime? createdAt;
+
+  final DateTime? updatedAt;
+
+  @override
+  Map<String, dynamic> toMap() {
+    return {
+      if (title != null) 'title': title,
+      if (overview != null) 'overview': overview,
+      if (releaseYear != null) 'release_year': releaseYear,
+      if (genres != null) 'genres': genres,
+      if (runtime != null) 'runtime': runtime,
+      if (posterUrl != null) 'poster_url': posterUrl,
+      if (createdAt != null) 'created_at': createdAt,
+      'updated_at': DateTime.now(),
+    };
+  }
+
+  Map<String, dynamic> get cascades {
+    return const {};
+  }
+}
+
+class MovieRepository extends EntityRepository<Movie, MoviePartial> {
+  MovieRepository(EngineAdapter engine)
+    : super(
+        $MovieEntityDescriptor,
+        engine,
+        $MovieEntityDescriptor.fieldsContext,
+      );
+}
+
+extension MovieJson on Movie {
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'title': title,
+      'overview': overview,
+      'releaseYear': releaseYear,
+      'genres': genres,
+      'runtime': runtime,
+      'posterUrl': posterUrl,
+      'createdAt': createdAt?.toIso8601String(),
+      'updatedAt': updatedAt?.toIso8601String(),
     };
   }
 }

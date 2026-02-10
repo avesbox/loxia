@@ -35,10 +35,14 @@ class IndexColumn {
 enum ColumnType {
   integer,
   text,
+  character,
+  varChar,
   boolean,
   doublePrecision,
   dateTime,
+  timestamp,
   json,
   binary,
+  blob,
   uuid,
 }

@@ -13,6 +13,8 @@ class GenColumn {
     required this.prop,
     required this.type,
     required this.dartTypeCode,
+    required this.isEnum,
+    this.enumTypeName,
     required this.nullable,
     required this.unique,
     required this.isPk,
@@ -27,6 +29,8 @@ class GenColumn {
   final String prop;
   final ColumnType type;
   final String dartTypeCode;
+  final bool isEnum;
+  final String? enumTypeName;
   final bool nullable;
   final bool unique;
   final bool isPk;

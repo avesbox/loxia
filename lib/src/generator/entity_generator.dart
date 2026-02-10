@@ -251,6 +251,12 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
       final colName =
           colAnn?.peek('name')?.stringValue ?? _toSnake(field.displayName);
       final dartType = field.type;
+      final isEnumType =
+          dartType is InterfaceType &&
+          dartType.element is EnumElement;
+      final enumTypeName = isEnumType
+          ? _stripNullability(dartType.getDisplayString())
+          : null;
       final nullable = dartType.nullabilitySuffix != NullabilitySuffix.none;
       final unique = colAnn?.peek('unique')?.boolValue ?? false;
       final defaultValue = colAnn?.peek('defaultValue')?.objectValue;
@@ -267,7 +273,12 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
 
       var type = (createdAtAnn != null || updatedAtAnn != null)
           ? ColumnType.dateTime
-          : _resolveColumnType(colAnn, dartType);
+          : _resolveColumnType(
+              colAnn,
+              dartType,
+              isEnum: isEnumType,
+              field: field,
+            );
       if (uuid) {
         type = ColumnType.uuid;
       }
@@ -279,6 +290,8 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
           prop: field.displayName,
           type: type,
           dartTypeCode: dartTypeCode,
+          isEnum: isEnumType,
+          enumTypeName: enumTypeName,
           nullable: nullable,
           unique: unique,
           isPk: isPk,
@@ -759,16 +772,38 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
     return result;
   }
 
-  ColumnType _resolveColumnType(ConstantReader? ann, DartType type) {
+  ColumnType _resolveColumnType(
+    ConstantReader? ann,
+    DartType type, {
+    bool isEnum = false,
+    FieldElement? field,
+  }) {
+    ColumnType? explicitType;
     if (ann != null) {
       final explicit = ann.peek('type');
       if (explicit != null && !explicit.isNull) {
         final index = explicit.objectValue.getField('index')?.toIntValue();
         if (index != null && index >= 0 && index < ColumnType.values.length) {
-          return ColumnType.values[index];
+          explicitType = ColumnType.values[index];
         }
       }
     }
+
+    if (explicitType != null) {
+      if (!isEnum) return explicitType;
+      if (explicitType == ColumnType.text || explicitType == ColumnType.integer) {
+        return explicitType;
+      }
+      final className = field?.enclosingElement.displayName ?? '<unknown class>';
+      final fieldName = field?.displayName ?? '<unknown field>';
+      throw InvalidGenerationSourceError(
+        'Enum column $className.$fieldName must use ColumnType.text or ColumnType.integer.',
+        element: field,
+      );
+    }
+
+    if (isEnum) return ColumnType.integer;
+
     return _inferColumnType(type);
   }
 
@@ -791,6 +826,12 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
       default:
         return ColumnType.text;
     }
+  }
+
+  String _stripNullability(String typeName) {
+    return typeName.endsWith('?')
+        ? typeName.substring(0, typeName.length - 1)
+        : typeName;
   }
 
   String? _dartObjToLiteral(DartObject? obj) {

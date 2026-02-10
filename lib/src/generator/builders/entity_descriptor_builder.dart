@@ -3,6 +3,7 @@ library;
 
 import 'package:code_builder/code_builder.dart';
 
+import '../../annotations/column.dart';
 import 'column_builder.dart';
 import 'models.dart';
 import 'relation_builder.dart';
@@ -166,6 +167,16 @@ class EntityDescriptorBuilder {
       return col.equalTo(literalNum(1));
     }
 
+    if (c.isEnum) {
+      final source = "row['${c.name}']";
+      final enumType = c.enumTypeName ?? c.dartTypeCode;
+      final expr = c.type == ColumnType.text
+          ? '$enumType.values.byName($source as String)'
+          : '$enumType.values[$source as int]';
+      final wrapped = c.nullable ? '$source == null ? null : $expr' : expr;
+      return CodeExpression(Code(wrapped));
+    }
+
     if (c.isCreatedAt || c.isUpdatedAt) {
       switch (baseType) {
         case 'int':
@@ -232,6 +243,14 @@ class EntityDescriptorBuilder {
   Expression _toRowValue(GenColumn c) {
     final value = refer('e').property(c.prop);
     final baseType = c.dartTypeCode.replaceAll('?', '');
+
+    if (c.isEnum) {
+      final source = 'e.${c.prop}';
+      final expr = c.type == ColumnType.text
+          ? (c.nullable ? '$source?.name' : '$source.name')
+          : (c.nullable ? '$source?.index' : '$source.index');
+      return CodeExpression(Code(expr));
+    }
 
     if (!c.isCreatedAt && !c.isUpdatedAt) {
       return value;

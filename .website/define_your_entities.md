@@ -50,6 +50,29 @@ The values you pass to the `@Column` annotation are optional and they change the
 - `unique`: Indicates whether the column should have a unique constraint. Defaults to `false`.
 - `type`: Specifies the data type of the column. If not provided, Loxia will infer the type based on the Dart property type.
 
+### Enum Columns
+
+Loxia also supports mapping Dart enums to database columns. To define an enum column, you can use the `@Column` annotation with the `type` option set to `ColumnType.text` or `ColumnType.integer`, depending on how you want to store the enum values. For example:
+
+```dart
+enum UserRole { admin, user, guest }
+
+class User extends Entity {
+  @PrimaryKey(autoIncrement: true)
+  final int id;
+
+  @Column()
+  final String email;
+
+  @Column(type: ColumnType.text)
+  final UserRole role;
+
+  User({required this.id, required this.email, required this.role});
+}
+```
+
+In this example, the `role` property is an enum of type `UserRole`. By specifying `type: ColumnType.text`, Loxia will store the enum values as their string representations in the database. Alternatively, you could use `ColumnType.integer` to store the enum values as their index.
+
 ## Primary Key
 
 The `@PrimaryKey` annotation is used to define the primary key of your entity. You can specify options such as whether the primary key is auto-incremented.

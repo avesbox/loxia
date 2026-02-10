@@ -166,7 +166,16 @@ class SchemaSnapshotBuilder implements Builder {
           columnReader?.peek('name')?.stringValue ??
           _toSnake(field.displayName);
 
-      final type = _resolveColumnType(columnReader, field.type);
+      final isEnumType =
+          field.type is InterfaceType &&
+          (field.type as InterfaceType).element is EnumElement;
+
+      final type = _resolveColumnType(
+        columnReader,
+        field.type,
+        isEnum: isEnumType,
+        field: field,
+      );
       final nullable = _resolveNullable(columnReader, field.type);
       final unique = columnReader?.peek('unique')?.boolValue ?? false;
       final defaultValue = _dartObjToLiteral(
@@ -194,16 +203,38 @@ class SchemaSnapshotBuilder implements Builder {
     return fieldNullable && annNullable;
   }
 
-  ColumnType _resolveColumnType(ConstantReader? reader, DartType type) {
+  ColumnType _resolveColumnType(
+    ConstantReader? reader,
+    DartType type, {
+    bool isEnum = false,
+    FieldElement? field,
+  }) {
+    ColumnType? explicitType;
     if (reader != null) {
       final explicit = reader.peek('type');
       if (explicit != null && !explicit.isNull) {
         final index = explicit.objectValue.getField('index')?.toIntValue();
         if (index != null && index >= 0 && index < ColumnType.values.length) {
-          return ColumnType.values[index];
+          explicitType = ColumnType.values[index];
         }
       }
     }
+
+    if (explicitType != null) {
+      if (!isEnum) return explicitType;
+      if (explicitType == ColumnType.text || explicitType == ColumnType.integer) {
+        return explicitType;
+      }
+      final className = field?.enclosingElement.displayName ?? '<unknown class>';
+      final fieldName = field?.displayName ?? '<unknown field>';
+      throw InvalidGenerationSourceError(
+        'Enum column $className.$fieldName must use ColumnType.text or ColumnType.integer.',
+        element: field,
+      );
+    }
+
+    if (isEnum) return ColumnType.integer;
+
     return _inferColumnType(type);
   }
 
@@ -233,16 +264,20 @@ class SchemaSnapshotBuilder implements Builder {
       case ColumnType.integer:
         return 'int';
       case ColumnType.text:
+      case ColumnType.character:
+      case ColumnType.varChar:
         return 'varchar';
       case ColumnType.boolean:
         return 'boolean';
       case ColumnType.doublePrecision:
         return 'double';
       case ColumnType.dateTime:
+      case ColumnType.timestamp:
         return 'timestamp';
       case ColumnType.json:
         return 'json';
       case ColumnType.binary:
+      case ColumnType.blob:
         return 'blob';
       case ColumnType.uuid:
         return 'uuid';
@@ -270,7 +305,6 @@ class SchemaSnapshotBuilder implements Builder {
       final root = await _packageRoot(step);
       final file = File(p.join(root, snapshotId.path));
       if (!file.existsSync()) {
-        print('Cannot read snapshot at $snapshotId');
         return null;
       }
       final text = await file.readAsString();

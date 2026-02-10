@@ -3,6 +3,7 @@ library;
 
 import 'package:code_builder/code_builder.dart';
 
+import '../../annotations/column.dart';
 import 'models.dart';
 
 /// Builds the InsertDto class for an entity.
@@ -154,13 +155,11 @@ class InsertDtoBuilder {
 
     for (final c in columns) {
       final timestampExpr = createdAtExpr[c.prop] ?? updatedAtExpr[c.prop];
-      if (timestampExpr != null) {
-        entries.add(
-          "'${c.name}': ${_timestampLiteralToDateTime(c, timestampExpr)}",
-        );
-      } else {
-        entries.add("'${c.name}': ${_timestampPropToDateTime(c, c.prop)}");
-      }
+      var valueExpr = timestampExpr != null
+          ? _timestampLiteralToDateTime(c, timestampExpr)
+          : _timestampPropToDateTime(c, c.prop);
+      valueExpr = _enumToStorage(c, valueExpr);
+      entries.add("'${c.name}': $valueExpr");
     }
 
     for (final relation in context.owningJoinColumns) {
@@ -403,13 +402,20 @@ class UpdateDtoBuilder {
     for (final c in columns) {
       final timestampExpr = updatedAtExpr[c.prop];
       if (timestampExpr != null) {
-        entries.add(
-          "'${c.name}': ${_timestampLiteralToDateTime(c, timestampExpr)}",
+        var valueExpr = _enumToStorage(
+          c,
+          _timestampLiteralToDateTime(c, timestampExpr),
         );
+        entries.add("'${c.name}': $valueExpr");
         continue;
       }
+      final valueExpr = _enumToStorage(
+        c,
+        _timestampPropToDateTime(c, c.prop),
+        true
+      );
       entries.add(
-        "if(${c.prop} != null) '${c.name}': ${_timestampPropToDateTime(c, c.prop)}",
+        "if(${c.prop} != null) '${c.name}': $valueExpr",
       );
     }
 
@@ -481,5 +487,17 @@ String _timestampPropToDateTime(GenColumn c, String prop) {
       return '$prop == null ? null : DateTime.parse($prop)';
     default:
       return prop;
+  }
+}
+
+String _enumToStorage(GenColumn c, String expr, [bool toUpdateDto = false]) {
+  if (!c.isEnum) return expr;
+  switch (c.type) {
+    case ColumnType.text:
+      return c.nullable || toUpdateDto ? '$expr?.name' : '$expr.name';
+    case ColumnType.integer:
+      return c.nullable || toUpdateDto ? '$expr?.index' : '$expr.index';
+    default:
+      return expr;
   }
 }

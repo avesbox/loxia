@@ -113,16 +113,20 @@ class MigrationPlanner {
       case ColumnType.integer:
         return 'BIGINT';
       case ColumnType.text:
+      case ColumnType.character:
+      case ColumnType.varChar:
         return 'TEXT';
       case ColumnType.boolean:
         return 'BOOLEAN';
       case ColumnType.doublePrecision:
         return 'DOUBLE';
       case ColumnType.dateTime:
+      case ColumnType.timestamp:
         return 'TIMESTAMP';
       case ColumnType.json:
         return 'JSON';
       case ColumnType.binary:
+      case ColumnType.blob:
         return 'BLOB';
       case ColumnType.uuid:
         return 'UUID';

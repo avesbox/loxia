@@ -3,6 +3,12 @@ import 'package:postgres/postgres.dart';
 
 part 'loxia_codegen_example.g.dart';
 
+enum Role {
+  admin,
+  user,
+  guest,
+}
+
 @EntityMeta(table: 'users')
 class User extends Entity {
   @PrimaryKey(autoIncrement: true)
@@ -14,7 +20,10 @@ class User extends Entity {
   @OneToMany(on: Post, mappedBy: 'user', cascade: [RelationCascade.persist])
   final List<Post> posts;
 
-  User({required this.id, required this.email, this.posts = const []});
+  @Column(type: ColumnType.text)
+  final Role role;
+
+  User({required this.id, required this.email, this.posts = const [], this.role = Role.user});
 
   static EntityDescriptor<User, UserPartial> get entity =>
       $UserEntityDescriptor;
@@ -92,6 +101,48 @@ class Tag extends Entity {
   static EntityDescriptor<Tag, TagPartial> get entity => $TagEntityDescriptor;
 }
 
+@EntityMeta(table: 'movies')
+class Movie extends Entity {
+  Movie({
+    required this.id,
+    required this.title,
+    required this.releaseYear,
+    required this.genres,
+    this.overview,
+    this.runtime,
+    this.posterUrl,
+    this.createdAt,
+    this.updatedAt,
+  });
+
+  @PrimaryKey(uuid: true)
+  final String id;
+
+  @Column()
+  final String title;
+
+  @Column()
+  String? overview;
+
+  @Column()
+  final int releaseYear;
+
+  @Column(defaultValue: <String>[])
+  final List<String> genres;
+
+  @Column()
+  int? runtime;
+
+  @Column()
+  String? posterUrl;
+
+  @CreatedAt()
+  DateTime? createdAt;
+
+  @UpdatedAt()
+  DateTime? updatedAt;
+}
+
 Future<void> main() async {
   final ds = DataSource(
     PostgresDataSourceOptions.connect(
@@ -106,7 +157,7 @@ Future<void> main() async {
   );
   await ds.init();
   final users = ds.getRepository<User>();
-  await users.save(UserPartial(email: 'example@example.com'));
+  await users.save(UserPartial(email: 'example@example.com', role: Role.guest));
   await users.update(
     UserUpdateDto(email: 'new@example.com'),
     where: UserQuery((q) => q.id.equals(1)),
