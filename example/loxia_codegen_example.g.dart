@@ -439,6 +439,16 @@ extension UserJson on User {
   }
 }
 
+extension UserRepositoryExtensions
+    on EntityRepository<User, PartialEntity<User>> {
+  Future<List<UserPartial>> findByEmail(String email) async {
+    final rows = await engine.query('SELECT * FROM users WHERE email = ?', [
+      email,
+    ]);
+    return rows.map((row) => UserPartial.fromRow(row)).toList();
+  }
+}
+
 final EntityDescriptor<Post, PostPartial> $PostEntityDescriptor =
     EntityDescriptor(
       entityType: Post,
@@ -1098,6 +1108,9 @@ extension PostJson on Post {
   }
 }
 
+extension PostRepositoryExtensions
+    on EntityRepository<Post, PartialEntity<Post>> {}
+
 final EntityDescriptor<Tag, TagPartial> $TagEntityDescriptor = EntityDescriptor(
   entityType: Tag,
   tableName: 'tag',
@@ -1416,6 +1429,9 @@ extension TagJson on Tag {
     };
   }
 }
+
+extension TagRepositoryExtensions
+    on EntityRepository<Tag, PartialEntity<Tag>> {}
 
 final EntityDescriptor<Movie, MoviePartial> $MovieEntityDescriptor =
     EntityDescriptor(
@@ -2055,3 +2071,6 @@ extension MovieJson on Movie {
     };
   }
 }
+
+extension MovieRepositoryExtensions
+    on EntityRepository<Movie, PartialEntity<Movie>> {}

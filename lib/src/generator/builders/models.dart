@@ -4,6 +4,8 @@
 /// and are used by the builder classes to generate code.
 library;
 
+import 'package:loxia/loxia.dart';
+
 import '../../annotations/column.dart' show ColumnType;
 
 /// Represents a parsed column from an entity class.
@@ -135,6 +137,7 @@ class EntityGenerationContext {
     required this.tableName,
     this.schema,
     required this.columns,
+    required this.queries,
     required this.relations,
     Map<String, List<String>>? hooks,
     List<GenTimestampField>? createdAtFields,
@@ -149,6 +152,7 @@ class EntityGenerationContext {
   final List<GenColumn> columns;
   final List<GenRelation> relations;
   final Map<String, List<String>> hooks;
+  final List<GenQuery> queries;
   final List<GenTimestampField> createdAtFields;
   final List<GenTimestampField> updatedAtFields;
 
@@ -214,4 +218,20 @@ class GenTimestampField {
 
   final String fieldName;
   final String valueExpression;
+}
+
+class GenQuery {
+  GenQuery({
+    required this.name,
+    required this.sql,
+    required this.returnFullEntity,
+    required this.singleResult,
+    required this.lifecycleHooks,
+  });
+
+  final String name;
+  final String sql;
+  final bool returnFullEntity;
+  final bool singleResult;
+  final List<String> lifecycleHooks;
 }

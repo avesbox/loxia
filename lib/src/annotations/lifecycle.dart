@@ -26,3 +26,13 @@ class PostRemove {
 class PostLoad {
   const PostLoad();
 }
+
+enum Lifecycle {
+  prePersist,
+  postPersist,
+  preUpdate,
+  postUpdate,
+  preRemove,
+  postRemove,
+  postLoad,
+}

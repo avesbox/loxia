@@ -5,7 +5,15 @@ part 'loxia_codegen_example.g.dart';
 
 enum Role { admin, user, guest }
 
-@EntityMeta(table: 'users')
+@EntityMeta(
+  table: 'users',
+  queries: [
+    Query(
+      name: 'findByEmail', 
+      sql: 'SELECT * FROM users WHERE email = @email',  
+    ),
+  ]
+)
 class User extends Entity {
   @PrimaryKey(autoIncrement: true)
   final int id;
@@ -150,15 +158,18 @@ class Movie extends Entity {
 
 Future<void> main() async {
   final ds = DataSource(
-    PostgresDataSourceOptions.connect(
-      host: 'localhost',
-      port: 5432,
-      database: 'loxia',
-      username: 'loxia',
-      password: 'test1234',
-      entities: [User.entity, Post.entity, Tag.entity],
-      settings: ConnectionSettings(sslMode: SslMode.disable),
+    InMemoryDataSourceOptions(
+      entities: [User.entity, Post.entity, Tag.entity]
     ),
+    // PostgresDataSourceOptions.connect(
+    //   host: 'localhost',
+    //   port: 5432,
+    //   database: 'loxia',
+    //   username: 'loxia',
+    //   password: 'test1234',
+    //   entities: [User.entity, Post.entity, Tag.entity],
+    //   settings: ConnectionSettings(sslMode: SslMode.disable),
+    // ),
   );
   await ds.init();
   final users = ds.getRepository<User>();
@@ -173,6 +184,7 @@ Future<void> main() async {
     UserUpdateDto(email: 'new@example.com'),
     where: UserQuery((q) => q.id.equals(1)),
   );
+  await users.findByEmail('new@example.com');
   final user = await users.findOneBy(
     where: UserQuery((q) => q.email.equals('new@example.com')),
   );

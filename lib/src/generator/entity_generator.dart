@@ -7,6 +7,8 @@ import 'package:analyzer/dart/element/type.dart';
 import 'package:build/build.dart';
 import 'package:code_builder/code_builder.dart';
 import 'package:dart_style/dart_style.dart';
+import 'package:loxia/src/annotations/lifecycle.dart';
+import 'package:loxia/src/generator/builders/repository_extensions_builder.dart';
 import 'package:source_gen/source_gen.dart';
 
 import '../../loxia.dart'
@@ -62,6 +64,7 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
   final _updateDtoBuilder = const UpdateDtoBuilder();
   final _repositoryClassBuilder = const RepositoryClassBuilder();
   final _jsonExtensionBuilder = const JsonExtensionBuilder();
+  final _repositoryExtensionsBuilder = const RepositoryExtensionsBuilder();
 
   @override
   Future<String> generateForAnnotatedElement(
@@ -87,7 +90,8 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
         ..body.add(_insertDtoBuilder.build(context))
         ..body.add(_updateDtoBuilder.build(context))
         ..body.add(_repositoryClassBuilder.build(context))
-        ..body.add(_jsonExtensionBuilder.build(context)),
+        ..body.add(_jsonExtensionBuilder.build(context))
+        ..body.add(_repositoryExtensionsBuilder.build(context))
     );
 
     // Emit and format the generated code
@@ -103,7 +107,7 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
     final className = clazz.displayName;
     final table = annotation.peek('table')?.stringValue ?? _toSnake(className);
     final schema = annotation.peek('schema')?.stringValue;
-
+    final queries = _parseQueries(annotation);
     final columns = _parseColumns(clazz);
     final relations = _parseRelations(clazz, className, table);
     final hooks = _parseHooks(clazz);
@@ -116,9 +120,44 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
       columns: columns,
       relations: relations,
       hooks: hooks,
+      queries: queries,
       createdAtFields: timestamps.createdAt,
       updatedAtFields: timestamps.updatedAt,
     );
+  }
+
+  List<GenQuery> _parseQueries(ConstantReader annotation) {
+    final queriesReader = annotation.peek('queries');
+    if (queriesReader == null) return [];
+    final queryObjs = queriesReader.listValue;
+    final queries = <GenQuery>[];
+    for (final obj in queryObjs) {
+      final reader = ConstantReader(obj);
+      final name = reader.peek('name')?.stringValue;
+      final sql = reader.peek('sql')?.stringValue;
+      if (name == null || sql == null) {
+        throw InvalidGenerationSourceError(
+          'Each Query must have a non-null name and sql.',
+        );
+      }
+      final returnFullEntity =
+          reader.peek('returnFullEntity')?.boolValue ?? false;
+      final singleResult = reader.peek('singleResult')?.boolValue ?? false;
+      final lifecycleHooksReader = reader.peek('lifecycleHooks')?.listValue ?? [];
+      final lifecycleHooks = <String>[];
+      for (final hook in lifecycleHooksReader) {
+        final revieved = ConstantReader(hook).revive();
+        lifecycleHooks.add(revieved.accessor.replaceFirst('Lifecycle.', ''));
+      }
+      queries.add(GenQuery(
+        name: name,
+        sql: sql,
+        returnFullEntity: returnFullEntity,
+        singleResult: singleResult,
+        lifecycleHooks: lifecycleHooks,
+      ));
+    }
+    return queries;
   }
 
   _TimestampFields _parseTimestampFields(ClassElement clazz) {
