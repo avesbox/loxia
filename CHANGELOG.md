@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.8
+
+- Make json serialization and deserialization of fields in entities more robust.
+
 ## 0.0.7
 
 - Fix generation for fromRow method to handle DateTime fields correctly.
