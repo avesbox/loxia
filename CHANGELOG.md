@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.9
+
+- Remove debug print statements from the codebase to clean up the output.
+
 ## 0.0.8
 
 - Make json serialization and deserialization of fields in entities more robust.

@@ -1348,7 +1348,6 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     final placeholders = List.filled(map.length, '?').join(', ');
     final sql =
         'INSERT INTO ${_descriptor.tableName} ($cols) VALUES ($placeholders) RETURNING "$primaryKey"';
-    print('Executing SQL: $sql with values ${map.values.toList()}');
     final result = await engine.query(sql, map.values.toList());
     if (result.isEmpty || !result.first.containsKey(primaryKey)) {
       throw StateError(
