@@ -439,14 +439,10 @@ return grouped.entries.map((entry) {
       switch (c.type) {
         case ColumnType.text:
           final expr = '$enumType.values.byName($readExpr as String)';
-          return c.nullable
-              ? '$readExpr == null ? null : $expr'
-              : expr;
+          return c.nullable ? '$readExpr == null ? null : $expr' : expr;
         case ColumnType.integer:
           final expr = '$enumType.values[$readExpr as int]';
-          return c.nullable
-              ? '$readExpr == null ? null : $expr'
-              : expr;
+          return c.nullable ? '$readExpr == null ? null : $expr' : expr;
         default:
           return c.nullable
               ? '$readExpr as $enumType?'
@@ -454,7 +450,8 @@ return grouped.entries.map((entry) {
       }
     }
     if (c.isCreatedAt || c.isUpdatedAt) {
-      final parsed = '($readExpr is String ? DateTime.parse($readExpr as String) : $readExpr as DateTime)';
+      final parsed =
+          '($readExpr is String ? DateTime.parse($readExpr as String) : $readExpr as DateTime)';
       switch (baseType) {
         case 'int':
           final expr = '$parsed.millisecondsSinceEpoch';
@@ -470,19 +467,16 @@ return grouped.entries.map((entry) {
       }
     }
     if (c.type == ColumnType.dateTime && baseType == 'DateTime') {
-      final parsed = '($readExpr is String ? DateTime.parse($readExpr as String) : $readExpr as DateTime)';
-      return c.nullable
-          ? '$readExpr == null ? null : $parsed'
-          : parsed;
+      final parsed =
+          '($readExpr is String ? DateTime.parse($readExpr as String) : $readExpr as DateTime)';
+      return c.nullable ? '$readExpr == null ? null : $parsed' : parsed;
     }
     if (c.type == ColumnType.json) {
       final decoded = 'decodeJsonColumn($readExpr)';
       final casted = _castJson(decoded, baseType);
       return c.nullable ? '$readExpr == null ? null : $casted' : casted;
     }
-    return c.nullable
-        ? '$readExpr as $baseType?'
-        : '$readExpr as $baseType';
+    return c.nullable ? '$readExpr as $baseType?' : '$readExpr as $baseType';
   }
 
   String _castJson(String decoded, String baseType) {

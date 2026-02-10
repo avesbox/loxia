@@ -162,15 +162,14 @@ class EntityDescriptorBuilder {
     final col = refer('row').index(literalString(c.name));
     final baseType = c.dartTypeCode.replaceAll('?', '');
     final isNullable = c.dartTypeCode.endsWith('?');
-    
-      if (c.type == ColumnType.dateTime && baseType == 'DateTime') {
-        final source = "row['${c.name}']";
-        final parsed = '$source is String ? DateTime.parse($source.toString()) : $source as DateTime';
-        final expr = isNullable
-            ? '$source == null ? null : $parsed'
-            : parsed;
-        return CodeExpression(Code(expr));
-      }
+
+    if (c.type == ColumnType.dateTime && baseType == 'DateTime') {
+      final source = "row['${c.name}']";
+      final parsed =
+          '$source is String ? DateTime.parse($source.toString()) : $source as DateTime';
+      final expr = isNullable ? '$source == null ? null : $parsed' : parsed;
+      return CodeExpression(Code(expr));
+    }
 
     if (c.type == ColumnType.json) {
       return CodeExpression(Code(_decodeJsonColumn(c)));
@@ -192,27 +191,28 @@ class EntityDescriptorBuilder {
 
     if (c.isCreatedAt || c.isUpdatedAt) {
       final source = "row['${c.name}']";
-      final parsed = '($source is String ? DateTime.parse($source.toString()) : $source as DateTime)';
+      final parsed =
+          '($source is String ? DateTime.parse($source.toString()) : $source as DateTime)';
       switch (baseType) {
         case 'int':
           final expr = '$parsed.millisecondsSinceEpoch';
-          return CodeExpression(Code(
-            isNullable ? '$source == null ? null : $expr' : expr,
-          ));
+          return CodeExpression(
+            Code(isNullable ? '$source == null ? null : $expr' : expr),
+          );
         case 'double':
           final expr = '$parsed.millisecondsSinceEpoch.toDouble()';
-          return CodeExpression(Code(
-            isNullable ? '$source == null ? null : $expr' : expr,
-          ));
+          return CodeExpression(
+            Code(isNullable ? '$source == null ? null : $expr' : expr),
+          );
         case 'String':
           final expr = '$parsed.toIso8601String()';
-          return CodeExpression(Code(
-            isNullable ? '$source == null ? null : $expr' : expr,
-          ));
+          return CodeExpression(
+            Code(isNullable ? '$source == null ? null : $expr' : expr),
+          );
         default:
-          return CodeExpression(Code(
-            isNullable ? '$source == null ? null : $parsed' : parsed,
-          ));
+          return CodeExpression(
+            Code(isNullable ? '$source == null ? null : $parsed' : parsed),
+          );
       }
     }
 
@@ -266,20 +266,16 @@ class EntityDescriptorBuilder {
           : (c.nullable ? '$source?.index' : '$source.index');
       return CodeExpression(Code(expr));
     }
-    
-      if (c.type == ColumnType.dateTime && baseType == 'DateTime') {
-        final expr = refer('e')
-            .property(c.prop)
-            .nullSafeProperty('toIso8601String')
-            .call([]);
-        if (c.nullable) {
-          return expr;
-        }
-        return refer('e')
-            .property(c.prop)
-            .property('toIso8601String')
-            .call([]);
+
+    if (c.type == ColumnType.dateTime && baseType == 'DateTime') {
+      final expr = refer(
+        'e',
+      ).property(c.prop).nullSafeProperty('toIso8601String').call([]);
+      if (c.nullable) {
+        return expr;
       }
+      return refer('e').property(c.prop).property('toIso8601String').call([]);
+    }
 
     if (!c.isCreatedAt && !c.isUpdatedAt) {
       return value;
@@ -288,25 +284,27 @@ class EntityDescriptorBuilder {
     final prop = 'e.${c.prop}';
     switch (baseType) {
       case 'int':
-        final expr = 'DateTime.fromMillisecondsSinceEpoch($prop as int).toIso8601String()';
-        return CodeExpression(Code(
-          c.nullable ? '$prop == null ? null : $expr' : expr,
-        ));
+        final expr =
+            'DateTime.fromMillisecondsSinceEpoch($prop as int).toIso8601String()';
+        return CodeExpression(
+          Code(c.nullable ? '$prop == null ? null : $expr' : expr),
+        );
       case 'double':
-        final expr = 'DateTime.fromMillisecondsSinceEpoch(($prop as double).toInt()).toIso8601String()';
-        return CodeExpression(Code(
-          c.nullable ? '$prop == null ? null : $expr' : expr,
-        ));
+        final expr =
+            'DateTime.fromMillisecondsSinceEpoch(($prop as double).toInt()).toIso8601String()';
+        return CodeExpression(
+          Code(c.nullable ? '$prop == null ? null : $expr' : expr),
+        );
       case 'String':
         final expr = 'DateTime.parse($prop as String).toIso8601String()';
-        return CodeExpression(Code(
-          c.nullable ? '$prop == null ? null : $expr' : expr,
-        ));
+        return CodeExpression(
+          Code(c.nullable ? '$prop == null ? null : $expr' : expr),
+        );
       default:
         final expr = '($prop as DateTime).toIso8601String()';
-        return CodeExpression(Code(
-          c.nullable ? '$prop == null ? null : $expr' : expr,
-        ));
+        return CodeExpression(
+          Code(c.nullable ? '$prop == null ? null : $expr' : expr),
+        );
     }
   }
 

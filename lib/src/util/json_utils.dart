@@ -31,21 +31,21 @@ Object? decodeJsonColumn(Object? value) {
 List<String> _parsePostgresArray(String value) {
   final inner = value.substring(1, value.length - 1);
   if (inner.isEmpty) return [];
-  
+
   final result = <String>[];
   final buffer = StringBuffer();
   var inQuotes = false;
   var i = 0;
-  
+
   while (i < inner.length) {
     final char = inner[i];
-    
+
     if (char == '"' && !inQuotes) {
       inQuotes = true;
       i++;
       continue;
     }
-    
+
     if (char == '"' && inQuotes) {
       // Check for escaped quote ""
       if (i + 1 < inner.length && inner[i + 1] == '"') {
@@ -57,23 +57,22 @@ List<String> _parsePostgresArray(String value) {
       i++;
       continue;
     }
-    
+
     if (char == ',' && !inQuotes) {
       result.add(buffer.toString());
       buffer.clear();
       i++;
       continue;
     }
-    
+
     buffer.write(char);
     i++;
   }
-  
+
   // Add last element
   if (buffer.isNotEmpty || inner.endsWith(',')) {
     result.add(buffer.toString());
   }
-  
+
   return result;
 }
-

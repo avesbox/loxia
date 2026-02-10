@@ -157,14 +157,18 @@ Future<void> main() async {
       username: 'loxia',
       password: 'test1234',
       entities: [User.entity, Post.entity, Tag.entity],
-      settings: ConnectionSettings(
-        sslMode: SslMode.disable
-      )
+      settings: ConnectionSettings(sslMode: SslMode.disable),
     ),
   );
   await ds.init();
   final users = ds.getRepository<User>();
-  await users.save(UserPartial(email: 'example@example.com', role: Role.guest, tags: ['new', 'test']));
+  await users.save(
+    UserPartial(
+      email: 'example@example.com',
+      role: Role.guest,
+      tags: ['new', 'test'],
+    ),
+  );
   await users.update(
     UserUpdateDto(email: 'new@example.com'),
     where: UserQuery((q) => q.id.equals(1)),

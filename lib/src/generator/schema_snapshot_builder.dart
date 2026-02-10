@@ -237,8 +237,7 @@ class SchemaSnapshotBuilder implements Builder {
     if (type.nullabilitySuffix == NullabilitySuffix.question) {
       name = name.substring(0, name.length - 1);
     }
-    if (type is InterfaceType &&
-        (type.isDartCoreList || type.isDartCoreMap)) {
+    if (type is InterfaceType && (type.isDartCoreList || type.isDartCoreMap)) {
       return ColumnType.json;
     }
     switch (name) {

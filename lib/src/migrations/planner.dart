@@ -85,8 +85,8 @@ class MigrationPlanner {
 
   String _columnDDL(ColumnDescriptor c) {
     final type = c.autoIncrement && c.type == ColumnType.integer
-      ? 'INTEGER'
-      : _typeToSql(c.type);
+        ? 'INTEGER'
+        : _typeToSql(c.type);
     final parts = <String>['"${c.name}" $type'];
     // SQLite: INTEGER PRIMARY KEY AUTOINCREMENT columns must not have NOT NULL
     final skipNotNull = c.autoIncrement && c.isPrimaryKey;
