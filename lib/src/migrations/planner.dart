@@ -84,7 +84,9 @@ class MigrationPlanner {
   }
 
   String _columnDDL(ColumnDescriptor c) {
-    final type = _typeToSql(c.type);
+    final type = c.autoIncrement && c.type == ColumnType.integer
+      ? 'INTEGER'
+      : _typeToSql(c.type);
     final parts = <String>['"${c.name}" $type'];
     if (!c.nullable) parts.add('NOT NULL');
     if (c.isPrimaryKey) parts.add('PRIMARY KEY');

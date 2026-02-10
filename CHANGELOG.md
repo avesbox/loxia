@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.6
+
+- Fix JSON serialization of fields in entities, mainly List and Map fields
+- Fix Enum encoding and decoding from database, ensuring that enum values are correctly stored and retrieved as their string representation in the database. This change improves the handling of enum fields in your entities, allowing for more intuitive and consistent storage of enum values without needing to manually convert them to and from their string representation.
+- Fix DataTime encoding and decoding from database, ensuring that DateTime fields are correctly stored and retrieved in ISO 8601 format. This change enhances the handling of DateTime fields in your entities, allowing for accurate storage and retrieval of date and time information without needing to manually convert them to and from their string representation.
+
 ## 0.0.5
 
 - Fix nullable option also in column descriptors, ensuring that the generated code correctly reflects the nullability of columns as defined in the entity classes. This change ensures that the database schema and the generated code are consistent with the intended design of your entities, preventing potential issues with null values in your application.

@@ -3,6 +3,7 @@ library;
 
 import 'package:code_builder/code_builder.dart';
 
+import '../../annotations/column.dart';
 import 'models.dart';
 import 'utils.dart';
 
@@ -257,14 +258,9 @@ if (${relation.fieldName}Select != null && ${relation.fieldName}Select.hasSelect
     // Build return statement
     final returnParts = <String>[];
     for (final c in context.columns) {
-      var baseType = c.dartTypeCode;
-      if (baseType.endsWith('?')) {
-        baseType = baseType.substring(0, baseType.length - 1);
-      }
-      final castType = c.nullable ? '$baseType?' : baseType;
-      returnParts.add(
-        "${c.prop}: ${c.prop} ? readValue(row, '${c.name}', path: path) as $castType : null",
-      );
+      final readExpr = "readValue(row, '${c.name}', path: path)";
+      final hydrated = _hydrateColumnValue(c, readExpr);
+      returnParts.add('${c.prop}: ${c.prop} ? $hydrated : null');
     }
     for (final relation in context.owningJoinColumns) {
       final joinProp = relation.joinColumnPropertyName;
@@ -340,7 +336,6 @@ if (${relation.fieldName}Select != null && ${relation.fieldName}Select.hasSelect
     if (!context.hasCollectionRelations) {
       return [];
     }
-
     final pkColumn = context.primaryKeyColumn;
     final statements = <Code>[
       Code('if (rows.isEmpty) return [];'),
@@ -435,5 +430,82 @@ return grouped.entries.map((entry) {
           ..body = Block.of(statements),
       ),
     ];
+  }
+
+  String _hydrateColumnValue(GenColumn c, String readExpr) {
+    final baseType = c.dartTypeCode.replaceAll('?', '');
+    if (c.isEnum) {
+      final enumType = c.enumTypeName ?? baseType;
+      switch (c.type) {
+        case ColumnType.text:
+          final expr = '$enumType.values.byName($readExpr as String)';
+          return c.nullable
+              ? '$readExpr == null ? null : $expr'
+              : expr;
+        case ColumnType.integer:
+          final expr = '$enumType.values[$readExpr as int]';
+          return c.nullable
+              ? '$readExpr == null ? null : $expr'
+              : expr;
+        default:
+          return c.nullable
+              ? '$readExpr as $enumType?'
+              : '$readExpr as $enumType';
+      }
+    }
+    if (c.isCreatedAt || c.isUpdatedAt) {
+      final parsed = '($readExpr is String ? DateTime.parse($readExpr as String) : $readExpr as DateTime)';
+      switch (baseType) {
+        case 'int':
+          final expr = '$parsed.millisecondsSinceEpoch';
+          return c.nullable ? '$readExpr == null ? null : $expr' : expr;
+        case 'double':
+          final expr = '$parsed.millisecondsSinceEpoch.toDouble()';
+          return c.nullable ? '$readExpr == null ? null : $expr' : expr;
+        case 'String':
+          final expr = '$parsed.toIso8601String()';
+          return c.nullable ? '$readExpr == null ? null : $expr' : expr;
+        default:
+          return c.nullable ? '$readExpr == null ? null : $parsed' : parsed;
+      }
+    }
+    if (c.type == ColumnType.dateTime && baseType == 'DateTime') {
+      final parsed = '($readExpr is String ? DateTime.parse($readExpr as String) : $readExpr as DateTime)';
+      return c.nullable
+          ? '$readExpr == null ? null : $parsed'
+          : parsed;
+    }
+    if (c.type == ColumnType.json) {
+      final decoded = 'decodeJsonColumn($readExpr)';
+      final casted = _castJson(decoded, baseType);
+      return c.nullable ? '$readExpr == null ? null : $casted' : casted;
+    }
+    return c.nullable
+        ? '$readExpr as $baseType?'
+        : '$readExpr as $baseType';
+  }
+
+  String _castJson(String decoded, String baseType) {
+    final listMatch = RegExp(r'^List<(.+)>$').firstMatch(baseType);
+    if (listMatch != null) {
+      final elem = listMatch.group(1)!;
+      return '($decoded as List).cast<$elem>()';
+    }
+
+    final mapMatch = RegExp(r'^Map<([^,>]+),\s*(.+)>$').firstMatch(baseType);
+    if (mapMatch != null) {
+      final key = mapMatch.group(1)!;
+      final value = mapMatch.group(2)!;
+      return '($decoded as Map).cast<$key, $value>()';
+    }
+
+    if (baseType == 'List') {
+      return '($decoded as List).cast<dynamic>()';
+    }
+    if (baseType == 'Map') {
+      return '($decoded as Map).cast<dynamic, dynamic>()';
+    }
+
+    return '$decoded as $baseType';
   }
 }

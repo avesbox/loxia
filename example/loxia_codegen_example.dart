@@ -146,15 +146,7 @@ class Movie extends Entity {
 
 Future<void> main() async {
   final ds = DataSource(
-    PostgresDataSourceOptions.connect(
-      host: 'localhost',
-      port: 5432,
-      database: 'loxia',
-      username: 'loxia',
-      password: 'test1234',
-      entities: [User.entity, Post.entity, Tag.entity],
-      settings: ConnectionSettings(sslMode: SslMode.disable),
-    ),
+    InMemoryDataSourceOptions(entities: [User.entity, Post.entity, Tag.entity]),
   );
   await ds.init();
   final users = ds.getRepository<User>();
@@ -166,7 +158,7 @@ Future<void> main() async {
   final user = await users.findOneBy(
     where: UserQuery((q) => q.email.equals('new@example.com')),
   );
-  print('User: id=${user?.id}, email=${user?.email}');
+  print('User: id=${user?.id}, email=${user?.email} - ${user?.role}');
   final posts = ds.getRepository<Post>();
   await posts.save(
     PostPartial(

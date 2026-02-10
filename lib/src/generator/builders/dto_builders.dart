@@ -461,30 +461,42 @@ String _timestampLiteralToDateTime(GenColumn c, String expr) {
   final base = c.dartTypeCode.replaceAll('?', '');
   switch (base) {
     case 'int':
-      return 'DateTime.fromMillisecondsSinceEpoch($expr)';
+      return 'DateTime.fromMillisecondsSinceEpoch($expr).toIso8601String()';
     case 'double':
-      return 'DateTime.fromMillisecondsSinceEpoch($expr.toInt())';
+      return 'DateTime.fromMillisecondsSinceEpoch($expr.toInt()).toIso8601String()';
     case 'String':
-      return 'DateTime.parse($expr)';
+      return 'DateTime.parse($expr).toIso8601String()';
     default:
-      return expr;
+      if (expr.startsWith('DateTime')) {
+        return '$expr.toIso8601String()';
+      }
+      return '$expr is DateTime ? ($expr as DateTime).toIso8601String() : $expr?.toString()';
   }
 }
 
 String _timestampPropToDateTime(GenColumn c, String prop) {
   if (!c.isCreatedAt && !c.isUpdatedAt) {
+    final base = c.dartTypeCode.replaceAll('?', '');
+    if (base == 'DateTime') {
+      return c.nullable
+          ? '$prop?.toIso8601String()'
+          : '$prop.toIso8601String()';
+    }
     return prop;
   }
   final base = c.dartTypeCode.replaceAll('?', '');
   switch (base) {
     case 'int':
-      return '$prop == null ? null : DateTime.fromMillisecondsSinceEpoch($prop)';
+      return '$prop == null ? null : DateTime.fromMillisecondsSinceEpoch($prop).toIso8601String()';
     case 'double':
-      return '$prop == null ? null : DateTime.fromMillisecondsSinceEpoch($prop.toInt())';
+      return '$prop == null ? null : DateTime.fromMillisecondsSinceEpoch($prop.toInt()).toIso8601String()';
     case 'String':
-      return '$prop == null ? null : DateTime.parse($prop)';
+      return '$prop == null ? null : DateTime.parse($prop).toIso8601String()';
     default:
-      return prop;
+      if (prop.startsWith('DateTime')) {
+        return '$prop.toIso8601String()';
+      }
+      return '$prop is DateTime ? ($prop as DateTime).toIso8601String() : $prop?.toString()';
   }
 }
 

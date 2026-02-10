@@ -174,7 +174,9 @@ class UserSelect extends SelectOptions<User, UserPartial> {
     return UserPartial(
       id: id ? readValue(row, 'id', path: path) as int : null,
       email: email ? readValue(row, 'email', path: path) as String : null,
-      role: role ? readValue(row, 'role', path: path) as Role : null,
+      role: role
+          ? Role.values.byName(readValue(row, 'role', path: path) as String)
+          : null,
       posts: null,
     );
   }
@@ -507,8 +509,17 @@ final EntityDescriptor<Post, PostPartial> $PostEntityDescriptor =
         title: (row['title'] as String),
         content: (row['content'] as String),
         likes: (row['likes'] as int),
-        createdAt: (row['created_at'] as DateTime?),
-        lastUpdatedAt: row['last_updated_at']?.millisecondsSinceEpoch,
+        createdAt: row['created_at'] == null
+            ? null
+            : row['created_at'] is String
+            ? DateTime.parse(row['created_at'])
+            : row['created_at'] as DateTime,
+        lastUpdatedAt: row['last_updated_at'] == null
+            ? null
+            : (row['last_updated_at'] is String
+                      ? DateTime.parse(row['last_updated_at'])
+                      : row['last_updated_at'] as DateTime)
+                  .millisecondsSinceEpoch,
         user: null,
         tags: const <Tag>[],
       ),
@@ -517,10 +528,12 @@ final EntityDescriptor<Post, PostPartial> $PostEntityDescriptor =
         'title': e.title,
         'content': e.content,
         'likes': e.likes,
-        'created_at': e.createdAt,
+        'created_at': e.createdAt?.toIso8601String(),
         'last_updated_at': e.lastUpdatedAt == null
             ? null
-            : DateTime.fromMillisecondsSinceEpoch((e.lastUpdatedAt as int)),
+            : DateTime.fromMillisecondsSinceEpoch(
+                e.lastUpdatedAt as int,
+              ).toIso8601String(),
         'user_id': e.user?.id,
       },
       fieldsContext: const PostFieldsContext(),
@@ -731,10 +744,25 @@ class PostSelect extends SelectOptions<Post, PostPartial> {
       content: content ? readValue(row, 'content', path: path) as String : null,
       likes: likes ? readValue(row, 'likes', path: path) as int : null,
       createdAt: createdAt
-          ? readValue(row, 'created_at', path: path) as DateTime?
+          ? readValue(row, 'created_at', path: path) == null
+                ? null
+                : (readValue(row, 'created_at', path: path) is String
+                      ? DateTime.parse(
+                          readValue(row, 'created_at', path: path) as String,
+                        )
+                      : readValue(row, 'created_at', path: path) as DateTime)
           : null,
       lastUpdatedAt: lastUpdatedAt
-          ? readValue(row, 'last_updated_at', path: path) as int?
+          ? readValue(row, 'last_updated_at', path: path) == null
+                ? null
+                : (readValue(row, 'last_updated_at', path: path) is String
+                          ? DateTime.parse(
+                              readValue(row, 'last_updated_at', path: path)
+                                  as String,
+                            )
+                          : readValue(row, 'last_updated_at', path: path)
+                                as DateTime)
+                      .millisecondsSinceEpoch
           : null,
       userId: userId ? readValue(row, 'user_id', path: path) as int? : null,
       user: userPartial,
@@ -922,10 +950,10 @@ class PostInsertDto implements InsertDto<Post> {
       'title': title,
       'content': content,
       'likes': likes,
-      'created_at': DateTime.now(),
+      'created_at': DateTime.now().toIso8601String(),
       'last_updated_at': DateTime.fromMillisecondsSinceEpoch(
         DateTime.now().millisecondsSinceEpoch,
-      ),
+      ).toIso8601String(),
       if (userId != null) 'user_id': userId,
     };
   }
@@ -983,10 +1011,13 @@ class PostUpdateDto implements UpdateDto<Post> {
       if (title != null) 'title': title,
       if (content != null) 'content': content,
       if (likes != null) 'likes': likes,
-      if (createdAt != null) 'created_at': createdAt,
+      if (createdAt != null)
+        'created_at': createdAt is DateTime
+            ? (createdAt as DateTime).toIso8601String()
+            : createdAt?.toString(),
       'last_updated_at': DateTime.fromMillisecondsSinceEpoch(
         DateTime.now().millisecondsSinceEpoch,
-      ),
+      ).toIso8601String(),
       if (userId != null) 'user_id': userId,
     };
   }
@@ -1383,7 +1414,7 @@ final EntityDescriptor<Movie, MoviePartial> $MovieEntityDescriptor =
         ColumnDescriptor(
           name: 'genres',
           propertyName: 'genres',
-          type: ColumnType.text,
+          type: ColumnType.json,
           nullable: false,
           unique: false,
           isPrimaryKey: false,
@@ -1437,22 +1468,30 @@ final EntityDescriptor<Movie, MoviePartial> $MovieEntityDescriptor =
         title: (row['title'] as String),
         overview: (row['overview'] as String?),
         releaseYear: (row['release_year'] as int),
-        genres: (row['genres'] as List<String>),
+        genres: (decodeJsonColumn(row['genres']) as List).cast<String>(),
         runtime: (row['runtime'] as int?),
         posterUrl: (row['poster_url'] as String?),
-        createdAt: (row['created_at'] as DateTime?),
-        updatedAt: (row['updated_at'] as DateTime?),
+        createdAt: row['created_at'] == null
+            ? null
+            : row['created_at'] is String
+            ? DateTime.parse(row['created_at'])
+            : row['created_at'] as DateTime,
+        updatedAt: row['updated_at'] == null
+            ? null
+            : row['updated_at'] is String
+            ? DateTime.parse(row['updated_at'])
+            : row['updated_at'] as DateTime,
       ),
       toRow: (e) => {
         'id': e.id,
         'title': e.title,
         'overview': e.overview,
         'release_year': e.releaseYear,
-        'genres': e.genres,
+        'genres': encodeJsonColumn(e.genres),
         'runtime': e.runtime,
         'poster_url': e.posterUrl,
-        'created_at': e.createdAt,
-        'updated_at': e.updatedAt,
+        'created_at': e.createdAt?.toIso8601String(),
+        'updated_at': e.updatedAt?.toIso8601String(),
       },
       fieldsContext: const MovieFieldsContext(),
       repositoryFactory: (EngineAdapter engine) => MovieRepository(engine),
@@ -1661,17 +1700,30 @@ class MovieSelect extends SelectOptions<Movie, MoviePartial> {
           ? readValue(row, 'release_year', path: path) as int
           : null,
       genres: genres
-          ? readValue(row, 'genres', path: path) as List<String>
+          ? (decodeJsonColumn(readValue(row, 'genres', path: path)) as List)
+                .cast<String>()
           : null,
       runtime: runtime ? readValue(row, 'runtime', path: path) as int? : null,
       posterUrl: posterUrl
           ? readValue(row, 'poster_url', path: path) as String?
           : null,
       createdAt: createdAt
-          ? readValue(row, 'created_at', path: path) as DateTime?
+          ? readValue(row, 'created_at', path: path) == null
+                ? null
+                : (readValue(row, 'created_at', path: path) is String
+                      ? DateTime.parse(
+                          readValue(row, 'created_at', path: path) as String,
+                        )
+                      : readValue(row, 'created_at', path: path) as DateTime)
           : null,
       updatedAt: updatedAt
-          ? readValue(row, 'updated_at', path: path) as DateTime?
+          ? readValue(row, 'updated_at', path: path) == null
+                ? null
+                : (readValue(row, 'updated_at', path: path) is String
+                      ? DateTime.parse(
+                          readValue(row, 'updated_at', path: path) as String,
+                        )
+                      : readValue(row, 'updated_at', path: path) as DateTime)
           : null,
     );
   }
@@ -1846,8 +1898,8 @@ class MovieInsertDto implements InsertDto<Movie> {
       'genres': genres,
       'runtime': runtime,
       'poster_url': posterUrl,
-      'created_at': DateTime.now(),
-      'updated_at': DateTime.now(),
+      'created_at': DateTime.now().toIso8601String(),
+      'updated_at': DateTime.now().toIso8601String(),
     };
   }
 
@@ -1915,8 +1967,11 @@ class MovieUpdateDto implements UpdateDto<Movie> {
       if (genres != null) 'genres': genres,
       if (runtime != null) 'runtime': runtime,
       if (posterUrl != null) 'poster_url': posterUrl,
-      if (createdAt != null) 'created_at': createdAt,
-      'updated_at': DateTime.now(),
+      if (createdAt != null)
+        'created_at': createdAt is DateTime
+            ? (createdAt as DateTime).toIso8601String()
+            : createdAt?.toString(),
+      'updated_at': DateTime.now().toIso8601String(),
     };
   }
 

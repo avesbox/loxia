@@ -162,6 +162,19 @@ class EntityDescriptorBuilder {
     final col = refer('row').index(literalString(c.name));
     final baseType = c.dartTypeCode.replaceAll('?', '');
     final isNullable = c.dartTypeCode.endsWith('?');
+    
+      if (c.type == ColumnType.dateTime && baseType == 'DateTime') {
+        final source = "row['${c.name}']";
+        final parsed = '$source is String ? DateTime.parse($source) : $source as DateTime';
+        final expr = isNullable
+            ? '$source == null ? null : $parsed'
+            : parsed;
+        return CodeExpression(Code(expr));
+      }
+
+    if (c.type == ColumnType.json) {
+      return CodeExpression(Code(_decodeJsonColumn(c)));
+    }
 
     if (c.dartTypeCode == 'bool') {
       return col.equalTo(literalNum(1));
@@ -178,36 +191,28 @@ class EntityDescriptorBuilder {
     }
 
     if (c.isCreatedAt || c.isUpdatedAt) {
+      final source = "row['${c.name}']";
+      final parsed = '($source is String ? DateTime.parse($source) : $source as DateTime)';
       switch (baseType) {
         case 'int':
-          final expr = col
-              .asA(refer('DateTime'))
-              .property('millisecondsSinceEpoch');
-          return isNullable
-              ? col.nullSafeProperty('millisecondsSinceEpoch')
-              : expr;
+          final expr = '$parsed.millisecondsSinceEpoch';
+          return CodeExpression(Code(
+            isNullable ? '$source == null ? null : $expr' : expr,
+          ));
         case 'double':
-          final expr = col
-              .asA(refer('DateTime'))
-              .property('millisecondsSinceEpoch')
-              .property('toDouble')
-              .call([]);
-          return isNullable
-              ? col
-                    .nullSafeProperty('millisecondsSinceEpoch')
-                    .nullSafeProperty('toDouble')
-                    .call([])
-              : expr;
+          final expr = '$parsed.millisecondsSinceEpoch.toDouble()';
+          return CodeExpression(Code(
+            isNullable ? '$source == null ? null : $expr' : expr,
+          ));
         case 'String':
-          final expr = col
-              .asA(refer('DateTime'))
-              .property('toIso8601String')
-              .call([]);
-          return isNullable
-              ? col.nullSafeProperty('toIso8601String').call([])
-              : expr;
+          final expr = '$parsed.toIso8601String()';
+          return CodeExpression(Code(
+            isNullable ? '$source == null ? null : $expr' : expr,
+          ));
         default:
-          return col.asA(refer(c.dartTypeCode));
+          return CodeExpression(Code(
+            isNullable ? '$source == null ? null : $parsed' : parsed,
+          ));
       }
     }
 
@@ -244,6 +249,16 @@ class EntityDescriptorBuilder {
     final value = refer('e').property(c.prop);
     final baseType = c.dartTypeCode.replaceAll('?', '');
 
+    if (c.type == ColumnType.json) {
+      if (baseType == 'String') {
+        return value;
+      }
+      final encoded = refer('encodeJsonColumn').call([value]);
+      return c.nullable
+          ? value.equalTo(literalNull).conditional(literalNull, encoded)
+          : encoded;
+    }
+
     if (c.isEnum) {
       final source = 'e.${c.prop}';
       final expr = c.type == ColumnType.text
@@ -251,41 +266,79 @@ class EntityDescriptorBuilder {
           : (c.nullable ? '$source?.index' : '$source.index');
       return CodeExpression(Code(expr));
     }
+    
+      if (c.type == ColumnType.dateTime && baseType == 'DateTime') {
+        final expr = refer('e')
+            .property(c.prop)
+            .nullSafeProperty('toIso8601String')
+            .call([]);
+        if (c.nullable) {
+          return expr;
+        }
+        return refer('e')
+            .property(c.prop)
+            .property('toIso8601String')
+            .call([]);
+      }
 
     if (!c.isCreatedAt && !c.isUpdatedAt) {
       return value;
     }
 
+    final prop = 'e.${c.prop}';
     switch (baseType) {
       case 'int':
-        return value
-            .equalTo(literalNull)
-            .conditional(
-              literalNull,
-              refer('DateTime').property('fromMillisecondsSinceEpoch').call([
-                value.asA(refer('int')),
-              ]),
-            );
+        final expr = 'DateTime.fromMillisecondsSinceEpoch($prop as int).toIso8601String()';
+        return CodeExpression(Code(
+          c.nullable ? '$prop == null ? null : $expr' : expr,
+        ));
       case 'double':
-        return value
-            .equalTo(literalNull)
-            .conditional(
-              literalNull,
-              refer('DateTime').property('fromMillisecondsSinceEpoch').call([
-                value.property('toInt').call([]),
-              ]),
-            );
+        final expr = 'DateTime.fromMillisecondsSinceEpoch(($prop as double).toInt()).toIso8601String()';
+        return CodeExpression(Code(
+          c.nullable ? '$prop == null ? null : $expr' : expr,
+        ));
       case 'String':
-        return value
-            .equalTo(literalNull)
-            .conditional(
-              literalNull,
-              refer(
-                'DateTime',
-              ).property('parse').call([value.asA(refer('String'))]),
-            );
+        final expr = 'DateTime.parse($prop as String).toIso8601String()';
+        return CodeExpression(Code(
+          c.nullable ? '$prop == null ? null : $expr' : expr,
+        ));
       default:
-        return value;
+        final expr = '($prop as DateTime).toIso8601String()';
+        return CodeExpression(Code(
+          c.nullable ? '$prop == null ? null : $expr' : expr,
+        ));
     }
+  }
+
+  String _decodeJsonColumn(GenColumn c) {
+    final raw = "row['${c.name}']";
+    final baseType = c.dartTypeCode.replaceAll('?', '');
+    final decoded = 'decodeJsonColumn($raw)';
+    final casted = _castJson(decoded, baseType);
+    return c.nullable ? '$raw == null ? null : $casted' : casted;
+  }
+
+  String _castJson(String decoded, String baseType) {
+    final listMatch = RegExp(r'^List<(.+)>$').firstMatch(baseType);
+    if (listMatch != null) {
+      final elem = listMatch.group(1)!;
+      return '($decoded as List).cast<$elem>()';
+    }
+
+    final mapMatch = RegExp(r'^Map<([^,>]+),\s*(.+)>$').firstMatch(baseType);
+    if (mapMatch != null) {
+      final key = mapMatch.group(1)!;
+      final value = mapMatch.group(2)!;
+      return '($decoded as Map).cast<$key, $value>()';
+    }
+
+    if (baseType == 'List') {
+      return '($decoded as List).cast<dynamic>()';
+    }
+    if (baseType == 'Map') {
+      return '($decoded as Map).cast<dynamic, dynamic>()';
+    }
+
+    return '$decoded as $baseType';
   }
 }

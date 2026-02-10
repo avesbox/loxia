@@ -12,5 +12,6 @@ export 'src/migrations/migration.dart';
 export 'src/repository/dtos.dart';
 export 'src/repository/entity_repository.dart';
 export 'src/repository/query.dart';
+export 'src/util/json_utils.dart';
 
 export 'package:postgres/postgres.dart' show ConnectionSettings;

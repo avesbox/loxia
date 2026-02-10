@@ -1,11 +1,3 @@
-/// Build step to snapshot schema and generate migrations using build_runner.
-///
-/// This builder:
-/// 1) Collects entity metadata at build time.
-/// 2) Writes `.loxia/schema_v1.json`.
-/// 3) Generates migration artifacts when changes are detected.
-library;
-
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -244,6 +236,10 @@ class SchemaSnapshotBuilder implements Builder {
     var name = type.getDisplayString();
     if (type.nullabilitySuffix == NullabilitySuffix.question) {
       name = name.substring(0, name.length - 1);
+    }
+    if (type is InterfaceType &&
+        (type.isDartCoreList || type.isDartCoreMap)) {
+      return ColumnType.json;
     }
     switch (name) {
       case 'int':
