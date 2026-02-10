@@ -409,7 +409,7 @@ class UpdateDtoBuilder {
         entries.add("'${c.name}': $valueExpr");
         continue;
       }
-      final valueExpr = _enumToStorage(
+      var valueExpr = _enumToStorage(
         c,
         _timestampPropToDateTime(c, c.prop),
         true,

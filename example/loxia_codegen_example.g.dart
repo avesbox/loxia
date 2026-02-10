@@ -41,6 +41,16 @@ final EntityDescriptor<User, UserPartial> $UserEntityDescriptor =
           autoIncrement: false,
           uuid: false,
         ),
+        ColumnDescriptor(
+          name: 'tags',
+          propertyName: 'tags',
+          type: ColumnType.json,
+          nullable: false,
+          unique: false,
+          isPrimaryKey: false,
+          autoIncrement: false,
+          uuid: false,
+        ),
       ],
       relations: const [
         RelationDescriptor(
@@ -60,9 +70,15 @@ final EntityDescriptor<User, UserPartial> $UserEntityDescriptor =
         id: (row['id'] as int),
         email: (row['email'] as String),
         role: Role.values.byName(row['role'] as String),
+        tags: (decodeJsonColumn(row['tags']) as List).cast<String>(),
         posts: const <Post>[],
       ),
-      toRow: (e) => {'id': e.id, 'email': e.email, 'role': e.role.name},
+      toRow: (e) => {
+        'id': e.id,
+        'email': e.email,
+        'role': e.role.name,
+        'tags': encodeJsonColumn(e.tags),
+      },
       fieldsContext: const UserFieldsContext(),
       repositoryFactory: (EngineAdapter engine) => UserRepository(engine),
       defaultSelect: () => UserSelect(),
@@ -80,6 +96,8 @@ class UserFieldsContext extends QueryFieldsContext<User> {
   QueryField<String> get email => field<String>('email');
 
   QueryField<Role> get role => field<Role>('role');
+
+  QueryField<List<String>> get tags => field<List<String>>('tags');
 
   /// Find the owning relation on the target entity to get join column info
   PostFieldsContext get posts {
@@ -117,6 +135,7 @@ class UserSelect extends SelectOptions<User, UserPartial> {
     this.id = true,
     this.email = true,
     this.role = true,
+    this.tags = true,
     this.relations,
   });
 
@@ -126,11 +145,13 @@ class UserSelect extends SelectOptions<User, UserPartial> {
 
   final bool role;
 
+  final bool tags;
+
   final UserRelations? relations;
 
   @override
   bool get hasSelections =>
-      id || email || role || (relations?.hasSelections ?? false);
+      id || email || role || tags || (relations?.hasSelections ?? false);
 
   @override
   void collect(
@@ -162,6 +183,11 @@ class UserSelect extends SelectOptions<User, UserPartial> {
         SelectField('role', tableAlias: tableAlias, alias: aliasFor('role')),
       );
     }
+    if (tags) {
+      out.add(
+        SelectField('tags', tableAlias: tableAlias, alias: aliasFor('tags')),
+      );
+    }
     final rels = relations;
     if (rels != null && rels.hasSelections) {
       rels.collect(scoped, out, path: path);
@@ -176,6 +202,10 @@ class UserSelect extends SelectOptions<User, UserPartial> {
       email: email ? readValue(row, 'email', path: path) as String : null,
       role: role
           ? Role.values.byName(readValue(row, 'role', path: path) as String)
+          : null,
+      tags: tags
+          ? (decodeJsonColumn(readValue(row, 'tags', path: path)) as List)
+                .cast<String>()
           : null,
       posts: null,
     );
@@ -224,6 +254,7 @@ class UserSelect extends SelectOptions<User, UserPartial> {
         id: base.id,
         email: base.email,
         role: base.role,
+        tags: base.tags,
         posts: postsList,
       );
     }).toList();
@@ -254,13 +285,15 @@ class UserRelations {
 }
 
 class UserPartial extends PartialEntity<User> {
-  const UserPartial({this.id, this.email, this.role, this.posts});
+  const UserPartial({this.id, this.email, this.role, this.tags, this.posts});
 
   final int? id;
 
   final String? email;
 
   final Role? role;
+
+  final List<String>? tags;
 
   final List<PostPartial>? posts;
 
@@ -274,6 +307,7 @@ class UserPartial extends PartialEntity<User> {
     final missing = <String>[];
     if (email == null) missing.add('email');
     if (role == null) missing.add('role');
+    if (tags == null) missing.add('tags');
     if (missing.isNotEmpty) {
       throw StateError(
         'Cannot convert UserPartial to UserInsertDto: missing required fields: ${missing.join(', ')}',
@@ -282,13 +316,14 @@ class UserPartial extends PartialEntity<User> {
     return UserInsertDto(
       email: email!,
       role: role!,
+      tags: tags!,
       posts: posts?.map((p) => p.toInsertDto()).toList(),
     );
   }
 
   @override
   UserUpdateDto toUpdateDto() {
-    return UserUpdateDto(email: email, role: role);
+    return UserUpdateDto(email: email, role: role, tags: tags);
   }
 
   @override
@@ -297,6 +332,7 @@ class UserPartial extends PartialEntity<User> {
     if (id == null) missing.add('id');
     if (email == null) missing.add('email');
     if (role == null) missing.add('role');
+    if (tags == null) missing.add('tags');
     if (missing.isNotEmpty) {
       throw StateError(
         'Cannot convert UserPartial to User: missing required fields: ${missing.join(', ')}',
@@ -306,6 +342,7 @@ class UserPartial extends PartialEntity<User> {
       id: id!,
       email: email!,
       role: role!,
+      tags: tags!,
       posts: posts?.map((p) => p.toEntity()).toList() ?? const <Post>[],
     );
   }
@@ -316,23 +353,31 @@ class UserPartial extends PartialEntity<User> {
       'id': id,
       'email': email,
       'role': role?.name,
+      'tags': tags,
       'posts': posts?.map((e) => e.toJson()).toList(),
     };
   }
 }
 
 class UserInsertDto implements InsertDto<User> {
-  const UserInsertDto({required this.email, required this.role, this.posts});
+  const UserInsertDto({
+    required this.email,
+    required this.role,
+    required this.tags,
+    this.posts,
+  });
 
   final String email;
 
   final Role role;
 
+  final List<String> tags;
+
   final List<PostInsertDto>? posts;
 
   @override
   Map<String, dynamic> toMap() {
-    return {'email': email, 'role': role.name};
+    return {'email': email, 'role': role.name, 'tags': tags};
   }
 
   Map<String, dynamic> get cascades {
@@ -342,28 +387,33 @@ class UserInsertDto implements InsertDto<User> {
   UserInsertDto copyWith({
     String? email,
     Role? role,
+    List<String>? tags,
     List<PostInsertDto>? posts,
   }) {
     return UserInsertDto(
       email: email ?? this.email,
       role: role ?? this.role,
+      tags: tags ?? this.tags,
       posts: posts ?? this.posts,
     );
   }
 }
 
 class UserUpdateDto implements UpdateDto<User> {
-  const UserUpdateDto({this.email, this.role});
+  const UserUpdateDto({this.email, this.role, this.tags});
 
   final String? email;
 
   final Role? role;
+
+  final List<String>? tags;
 
   @override
   Map<String, dynamic> toMap() {
     return {
       if (email != null) 'email': email,
       if (role != null) 'role': role?.name,
+      if (tags != null) 'tags': tags,
     };
   }
 
@@ -383,6 +433,7 @@ extension UserJson on User {
       'id': id,
       'email': email,
       'role': role.name,
+      'tags': tags,
       'posts': posts.map((e) => e.toJson()).toList(),
     };
   }
@@ -512,12 +563,12 @@ final EntityDescriptor<Post, PostPartial> $PostEntityDescriptor =
         createdAt: row['created_at'] == null
             ? null
             : row['created_at'] is String
-            ? DateTime.parse(row['created_at'])
+            ? DateTime.parse(row['created_at'].toString())
             : row['created_at'] as DateTime,
         lastUpdatedAt: row['last_updated_at'] == null
             ? null
             : (row['last_updated_at'] is String
-                      ? DateTime.parse(row['last_updated_at'])
+                      ? DateTime.parse(row['last_updated_at'].toString())
                       : row['last_updated_at'] as DateTime)
                   .millisecondsSinceEpoch,
         user: null,
@@ -1474,12 +1525,12 @@ final EntityDescriptor<Movie, MoviePartial> $MovieEntityDescriptor =
         createdAt: row['created_at'] == null
             ? null
             : row['created_at'] is String
-            ? DateTime.parse(row['created_at'])
+            ? DateTime.parse(row['created_at'].toString())
             : row['created_at'] as DateTime,
         updatedAt: row['updated_at'] == null
             ? null
             : row['updated_at'] is String
-            ? DateTime.parse(row['updated_at'])
+            ? DateTime.parse(row['updated_at'].toString())
             : row['updated_at'] as DateTime,
       ),
       toRow: (e) => {

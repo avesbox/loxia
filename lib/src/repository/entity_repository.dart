@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math';
 
 import 'package:loxia/src/repository/dtos.dart';
 
+import '../annotations/column.dart';
 import '../entity.dart';
 import '../metadata/entity_descriptor.dart';
 import '../metadata/relation_descriptor.dart';
@@ -16,6 +18,17 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
   final EngineAdapter _engine;
   final QueryFieldsContext<T> _fieldsContext;
   static final Random _uuidRandom = Random.secure();
+
+  void _encodeJsonColumns(Map<String, dynamic> map) {
+    for (final column in _descriptor.columns) {
+      if (column.type != ColumnType.json) continue;
+      final key = column.name;
+      final value = map[key];
+      if (value == null) continue;
+      if (value is String) continue;
+      map[key] = jsonEncode(value);
+    }
+  }
 
   /// Executes a query and returns partial entities based on the [select] options.
   ///
@@ -221,6 +234,7 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
       if (pkValue == null) {
         map.remove(pk.name);
       }
+      _encodeJsonColumns(map);
       final cols = map.keys.map((k) => '"$k"').join(', ');
       final placeholders = List.filled(map.length, '?').join(', ');
       final sql =
@@ -252,6 +266,7 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
         );
       }
       map.remove(pk.name);
+      _encodeJsonColumns(map);
       final sets = <String>[];
       final params = <Object?>[];
       for (final entry in map.entries) {
@@ -312,6 +327,7 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     final sets = <String>[];
     final params = <Object?>[];
     final map = values.toMap();
+    _encodeJsonColumns(map);
     for (final entry in map.entries) {
       sets.add('"${entry.key}" = ?');
       params.add(entry.value);
@@ -1327,10 +1343,12 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     if (primaryKeyDescriptor.uuid && !map.containsKey(primaryKey)) {
       map[primaryKey] = _generateUuid();
     }
+    _encodeJsonColumns(map);
     final cols = map.keys.map((k) => '"$k"').join(', ');
     final placeholders = List.filled(map.length, '?').join(', ');
     final sql =
         'INSERT INTO ${_descriptor.tableName} ($cols) VALUES ($placeholders) RETURNING "$primaryKey"';
+    print('Executing SQL: $sql with values ${map.values.toList()}');
     final result = await engine.query(sql, map.values.toList());
     if (result.isEmpty || !result.first.containsKey(primaryKey)) {
       throw StateError(

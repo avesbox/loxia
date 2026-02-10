@@ -75,7 +75,6 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
 
     // Parse metadata from annotations
     final context = _parseEntityContext(clazz, annotation);
-
     // Build all code components
     final library = Library(
       (lib) => lib

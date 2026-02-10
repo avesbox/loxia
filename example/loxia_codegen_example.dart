@@ -19,11 +19,15 @@ class User extends Entity {
   @Column(type: ColumnType.text)
   final Role role;
 
+  @Column(defaultValue: <String>[])
+  final List<String> tags;
+
   User({
     required this.id,
     required this.email,
     this.posts = const [],
     this.role = Role.user,
+    this.tags = const [],
   });
 
   static EntityDescriptor<User, UserPartial> get entity =>
@@ -146,11 +150,21 @@ class Movie extends Entity {
 
 Future<void> main() async {
   final ds = DataSource(
-    InMemoryDataSourceOptions(entities: [User.entity, Post.entity, Tag.entity]),
+    PostgresDataSourceOptions.connect(
+      host: 'localhost',
+      port: 5432,
+      database: 'loxia',
+      username: 'loxia',
+      password: 'test1234',
+      entities: [User.entity, Post.entity, Tag.entity],
+      settings: ConnectionSettings(
+        sslMode: SslMode.disable
+      )
+    ),
   );
   await ds.init();
   final users = ds.getRepository<User>();
-  await users.save(UserPartial(email: 'example@example.com', role: Role.guest));
+  await users.save(UserPartial(email: 'example@example.com', role: Role.guest, tags: ['new', 'test']));
   await users.update(
     UserUpdateDto(email: 'new@example.com'),
     where: UserQuery((q) => q.id.equals(1)),
@@ -158,7 +172,7 @@ Future<void> main() async {
   final user = await users.findOneBy(
     where: UserQuery((q) => q.email.equals('new@example.com')),
   );
-  print('User: id=${user?.id}, email=${user?.email} - ${user?.role}');
+  print('User: id=${user?.toJson()}');
   final posts = ds.getRepository<Post>();
   await posts.save(
     PostPartial(
