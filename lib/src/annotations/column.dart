@@ -9,7 +9,7 @@ class Column {
   const Column({
     this.name,
     this.type,
-    this.nullable = true,
+    this.nullable = false,
     this.unique = false,
     this.defaultValue,
   });

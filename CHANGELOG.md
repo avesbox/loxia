@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.5
+
+- Fix nullable option also in column descriptors, ensuring that the generated code correctly reflects the nullability of columns as defined in the entity classes. This change ensures that the database schema and the generated code are consistent with the intended design of your entities, preventing potential issues with null values in your application.
+
 ## 0.0.4
 
 - Added support for Enum fields in entities, allowing you to define enum properties that will be automatically converted to and from their string representation in the database. You can specify the column type for enum fields using the `type` option in the `@Column` annotation, choosing between `ColumnType.text` for string representation or `ColumnType.integer` for index-based representation.
