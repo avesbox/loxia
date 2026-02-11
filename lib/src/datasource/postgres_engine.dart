@@ -186,7 +186,7 @@ class PostgresEngine implements EngineAdapter {
 
   @override
   Future<void> executeBatch(List<String> statements) async {
-    final db = _ensureDb();
+    final db = await _ensureConnection();
     for (final s in statements) {
       final sql = _adaptSql(s);
       await db.execute(sql);
@@ -195,7 +195,7 @@ class PostgresEngine implements EngineAdapter {
 
   @override
   Future<int> execute(String sql, [List<Object?> params = const []]) async {
-    final db = _ensureDb();
+    final db = await _ensureConnection();
     final adapted = _adaptSql(sql);
     final prepared = params.isEmpty ? adapted : _convertPlaceholders(adapted);
     final result = await db.execute(prepared, parameters: params);
@@ -207,7 +207,7 @@ class PostgresEngine implements EngineAdapter {
     String sql, [
     List<Object?> params = const [],
   ]) async {
-    final db = _ensureDb();
+    final db = await _ensureConnection();
     final prepared = params.isEmpty ? sql : _convertPlaceholders(sql);
     final result = await db.execute(prepared, parameters: params);
     return result
@@ -217,14 +217,15 @@ class PostgresEngine implements EngineAdapter {
 
   @override
   Future<SchemaState> readSchema() async {
-    return _readSchemaWithSession(_ensureDb());
+    final db = await _ensureConnection();
+    return _readSchemaWithSession(db);
   }
 
   @override
   Future<T> transaction<T>(
     Future<T> Function(EngineAdapter txEngine) action,
   ) async {
-    final db = _ensureDb();
+    final db = await _ensureConnection();
     return db.runTx((session) async {
       final txEngine = _PostgresSessionEngine(session);
       return action(txEngine);
@@ -233,7 +234,7 @@ class PostgresEngine implements EngineAdapter {
 
   @override
   Future<void> ensureHistoryTable() async {
-    final db = _ensureDb();
+    final db = await _ensureConnection();
     await db.execute(
       'CREATE TABLE IF NOT EXISTS _loxia_migrations (\n'
       '  version INTEGER PRIMARY KEY,\n'
@@ -245,7 +246,7 @@ class PostgresEngine implements EngineAdapter {
 
   @override
   Future<List<int>> getAppliedVersions() async {
-    final db = _ensureDb();
+    final db = await _ensureConnection();
     final result = await db.execute(
       'SELECT version FROM _loxia_migrations ORDER BY version',
     );
@@ -342,10 +343,11 @@ class PostgresEngine implements EngineAdapter {
     return ColumnType.text;
   }
 
-  Connection _ensureDb() {
-    final db = _db;
-    if (db == null) {
-      throw StateError('PostgresEngine is not open');
+  Future<Connection> _ensureConnection() async {
+    var db = _db;
+    if (db == null || !db.isOpen) {
+      db = await _open();
+      _db = db;
     }
     return db;
   }

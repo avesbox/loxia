@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.11
+
+- Fix a bug in PostgresEngine that won't connect after hot reload, causing the application to lose database connectivity after a hot reload. This fix ensures that the PostgresEngine properly re-establishes the connection to the database after a hot reload, allowing your application to continue functioning without interruption.
+
 ## 0.0.10
 
 - Added support for custom Queries. Allowing user to define custom sql queries in their repositories.
