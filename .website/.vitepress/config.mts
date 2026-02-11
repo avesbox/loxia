@@ -11,8 +11,13 @@ export default defineConfig({
   titleTemplate: ':title - Loxia | The Lightweight Dart ORM',
   description,
   head: [
-    ['link', { rel: "icon", type: "image/png", href: "/loxia-logo.png" }],
-    ['link', { rel: "apple-touch-icon", href: "/loxia-logo.png" }],
+    [
+        'link',
+        {
+            rel: 'icon',
+            href: '/loxia-logo.png'
+        }
+    ],
     [
         'meta',
         {

@@ -20,7 +20,7 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
 
   EntityDescriptor<T, P> get descriptor => _descriptor;
   EngineAdapter get engine => _engine;
-  
+
   static final Random _uuidRandom = Random.secure();
 
   void _encodeJsonColumns(Map<String, dynamic> map) {

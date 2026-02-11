@@ -439,13 +439,43 @@ extension UserJson on User {
   }
 }
 
+/// Result DTO for the [countUsers] query.
+final class CountUsersResult {
+  const CountUsersResult({required this.total});
+
+  factory CountUsersResult.fromMap(Map<String, dynamic> map) {
+    return CountUsersResult(total: map['total'] as int);
+  }
+
+  final int total;
+}
+
 extension UserRepositoryExtensions
     on EntityRepository<User, PartialEntity<User>> {
-  Future<List<UserPartial>> findByEmail(String email) async {
-    final rows = await engine.query('SELECT * FROM users WHERE email = ?', [
-      email,
-    ]);
-    return rows.map((row) => UserPartial.fromRow(row)).toList();
+  Future<User> findByEmail(String email) async {
+    final rows = await engine.query(
+      'SELECT * FROM users WHERE email = ? LIMIT 1',
+      [email],
+    );
+    final entity = descriptor.fromRow(rows.first);
+    return entity;
+  }
+
+  Future<CountUsersResult> countUsers() async {
+    final rows = await engine.query('SELECT COUNT(*) as total FROM users', []);
+    return CountUsersResult.fromMap(rows.first);
+  }
+
+  Future<List<PartialEntity<User>>> getUserEmailsAndRoles() async {
+    final rows = await engine.query('SELECT email, role FROM users', []);
+    final selectOpts = UserSelect();
+    return rows.map((row) => selectOpts.hydrate(row)).toList();
+  }
+
+  Future<List<User>> findAllUsers() async {
+    final rows = await engine.query('SELECT * FROM users', []);
+    final entities = rows.map((row) => descriptor.fromRow(row)).toList();
+    return entities;
   }
 }
 
@@ -2074,3 +2104,522 @@ extension MovieJson on Movie {
 
 extension MovieRepositoryExtensions
     on EntityRepository<Movie, PartialEntity<Movie>> {}
+
+final EntityDescriptor<WatchlistItem, WatchlistItemPartial>
+$WatchlistItemEntityDescriptor = EntityDescriptor(
+  entityType: WatchlistItem,
+  tableName: 'watchlist_items',
+  columns: [
+    ColumnDescriptor(
+      name: 'id',
+      propertyName: 'id',
+      type: ColumnType.integer,
+      nullable: false,
+      unique: false,
+      isPrimaryKey: true,
+      autoIncrement: true,
+      uuid: false,
+    ),
+    ColumnDescriptor(
+      name: 'notes',
+      propertyName: 'notes',
+      type: ColumnType.text,
+      nullable: true,
+      unique: false,
+      isPrimaryKey: false,
+      autoIncrement: false,
+      uuid: false,
+    ),
+    ColumnDescriptor(
+      name: 'created_at',
+      propertyName: 'createdAt',
+      type: ColumnType.dateTime,
+      nullable: true,
+      unique: false,
+      isPrimaryKey: false,
+      autoIncrement: false,
+      uuid: false,
+    ),
+  ],
+  relations: const [
+    RelationDescriptor(
+      fieldName: 'user',
+      type: RelationType.manyToOne,
+      target: User,
+      isOwningSide: true,
+      fetch: RelationFetchStrategy.lazy,
+      cascade: const [],
+      cascadePersist: false,
+      cascadeMerge: false,
+      cascadeRemove: false,
+      joinColumn: JoinColumnDescriptor(
+        name: 'user_id',
+        referencedColumnName: 'id',
+        nullable: true,
+        unique: false,
+      ),
+    ),
+    RelationDescriptor(
+      fieldName: 'movie',
+      type: RelationType.manyToOne,
+      target: Movie,
+      isOwningSide: true,
+      fetch: RelationFetchStrategy.lazy,
+      cascade: const [],
+      cascadePersist: false,
+      cascadeMerge: false,
+      cascadeRemove: false,
+      joinColumn: JoinColumnDescriptor(
+        name: 'movie_id',
+        referencedColumnName: 'id',
+        nullable: true,
+        unique: false,
+      ),
+    ),
+  ],
+  uniqueConstraints: const [
+    UniqueConstraintDescriptor(columns: ['user_id', 'movie_id']),
+  ],
+  fromRow: (row) => WatchlistItem(
+    id: (row['id'] as int),
+    notes: (row['notes'] as String?),
+    createdAt: row['created_at'] == null
+        ? null
+        : row['created_at'] is String
+        ? DateTime.parse(row['created_at'].toString())
+        : row['created_at'] as DateTime,
+    user: null,
+    movie: null,
+  ),
+  toRow: (e) => {
+    'id': e.id,
+    'notes': e.notes,
+    'created_at': e.createdAt?.toIso8601String(),
+    'user_id': e.user?.id,
+    'movie_id': e.movie?.id,
+  },
+  fieldsContext: const WatchlistItemFieldsContext(),
+  repositoryFactory: (EngineAdapter engine) => WatchlistItemRepository(engine),
+  hooks: EntityHooks<WatchlistItem>(
+    prePersist: (e) {
+      e.createdAt = DateTime.now();
+    },
+  ),
+  defaultSelect: () => WatchlistItemSelect(),
+);
+
+class WatchlistItemFieldsContext extends QueryFieldsContext<WatchlistItem> {
+  const WatchlistItemFieldsContext([super.runtimeContext, super.alias]);
+
+  @override
+  WatchlistItemFieldsContext bind(
+    QueryRuntimeContext runtimeContext,
+    String alias,
+  ) => WatchlistItemFieldsContext(runtimeContext, alias);
+
+  QueryField<int> get id => field<int>('id');
+
+  QueryField<String?> get notes => field<String?>('notes');
+
+  QueryField<DateTime?> get createdAt => field<DateTime?>('created_at');
+
+  QueryField<int?> get userId => field<int?>('user_id');
+
+  QueryField<String?> get movieId => field<String?>('movie_id');
+
+  UserFieldsContext get user {
+    final alias = ensureRelationJoin(
+      relationName: 'user',
+      targetTableName: $UserEntityDescriptor.qualifiedTableName,
+      localColumn: 'user_id',
+      foreignColumn: 'id',
+      joinType: JoinType.left,
+    );
+    return UserFieldsContext(runtimeOrThrow, alias);
+  }
+
+  MovieFieldsContext get movie {
+    final alias = ensureRelationJoin(
+      relationName: 'movie',
+      targetTableName: $MovieEntityDescriptor.qualifiedTableName,
+      localColumn: 'movie_id',
+      foreignColumn: 'id',
+      joinType: JoinType.left,
+    );
+    return MovieFieldsContext(runtimeOrThrow, alias);
+  }
+}
+
+class WatchlistItemQuery extends QueryBuilder<WatchlistItem> {
+  const WatchlistItemQuery(this._builder);
+
+  final WhereExpression Function(WatchlistItemFieldsContext) _builder;
+
+  @override
+  WhereExpression build(QueryFieldsContext<WatchlistItem> context) {
+    if (context is! WatchlistItemFieldsContext) {
+      throw ArgumentError(
+        'Expected WatchlistItemFieldsContext for WatchlistItemQuery',
+      );
+    }
+    return _builder(context);
+  }
+}
+
+class WatchlistItemSelect
+    extends SelectOptions<WatchlistItem, WatchlistItemPartial> {
+  const WatchlistItemSelect({
+    this.id = true,
+    this.notes = true,
+    this.createdAt = true,
+    this.userId = true,
+    this.movieId = true,
+    this.relations,
+  });
+
+  final bool id;
+
+  final bool notes;
+
+  final bool createdAt;
+
+  final bool userId;
+
+  final bool movieId;
+
+  final WatchlistItemRelations? relations;
+
+  @override
+  bool get hasSelections =>
+      id ||
+      notes ||
+      createdAt ||
+      userId ||
+      movieId ||
+      (relations?.hasSelections ?? false);
+
+  @override
+  void collect(
+    QueryFieldsContext<WatchlistItem> context,
+    List<SelectField> out, {
+    String? path,
+  }) {
+    if (context is! WatchlistItemFieldsContext) {
+      throw ArgumentError(
+        'Expected WatchlistItemFieldsContext for WatchlistItemSelect',
+      );
+    }
+    final WatchlistItemFieldsContext scoped = context;
+    String? aliasFor(String column) {
+      final current = path;
+      if (current == null || current.isEmpty) return null;
+      return '${current}_$column';
+    }
+
+    final tableAlias = scoped.currentAlias;
+    if (id) {
+      out.add(SelectField('id', tableAlias: tableAlias, alias: aliasFor('id')));
+    }
+    if (notes) {
+      out.add(
+        SelectField('notes', tableAlias: tableAlias, alias: aliasFor('notes')),
+      );
+    }
+    if (createdAt) {
+      out.add(
+        SelectField(
+          'created_at',
+          tableAlias: tableAlias,
+          alias: aliasFor('created_at'),
+        ),
+      );
+    }
+    if (userId) {
+      out.add(
+        SelectField(
+          'user_id',
+          tableAlias: tableAlias,
+          alias: aliasFor('user_id'),
+        ),
+      );
+    }
+    if (movieId) {
+      out.add(
+        SelectField(
+          'movie_id',
+          tableAlias: tableAlias,
+          alias: aliasFor('movie_id'),
+        ),
+      );
+    }
+    final rels = relations;
+    if (rels != null && rels.hasSelections) {
+      rels.collect(scoped, out, path: path);
+    }
+  }
+
+  @override
+  WatchlistItemPartial hydrate(Map<String, dynamic> row, {String? path}) {
+    UserPartial? userPartial;
+    final userSelect = relations?.user;
+    if (userSelect != null && userSelect.hasSelections) {
+      userPartial = userSelect.hydrate(row, path: extendPath(path, 'user'));
+    }
+    MoviePartial? moviePartial;
+    final movieSelect = relations?.movie;
+    if (movieSelect != null && movieSelect.hasSelections) {
+      moviePartial = movieSelect.hydrate(row, path: extendPath(path, 'movie'));
+    }
+    return WatchlistItemPartial(
+      id: id ? readValue(row, 'id', path: path) as int : null,
+      notes: notes ? readValue(row, 'notes', path: path) as String? : null,
+      createdAt: createdAt
+          ? readValue(row, 'created_at', path: path) == null
+                ? null
+                : (readValue(row, 'created_at', path: path) is String
+                      ? DateTime.parse(
+                          readValue(row, 'created_at', path: path) as String,
+                        )
+                      : readValue(row, 'created_at', path: path) as DateTime)
+          : null,
+      userId: userId ? readValue(row, 'user_id', path: path) as int? : null,
+      user: userPartial,
+      movieId: movieId
+          ? readValue(row, 'movie_id', path: path) as String?
+          : null,
+      movie: moviePartial,
+    );
+  }
+
+  @override
+  bool get hasCollectionRelations => false;
+
+  @override
+  String? get primaryKeyColumn => 'id';
+}
+
+class WatchlistItemRelations {
+  const WatchlistItemRelations({this.user, this.movie});
+
+  final UserSelect? user;
+
+  final MovieSelect? movie;
+
+  bool get hasSelections =>
+      (user?.hasSelections ?? false) || (movie?.hasSelections ?? false);
+
+  void collect(
+    WatchlistItemFieldsContext context,
+    List<SelectField> out, {
+    String? path,
+  }) {
+    final userSelect = user;
+    if (userSelect != null && userSelect.hasSelections) {
+      final relationPath = path == null || path.isEmpty
+          ? 'user'
+          : '${path}_user';
+      final relationContext = context.user;
+      userSelect.collect(relationContext, out, path: relationPath);
+    }
+    final movieSelect = movie;
+    if (movieSelect != null && movieSelect.hasSelections) {
+      final relationPath = path == null || path.isEmpty
+          ? 'movie'
+          : '${path}_movie';
+      final relationContext = context.movie;
+      movieSelect.collect(relationContext, out, path: relationPath);
+    }
+  }
+}
+
+class WatchlistItemPartial extends PartialEntity<WatchlistItem> {
+  const WatchlistItemPartial({
+    this.id,
+    this.notes,
+    this.createdAt,
+    this.userId,
+    this.user,
+    this.movieId,
+    this.movie,
+  });
+
+  final int? id;
+
+  final String? notes;
+
+  final DateTime? createdAt;
+
+  final int? userId;
+
+  final String? movieId;
+
+  final UserPartial? user;
+
+  final MoviePartial? movie;
+
+  @override
+  Object? get primaryKeyValue {
+    return id;
+  }
+
+  @override
+  WatchlistItemInsertDto toInsertDto() {
+    final missing = <String>[];
+    if (missing.isNotEmpty) {
+      throw StateError(
+        'Cannot convert WatchlistItemPartial to WatchlistItemInsertDto: missing required fields: ${missing.join(', ')}',
+      );
+    }
+    return WatchlistItemInsertDto(
+      notes: notes,
+      createdAt: createdAt,
+      userId: userId,
+      movieId: movieId,
+    );
+  }
+
+  @override
+  WatchlistItemUpdateDto toUpdateDto() {
+    return WatchlistItemUpdateDto(
+      notes: notes,
+      createdAt: createdAt,
+      userId: userId,
+      movieId: movieId,
+    );
+  }
+
+  @override
+  WatchlistItem toEntity() {
+    final missing = <String>[];
+    if (id == null) missing.add('id');
+    if (missing.isNotEmpty) {
+      throw StateError(
+        'Cannot convert WatchlistItemPartial to WatchlistItem: missing required fields: ${missing.join(', ')}',
+      );
+    }
+    return WatchlistItem(
+      id: id!,
+      notes: notes,
+      createdAt: createdAt,
+      user: user?.toEntity(),
+      movie: movie?.toEntity(),
+    );
+  }
+
+  @override
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'notes': notes,
+      'createdAt': createdAt?.toIso8601String(),
+      'user': user?.toJson(),
+      'movie': movie?.toJson(),
+      'userId': userId,
+      'movieId': movieId,
+    };
+  }
+}
+
+class WatchlistItemInsertDto implements InsertDto<WatchlistItem> {
+  const WatchlistItemInsertDto({
+    this.notes,
+    this.createdAt,
+    this.userId,
+    this.movieId,
+  });
+
+  final String? notes;
+
+  final DateTime? createdAt;
+
+  final int? userId;
+
+  final String? movieId;
+
+  @override
+  Map<String, dynamic> toMap() {
+    return {
+      'notes': notes,
+      'created_at': DateTime.now().toIso8601String(),
+      if (userId != null) 'user_id': userId,
+      if (movieId != null) 'movie_id': movieId,
+    };
+  }
+
+  Map<String, dynamic> get cascades {
+    return const {};
+  }
+
+  WatchlistItemInsertDto copyWith({
+    String? notes,
+    DateTime? createdAt,
+    int? userId,
+    String? movieId,
+  }) {
+    return WatchlistItemInsertDto(
+      notes: notes ?? this.notes,
+      createdAt: createdAt ?? this.createdAt,
+      userId: userId ?? this.userId,
+      movieId: movieId ?? this.movieId,
+    );
+  }
+}
+
+class WatchlistItemUpdateDto implements UpdateDto<WatchlistItem> {
+  const WatchlistItemUpdateDto({
+    this.notes,
+    this.createdAt,
+    this.userId,
+    this.movieId,
+  });
+
+  final String? notes;
+
+  final DateTime? createdAt;
+
+  final int? userId;
+
+  final String? movieId;
+
+  @override
+  Map<String, dynamic> toMap() {
+    return {
+      if (notes != null) 'notes': notes,
+      if (createdAt != null)
+        'created_at': createdAt is DateTime
+            ? (createdAt as DateTime).toIso8601String()
+            : createdAt?.toString(),
+      if (userId != null) 'user_id': userId,
+      if (movieId != null) 'movie_id': movieId,
+    };
+  }
+
+  Map<String, dynamic> get cascades {
+    return const {};
+  }
+}
+
+class WatchlistItemRepository
+    extends EntityRepository<WatchlistItem, WatchlistItemPartial> {
+  WatchlistItemRepository(EngineAdapter engine)
+    : super(
+        $WatchlistItemEntityDescriptor,
+        engine,
+        $WatchlistItemEntityDescriptor.fieldsContext,
+      );
+}
+
+extension WatchlistItemJson on WatchlistItem {
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'notes': notes,
+      'createdAt': createdAt?.toIso8601String(),
+      'user': user?.toJson(),
+      'movie': movie?.toJson(),
+    };
+  }
+}
+
+extension WatchlistItemRepositoryExtensions
+    on EntityRepository<WatchlistItem, PartialEntity<WatchlistItem>> {}

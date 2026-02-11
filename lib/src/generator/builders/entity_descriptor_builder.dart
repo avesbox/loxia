@@ -42,6 +42,10 @@ class EntityDescriptorBuilder {
       if (context.schema != null) 'schema': literalString(context.schema!),
       'columns': _columnBuilder.buildList(context.columns),
       'relations': _relationBuilder.buildConstList(context.relations),
+      if (context.uniqueConstraints.isNotEmpty)
+        'uniqueConstraints': _buildUniqueConstraintsList(
+          context.uniqueConstraints,
+        ),
       'fromRow': _buildFromRow(context),
       'toRow': _buildToRow(context),
       'fieldsContext': refer(context.fieldsContextName).constInstance([]),
@@ -64,6 +68,23 @@ class EntityDescriptorBuilder {
           ..lambda = true,
       ).closure,
     });
+  }
+
+  Expression _buildUniqueConstraintsList(
+    List<GenUniqueConstraint> constraints,
+  ) {
+    return literalConstList(
+      constraints
+          .map(
+            (c) => refer('UniqueConstraintDescriptor').newInstance([], {
+              'columns': literalConstList(
+                c.columns.map(literalString).toList(),
+              ),
+              if (c.name != null) 'name': literalString(c.name!),
+            }),
+          )
+          .toList(),
+    );
   }
 
   bool _hasHooks(EntityGenerationContext context) {

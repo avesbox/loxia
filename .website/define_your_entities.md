@@ -102,3 +102,60 @@ Loxia provides a convenient way to manage timestamps for your entities. You can 
 
 - `@CreatedAt`: Automatically sets the timestamp when a new entity is created.
 - `@UpdatedAt`: Automatically updates the timestamp whenever an existing entity is modified.
+
+## Custom Queries
+
+Loxia allows you to define custom SQL queries in your repositories for more complex operations that may not be covered by the standard CRUD methods. To achieve this you can add a `Query` instance to the `queries` list in your `@EntityMeta` annotation, providing a name and the SQL query string. For example:
+
+```dart
+@EntityMeta(
+  table: 'users',
+  queries: [
+    Query(name: 'findByEmail', query: 'SELECT * FROM users WHERE email = @email')
+  ]
+)
+class User extends Entity {
+  // ...
+}
+```
+
+In this example, we define a custom query named `findByEmail` that retrieves a user by their email address. You can then call this query from your repository like this:
+
+```dart
+final user = await userRepository.findByEmail('new@example.com');
+```
+
+In the example the `findByEmail` query will return a list of full `User` entities matching the provided email address. You can define as many custom queries as needed, allowing you to perform complex database operations while still benefiting from the convenience of Loxia's entity management.
+
+| Parameter | Description |
+|-----------|-------------|
+| `name`    | The name of the custom query, which will be used to call the query from your repository. |
+| `query`   | The SQL query string that defines the custom query. You can use parameter placeholders (e.g., `@email`) to pass parameters when calling the query. |
+| `lifecycleHooks` | A list of lifecycle hooks that will be executed before or after the query is executed. This allows you to perform additional operations such as logging, validation, or modifying the query results. |
+
+## Unique Constraints
+
+Loxia allows you to define multiple unique constraints on your entities using the UniqueConstraint class. This is useful for ensuring data integrity and enforcing uniqueness across multiple columns in your database. To define unique constraints, you can add a list of UniqueConstraint instances to the `uniqueConstraints` parameter in your `@EntityMeta` annotation. For example:
+
+```dart
+@EntityMeta(
+  table: 'user_movies',
+  uniqueConstraints: [
+    UniqueConstraint(columns: ['user_id', 'movie_id']),
+  ]
+)
+class UserMovie extends Entity {
+  @PrimaryKey(autoIncrement: true)
+  final int id;
+
+  @Column()
+  final int userId;
+
+  @Column()
+  final int movieId;
+
+  UserMovie({required this.id, required this.userId, required this.movieId});
+}
+```
+
+In this example, we define a unique constraint on the combination of `user_id` and `movie_id` columns in the `user_movies` table. This ensures that each user can only have one entry for each movie, preventing duplicate records in the database. You can define multiple unique constraints on the same entity if needed, allowing you to enforce complex uniqueness rules across your database tables.

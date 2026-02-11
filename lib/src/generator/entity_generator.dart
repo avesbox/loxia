@@ -7,8 +7,8 @@ import 'package:analyzer/dart/element/type.dart';
 import 'package:build/build.dart';
 import 'package:code_builder/code_builder.dart';
 import 'package:dart_style/dart_style.dart';
-import 'package:loxia/src/annotations/lifecycle.dart';
 import 'package:loxia/src/generator/builders/repository_extensions_builder.dart';
+import 'package:loxia/src/generator/util/sql_analyzer.dart';
 import 'package:source_gen/source_gen.dart';
 
 import '../../loxia.dart'
@@ -65,6 +65,7 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
   final _repositoryClassBuilder = const RepositoryClassBuilder();
   final _jsonExtensionBuilder = const JsonExtensionBuilder();
   final _repositoryExtensionsBuilder = const RepositoryExtensionsBuilder();
+  final _queryResultDtoBuilder = const QueryResultDtoBuilder();
 
   @override
   Future<String> generateForAnnotatedElement(
@@ -78,6 +79,10 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
 
     // Parse metadata from annotations
     final context = _parseEntityContext(clazz, annotation);
+
+    // Analyze SQL queries at compile-time
+    _analyzeQueries(context);
+
     // Build all code components
     final library = Library(
       (lib) => lib
@@ -91,7 +96,9 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
         ..body.add(_updateDtoBuilder.build(context))
         ..body.add(_repositoryClassBuilder.build(context))
         ..body.add(_jsonExtensionBuilder.build(context))
-        ..body.add(_repositoryExtensionsBuilder.build(context))
+        // Add query result DTOs before the extension that uses them
+        ..body.addAll(_queryResultDtoBuilder.buildAll(context))
+        ..body.add(_repositoryExtensionsBuilder.build(context)),
     );
 
     // Emit and format the generated code
@@ -112,6 +119,7 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
     final relations = _parseRelations(clazz, className, table);
     final hooks = _parseHooks(clazz);
     final timestamps = _parseTimestampFields(clazz);
+    final uniqueConstraints = _parseUniqueConstraints(annotation);
 
     return EntityGenerationContext(
       className: className,
@@ -123,7 +131,30 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
       queries: queries,
       createdAtFields: timestamps.createdAt,
       updatedAtFields: timestamps.updatedAt,
+      uniqueConstraints: uniqueConstraints,
     );
+  }
+
+  List<GenUniqueConstraint> _parseUniqueConstraints(ConstantReader annotation) {
+    final constraintsReader = annotation.peek('uniqueConstraints');
+    if (constraintsReader == null) return [];
+    final constraintObjs = constraintsReader.listValue;
+    final constraints = <GenUniqueConstraint>[];
+    for (final obj in constraintObjs) {
+      final reader = ConstantReader(obj);
+      final columnsReader = reader.peek('columns')?.listValue ?? [];
+      final columns = columnsReader
+          .map((v) => ConstantReader(v).stringValue)
+          .toList();
+      final name = reader.peek('name')?.stringValue;
+      if (columns.isEmpty) {
+        throw InvalidGenerationSourceError(
+          'Each UniqueConstraint must have at least one column.',
+        );
+      }
+      constraints.add(GenUniqueConstraint(columns: columns, name: name));
+    }
+    return constraints;
   }
 
   List<GenQuery> _parseQueries(ConstantReader annotation) {
@@ -140,24 +171,71 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
           'Each Query must have a non-null name and sql.',
         );
       }
-      final returnFullEntity =
-          reader.peek('returnFullEntity')?.boolValue ?? false;
-      final singleResult = reader.peek('singleResult')?.boolValue ?? false;
-      final lifecycleHooksReader = reader.peek('lifecycleHooks')?.listValue ?? [];
+      final lifecycleHooksReader =
+          reader.peek('lifecycleHooks')?.listValue ?? [];
       final lifecycleHooks = <String>[];
       for (final hook in lifecycleHooksReader) {
         final revieved = ConstantReader(hook).revive();
         lifecycleHooks.add(revieved.accessor.replaceFirst('Lifecycle.', ''));
       }
-      queries.add(GenQuery(
-        name: name,
-        sql: sql,
-        returnFullEntity: returnFullEntity,
-        singleResult: singleResult,
-        lifecycleHooks: lifecycleHooks,
-      ));
+      queries.add(
+        GenQuery(name: name, sql: sql, lifecycleHooks: lifecycleHooks),
+      );
     }
     return queries;
+  }
+
+  /// Analyzes all queries in the context using the SQL analyzer.
+  ///
+  /// This populates the [GenQuery.analysisResult] field for each query
+  /// with compile-time type information extracted from the SQL.
+  void _analyzeQueries(EntityGenerationContext context) {
+    if (context.queries.isEmpty) return;
+
+    final analyzer = SqlAnalyzer(context);
+
+    for (final query in context.queries) {
+      final analysis = analyzer.analyze(query.name, query.sql);
+
+      // Convert analyzer result to GenQueryAnalysisResult
+      query.analysisResult = GenQueryAnalysisResult(
+        columns: analysis.columns
+            .map(
+              (c) => GenQueryColumn(
+                name: c.name,
+                dartType: c.dartType,
+                nullable: c.nullable,
+                originalColumnName: c.originalColumnName,
+              ),
+            )
+            .toList(),
+        matchesEntity: analysis.matchesEntity,
+        matchesPartialEntity: analysis.matchesPartialEntity,
+        hasJoins: analysis.hasJoins,
+        hasAggregates: analysis.hasAggregates,
+        isSingleResult: analysis.isSingleResult,
+        dtoClassName: analysis.dtoClassName,
+      );
+
+      // Validate parameters
+      final sqlParams = _extractSqlParams(query.sql);
+      final unknownParams = analyzer.validateVariables(query.name, sqlParams);
+
+      if (unknownParams.isNotEmpty) {
+        // Log a warning but don't fail - params might be intentionally custom
+        print(
+          'Warning: Query "${query.name}" on ${context.className} uses '
+          'parameters not found as columns: ${unknownParams.join(', ')}. '
+          'Ensure these match entity property names.',
+        );
+      }
+    }
+  }
+
+  /// Extracts parameter names from SQL (e.g., @id, @name -> ['id', 'name'])
+  List<String> _extractSqlParams(String sql) {
+    final regex = RegExp(r'@(\w+)');
+    return regex.allMatches(sql).map((m) => m.group(1)!).toList();
   }
 
   _TimestampFields _parseTimestampFields(ClassElement clazz) {

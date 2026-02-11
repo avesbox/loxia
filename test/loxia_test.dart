@@ -161,6 +161,11 @@ class _PartialFakeEntity extends PartialEntity<_FakeEntity> {
   UpdateDto<_FakeEntity> toUpdateDto() {
     throw UnimplementedError();
   }
+
+  @override
+  Map<String, dynamic> toJson() {
+    throw UnimplementedError();
+  }
 }
 
 class _FakeSelect extends SelectOptions<_FakeEntity, _PartialFakeEntity> {

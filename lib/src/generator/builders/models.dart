@@ -142,9 +142,11 @@ class EntityGenerationContext {
     Map<String, List<String>>? hooks,
     List<GenTimestampField>? createdAtFields,
     List<GenTimestampField>? updatedAtFields,
+    List<GenUniqueConstraint>? uniqueConstraints,
   }) : hooks = hooks ?? const {},
        createdAtFields = createdAtFields ?? const [],
-       updatedAtFields = updatedAtFields ?? const [];
+       updatedAtFields = updatedAtFields ?? const [],
+       uniqueConstraints = uniqueConstraints ?? const [];
 
   final String className;
   final String tableName;
@@ -155,6 +157,7 @@ class EntityGenerationContext {
   final List<GenQuery> queries;
   final List<GenTimestampField> createdAtFields;
   final List<GenTimestampField> updatedAtFields;
+  final List<GenUniqueConstraint> uniqueConstraints;
 
   /// Entity class name.
   String get entityName => className;
@@ -224,14 +227,85 @@ class GenQuery {
   GenQuery({
     required this.name,
     required this.sql,
-    required this.returnFullEntity,
-    required this.singleResult,
     required this.lifecycleHooks,
+    this.analysisResult,
   });
 
   final String name;
   final String sql;
-  final bool returnFullEntity;
-  final bool singleResult;
   final List<String> lifecycleHooks;
+
+  /// The result of SQL analysis for this query.
+  /// Populated during generation for compile-time validation.
+  GenQueryAnalysisResult? analysisResult;
+}
+
+/// Result of SQL analysis for a query.
+class GenQueryAnalysisResult {
+  GenQueryAnalysisResult({
+    required this.columns,
+    required this.matchesEntity,
+    required this.matchesPartialEntity,
+    required this.hasJoins,
+    required this.hasAggregates,
+    required this.isSingleResult,
+    required this.dtoClassName,
+  });
+
+  /// The resolved columns from the SELECT statement.
+  final List<GenQueryColumn> columns;
+
+  /// Whether the columns exactly match the entity's columns.
+  final bool matchesEntity;
+
+  /// Whether the columns are a subset of the entity's columns.
+  final bool matchesPartialEntity;
+
+  /// Whether the query contains JOINs.
+  final bool hasJoins;
+
+  /// Whether the query contains aggregate functions.
+  final bool hasAggregates;
+
+  /// Whether the query returns a single result (LIMIT 1 or aggregate without GROUP BY).
+  final bool isSingleResult;
+
+  /// The generated DTO class name if needed.
+  final String dtoClassName;
+
+  /// Returns true if a DTO class needs to be generated.
+  bool get requiresDto => !matchesEntity && !matchesPartialEntity;
+}
+
+/// A resolved column from SQL analysis.
+class GenQueryColumn {
+  GenQueryColumn({
+    required this.name,
+    required this.dartType,
+    required this.nullable,
+    this.originalColumnName,
+  });
+
+  /// The name of the column in the result (may be alias).
+  final String name;
+
+  /// The Dart type to use for this column.
+  final String dartType;
+
+  /// Whether the column is nullable.
+  final bool nullable;
+
+  /// The original column name if this is an alias.
+  final String? originalColumnName;
+}
+
+/// Represents a composite unique constraint for code generation.
+class GenUniqueConstraint {
+  GenUniqueConstraint({required this.columns, this.name});
+
+  /// The list of column names that form the unique constraint.
+  final List<String> columns;
+
+  /// Optional constraint name.
+  final String? name;
 }

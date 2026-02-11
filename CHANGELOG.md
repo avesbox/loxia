@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.10
+
+- Added support for custom Queries. Allowing user to define custom sql queries in their repositories.
+- Added support for Unique Constraints. Allowing user to define multiple unique constraints on their entities.
+
 ## 0.0.9
 
 - Remove debug print statements from the codebase to clean up the output.

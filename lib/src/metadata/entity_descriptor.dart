@@ -7,6 +7,7 @@ import '../repository/query.dart';
 import 'column_descriptor.dart';
 import 'index_descriptor.dart';
 import 'relation_descriptor.dart';
+import 'unique_constraint_descriptor.dart';
 
 typedef EntityFromRow<T extends Entity> = T Function(Map<String, dynamic> row);
 typedef EntityToRow<T extends Entity> = Map<String, dynamic> Function(T entity);
@@ -30,6 +31,7 @@ class EntityDescriptor<T extends Entity, P extends PartialEntity<T>> {
     required List<ColumnDescriptor> columns,
     List<RelationDescriptor> relations = const [],
     List<IndexDescriptor> indexes = const [],
+    List<UniqueConstraintDescriptor> uniqueConstraints = const [],
     required this.fromRow,
     required this.toRow,
     required this.fieldsContext,
@@ -38,7 +40,8 @@ class EntityDescriptor<T extends Entity, P extends PartialEntity<T>> {
     this.defaultSelect,
   }) : columns = List.unmodifiable(columns),
        relations = List.unmodifiable(relations),
-       indexes = List.unmodifiable(indexes);
+       indexes = List.unmodifiable(indexes),
+       uniqueConstraints = List.unmodifiable(uniqueConstraints);
 
   final Type entityType;
   final String tableName;
@@ -46,6 +49,7 @@ class EntityDescriptor<T extends Entity, P extends PartialEntity<T>> {
   final List<ColumnDescriptor> columns;
   final List<RelationDescriptor> relations;
   final List<IndexDescriptor> indexes;
+  final List<UniqueConstraintDescriptor> uniqueConstraints;
   final EntityFromRow<T> fromRow;
   final EntityToRow<T> toRow;
   final QueryFieldsContext<T> fieldsContext;

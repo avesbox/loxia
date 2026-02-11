@@ -8,11 +8,18 @@ enum Role { admin, user, guest }
 @EntityMeta(
   table: 'users',
   queries: [
+    // Full entity return (SELECT *) with LIMIT 1 -> single User
     Query(
-      name: 'findByEmail', 
-      sql: 'SELECT * FROM users WHERE email = @email',  
+      name: 'findByEmail',
+      sql: 'SELECT * FROM users WHERE email = @email LIMIT 1',
     ),
-  ]
+    // DTO with aggregate (no GROUP BY) -> single CountUsersResult
+    Query(name: 'countUsers', sql: 'SELECT COUNT(*) as total FROM users'),
+    // Partial entity - specific columns subset -> List<PartialEntity>
+    Query(name: 'getUserEmailsAndRoles', sql: 'SELECT email, role FROM users'),
+    // Full entity return without LIMIT -> List<User>
+    Query(name: 'findAllUsers', sql: 'SELECT * FROM users'),
+  ],
 )
 class User extends Entity {
   @PrimaryKey(autoIncrement: true)
@@ -154,12 +161,75 @@ class Movie extends Entity {
 
   @UpdatedAt()
   DateTime? updatedAt;
+
+  static EntityDescriptor<Movie, MoviePartial> get entity =>
+      $MovieEntityDescriptor;
+}
+
+/// Example of using composite unique constraints.
+///
+/// This entity demonstrates the Prisma-like `@@unique([userId, movieId])`
+/// pattern in Loxia using the `uniqueConstraints` parameter.
+@EntityMeta(
+  table: 'watchlist_items',
+  uniqueConstraints: [
+    // Enforces that a user can only have one entry per movie in their watchlist
+    UniqueConstraint(columns: ['user_id', 'movie_id']),
+  ],
+)
+class WatchlistItem extends Entity {
+  @PrimaryKey(autoIncrement: true)
+  final int id;
+
+  @ManyToOne(on: User)
+  final User? user;
+
+  @ManyToOne(on: Movie)
+  final Movie? movie;
+
+  @Column()
+  final String? notes;
+
+  @CreatedAt()
+  DateTime? createdAt;
+
+  WatchlistItem({
+    required this.id,
+    this.user,
+    this.movie,
+    this.notes,
+    this.createdAt,
+  });
+
+  static EntityDescriptor<WatchlistItem, WatchlistItemPartial> get entity =>
+      $WatchlistItemEntityDescriptor;
+}
+
+class UniqueConstraintMigration extends Migration {
+  UniqueConstraintMigration(super.version);
+
+  @override
+  Future<void> up(EngineAdapter engine) async {
+    await engine.execute('''
+      ALTER TABLE users
+      ADD CONSTRAINT unique_email UNIQUE (email);
+    ''');
+  }
+
+  @override
+  Future<void> down(EngineAdapter engine) async {
+    await engine.execute('''
+      ALTER TABLE users
+      DROP CONSTRAINT unique_email;
+    ''');
+  }
 }
 
 Future<void> main() async {
   final ds = DataSource(
     InMemoryDataSourceOptions(
-      entities: [User.entity, Post.entity, Tag.entity]
+      entities: [User.entity, Post.entity, Tag.entity],
+      migrations: [UniqueConstraintMigration(1)],
     ),
     // PostgresDataSourceOptions.connect(
     //   host: 'localhost',

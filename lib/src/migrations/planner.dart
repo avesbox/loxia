@@ -1,6 +1,7 @@
 import '../metadata/entity_descriptor.dart';
 import '../metadata/column_descriptor.dart';
 import '../metadata/relation_descriptor.dart';
+import '../metadata/unique_constraint_descriptor.dart';
 import '../annotations/column.dart';
 import 'schema.dart';
 
@@ -80,7 +81,24 @@ class MigrationPlanner {
         }
       }
     }
+
+    // Process composite unique constraints after all tables are created.
+    for (final entity in entities) {
+      for (final constraint in entity.uniqueConstraints) {
+        stmts.add(_uniqueConstraintDDL(entity.tableName, constraint));
+      }
+    }
+
     return MigrationPlan(stmts);
+  }
+
+  String _uniqueConstraintDDL(
+    String tableName,
+    UniqueConstraintDescriptor constraint,
+  ) {
+    final constraintName = constraint.generateName(tableName);
+    final columns = constraint.columns.map((c) => '"$c"').join(', ');
+    return 'CREATE UNIQUE INDEX IF NOT EXISTS "$constraintName" ON $tableName ($columns)';
   }
 
   String _columnDDL(ColumnDescriptor c) {

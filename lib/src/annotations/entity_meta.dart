@@ -1,4 +1,5 @@
 import 'package:loxia/src/annotations/lifecycle.dart';
+import 'package:loxia/src/annotations/unique_constraint.dart';
 
 /// Marks a class as a Loxia entity and optionally overrides table metadata.
 class EntityMeta {
@@ -10,27 +11,40 @@ class EntityMeta {
 
   final List<Query> queries;
 
-  const EntityMeta({this.table, this.schema, this.queries = const []});
+  /// Composite unique constraints for this entity.
+  ///
+  /// Use this to define uniqueness across multiple columns, similar to
+  /// Prisma's `@@unique([column1, column2])`.
+  ///
+  /// Example:
+  /// ```dart
+  /// @EntityMeta(
+  ///   table: 'watchlist_items',
+  ///   uniqueConstraints: [
+  ///     UniqueConstraint(columns: ['user_id', 'movie_id']),
+  ///   ],
+  /// )
+  /// ```
+  final List<UniqueConstraint> uniqueConstraints;
+
+  const EntityMeta({
+    this.table,
+    this.schema,
+    this.queries = const [],
+    this.uniqueConstraints = const [],
+  });
 }
 
 class Query {
-
   final String name;
 
   final String sql;
-
-  final bool returnFullEntity;
-
-  final bool singleResult;
 
   final List<Lifecycle> lifecycleHooks;
 
   const Query({
     required this.name,
     required this.sql,
-    this.returnFullEntity = false,
-    this.singleResult = false,
     this.lifecycleHooks = const [],
   });
-
 }
