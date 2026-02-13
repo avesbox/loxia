@@ -36,12 +36,14 @@ class MigrationPlanner {
         // Add join columns WITHOUT inline foreign key constraints
         for (final jc in joinColumns) {
           cols.add(_joinColumnDDLWithoutFK(jc));
-          deferredForeignKeys.add(_DeferredForeignKey(
-            tableName: entity.tableName,
-            columnName: jc.name,
-            referencesTable: jc.referencesTable,
-            referencesColumn: jc.referencesColumn,
-          ));
+          deferredForeignKeys.add(
+            _DeferredForeignKey(
+              tableName: entity.tableName,
+              columnName: jc.name,
+              referencesTable: jc.referencesTable,
+              referencesColumn: jc.referencesColumn,
+            ),
+          );
         }
         final create =
             'CREATE TABLE IF NOT EXISTS ${entity.tableName} (\n  ${cols.join(',\n  ')}\n)';
@@ -59,12 +61,14 @@ class MigrationPlanner {
             stmts.add(
               'ALTER TABLE ${entity.tableName} ADD COLUMN ${_joinColumnDDLWithoutFK(jc)}',
             );
-            deferredForeignKeys.add(_DeferredForeignKey(
-              tableName: entity.tableName,
-              columnName: jc.name,
-              referencesTable: jc.referencesTable,
-              referencesColumn: jc.referencesColumn,
-            ));
+            deferredForeignKeys.add(
+              _DeferredForeignKey(
+                tableName: entity.tableName,
+                columnName: jc.name,
+                referencesTable: jc.referencesTable,
+                referencesColumn: jc.referencesColumn,
+              ),
+            );
           }
         }
       }
@@ -84,17 +88,21 @@ class MigrationPlanner {
     for (final joinSpec in joinTableSpecs) {
       final schemaTable = current.tables[joinSpec.name];
       if (schemaTable == null) {
-        final cols = joinSpec.columns.map(_joinColumnDDLWithoutFK).join(',\n  ');
+        final cols = joinSpec.columns
+            .map(_joinColumnDDLWithoutFK)
+            .join(',\n  ');
         final create =
             'CREATE TABLE IF NOT EXISTS ${joinSpec.name} (\n  $cols\n)';
         stmts.add(create);
         for (final col in joinSpec.columns) {
-          deferredForeignKeys.add(_DeferredForeignKey(
-            tableName: joinSpec.name,
-            columnName: col.name,
-            referencesTable: col.referencesTable,
-            referencesColumn: col.referencesColumn,
-          ));
+          deferredForeignKeys.add(
+            _DeferredForeignKey(
+              tableName: joinSpec.name,
+              columnName: col.name,
+              referencesTable: col.referencesTable,
+              referencesColumn: col.referencesColumn,
+            ),
+          );
         }
       } else {
         for (final col in joinSpec.columns) {
@@ -102,12 +110,14 @@ class MigrationPlanner {
             stmts.add(
               'ALTER TABLE ${joinSpec.name} ADD COLUMN ${_joinColumnDDLWithoutFK(col)}',
             );
-            deferredForeignKeys.add(_DeferredForeignKey(
-              tableName: joinSpec.name,
-              columnName: col.name,
-              referencesTable: col.referencesTable,
-              referencesColumn: col.referencesColumn,
-            ));
+            deferredForeignKeys.add(
+              _DeferredForeignKey(
+                tableName: joinSpec.name,
+                columnName: col.name,
+                referencesTable: col.referencesTable,
+                referencesColumn: col.referencesColumn,
+              ),
+            );
           }
         }
       }
@@ -156,7 +166,6 @@ class MigrationPlanner {
     }
     return parts.join(' ');
   }
-
 
   /// Creates column DDL without inline foreign key constraint.
   /// Foreign keys are added later via ALTER TABLE to handle circular references.
