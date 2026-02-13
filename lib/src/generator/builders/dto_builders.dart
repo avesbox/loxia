@@ -411,7 +411,7 @@ class UpdateDtoBuilder {
       }
       var valueExpr = _enumToStorage(
         c,
-        _timestampPropToDateTime(c, c.prop),
+        _timestampPropToDateTime(c, c.prop, true),
         true,
       );
       entries.add("if(${c.prop} != null) '${c.name}': $valueExpr");
@@ -474,11 +474,16 @@ String _timestampLiteralToDateTime(GenColumn c, String expr) {
   }
 }
 
-String _timestampPropToDateTime(GenColumn c, String prop) {
+String _timestampPropToDateTime(
+  GenColumn c,
+  String prop, [
+  bool toUpdateDto = false,
+]) {
+  final isNullable = c.nullable || toUpdateDto;
   if (!c.isCreatedAt && !c.isUpdatedAt) {
     final base = c.dartTypeCode.replaceAll('?', '');
     if (base == 'DateTime') {
-      return c.nullable
+      return isNullable
           ? '$prop?.toIso8601String()'
           : '$prop.toIso8601String()';
     }
@@ -494,7 +499,9 @@ String _timestampPropToDateTime(GenColumn c, String prop) {
       return '$prop == null ? null : DateTime.parse($prop).toIso8601String()';
     default:
       if (prop.startsWith('DateTime')) {
-        return '$prop.toIso8601String()';
+        return isNullable
+            ? '$prop?.toIso8601String()'
+            : '$prop.toIso8601String()';
       }
       return '$prop is DateTime ? ($prop as DateTime).toIso8601String() : $prop?.toString()';
   }

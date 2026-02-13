@@ -367,11 +367,8 @@ if (missing.isNotEmpty) {
         }
       } else if (c.type == ColumnType.dateTime &&
           c.dartTypeCode.contains('DateTime')) {
-        if (c.nullable) {
-          value = '$value?.toIso8601String()';
-        } else {
-          value = '$value.toIso8601String()';
-        }
+        // All fields in a Partial are nullable
+        value = '$value?.toIso8601String()';
       }
       entries.add('$key: $value');
     }

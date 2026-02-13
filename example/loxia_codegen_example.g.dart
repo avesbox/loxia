@@ -1463,6 +1463,526 @@ extension TagJson on Tag {
 extension TagRepositoryExtensions
     on EntityRepository<Tag, PartialEntity<Tag>> {}
 
+final EntityDescriptor<Subscription, SubscriptionPartial>
+$SubscriptionEntityDescriptor = EntityDescriptor(
+  entityType: Subscription,
+  tableName: 'subscriptions',
+  columns: [
+    ColumnDescriptor(
+      name: 'id',
+      propertyName: 'id',
+      type: ColumnType.uuid,
+      nullable: false,
+      unique: false,
+      isPrimaryKey: true,
+      autoIncrement: false,
+      uuid: true,
+    ),
+    ColumnDescriptor(
+      name: 'plan',
+      propertyName: 'plan',
+      type: ColumnType.text,
+      nullable: false,
+      unique: false,
+      isPrimaryKey: false,
+      autoIncrement: false,
+      uuid: false,
+    ),
+    ColumnDescriptor(
+      name: 'status',
+      propertyName: 'status',
+      type: ColumnType.text,
+      nullable: false,
+      unique: false,
+      isPrimaryKey: false,
+      autoIncrement: false,
+      uuid: false,
+    ),
+    ColumnDescriptor(
+      name: 'current_period_end',
+      propertyName: 'currentPeriodEnd',
+      type: ColumnType.dateTime,
+      nullable: false,
+      unique: false,
+      isPrimaryKey: false,
+      autoIncrement: false,
+      uuid: false,
+    ),
+    ColumnDescriptor(
+      name: 'created_at',
+      propertyName: 'createdAt',
+      type: ColumnType.dateTime,
+      nullable: true,
+      unique: false,
+      isPrimaryKey: false,
+      autoIncrement: false,
+      uuid: false,
+    ),
+    ColumnDescriptor(
+      name: 'updated_at',
+      propertyName: 'updatedAt',
+      type: ColumnType.dateTime,
+      nullable: true,
+      unique: false,
+      isPrimaryKey: false,
+      autoIncrement: false,
+      uuid: false,
+    ),
+  ],
+  relations: const [],
+  fromRow: (row) => Subscription(
+    id: (row['id'] as String),
+    plan: Plan.values.byName(row['plan'] as String),
+    status: SubscriptionStatus.values.byName(row['status'] as String),
+    currentPeriodEnd: row['current_period_end'] is String
+        ? DateTime.parse(row['current_period_end'].toString())
+        : row['current_period_end'] as DateTime,
+    createdAt: row['created_at'] == null
+        ? null
+        : row['created_at'] is String
+        ? DateTime.parse(row['created_at'].toString())
+        : row['created_at'] as DateTime,
+    updatedAt: row['updated_at'] == null
+        ? null
+        : row['updated_at'] is String
+        ? DateTime.parse(row['updated_at'].toString())
+        : row['updated_at'] as DateTime,
+  ),
+  toRow: (e) => {
+    'id': e.id,
+    'plan': e.plan.name,
+    'status': e.status.name,
+    'current_period_end': e.currentPeriodEnd.toIso8601String(),
+    'created_at': e.createdAt?.toIso8601String(),
+    'updated_at': e.updatedAt?.toIso8601String(),
+  },
+  fieldsContext: const SubscriptionFieldsContext(),
+  repositoryFactory: (EngineAdapter engine) => SubscriptionRepository(engine),
+  hooks: EntityHooks<Subscription>(
+    prePersist: (e) {
+      e.createdAt = DateTime.now();
+      e.updatedAt = DateTime.now();
+    },
+    preUpdate: (e) {
+      e.updatedAt = DateTime.now();
+    },
+  ),
+  defaultSelect: () => SubscriptionSelect(),
+);
+
+class SubscriptionFieldsContext extends QueryFieldsContext<Subscription> {
+  const SubscriptionFieldsContext([super.runtimeContext, super.alias]);
+
+  @override
+  SubscriptionFieldsContext bind(
+    QueryRuntimeContext runtimeContext,
+    String alias,
+  ) => SubscriptionFieldsContext(runtimeContext, alias);
+
+  QueryField<String> get id => field<String>('id');
+
+  QueryField<Plan> get plan => field<Plan>('plan');
+
+  QueryField<SubscriptionStatus> get status =>
+      field<SubscriptionStatus>('status');
+
+  QueryField<DateTime> get currentPeriodEnd =>
+      field<DateTime>('current_period_end');
+
+  QueryField<DateTime?> get createdAt => field<DateTime?>('created_at');
+
+  QueryField<DateTime?> get updatedAt => field<DateTime?>('updated_at');
+}
+
+class SubscriptionQuery extends QueryBuilder<Subscription> {
+  const SubscriptionQuery(this._builder);
+
+  final WhereExpression Function(SubscriptionFieldsContext) _builder;
+
+  @override
+  WhereExpression build(QueryFieldsContext<Subscription> context) {
+    if (context is! SubscriptionFieldsContext) {
+      throw ArgumentError(
+        'Expected SubscriptionFieldsContext for SubscriptionQuery',
+      );
+    }
+    return _builder(context);
+  }
+}
+
+class SubscriptionSelect
+    extends SelectOptions<Subscription, SubscriptionPartial> {
+  const SubscriptionSelect({
+    this.id = true,
+    this.plan = true,
+    this.status = true,
+    this.currentPeriodEnd = true,
+    this.createdAt = true,
+    this.updatedAt = true,
+    this.relations,
+  });
+
+  final bool id;
+
+  final bool plan;
+
+  final bool status;
+
+  final bool currentPeriodEnd;
+
+  final bool createdAt;
+
+  final bool updatedAt;
+
+  final SubscriptionRelations? relations;
+
+  @override
+  bool get hasSelections =>
+      id ||
+      plan ||
+      status ||
+      currentPeriodEnd ||
+      createdAt ||
+      updatedAt ||
+      (relations?.hasSelections ?? false);
+
+  @override
+  void collect(
+    QueryFieldsContext<Subscription> context,
+    List<SelectField> out, {
+    String? path,
+  }) {
+    if (context is! SubscriptionFieldsContext) {
+      throw ArgumentError(
+        'Expected SubscriptionFieldsContext for SubscriptionSelect',
+      );
+    }
+    final SubscriptionFieldsContext scoped = context;
+    String? aliasFor(String column) {
+      final current = path;
+      if (current == null || current.isEmpty) return null;
+      return '${current}_$column';
+    }
+
+    final tableAlias = scoped.currentAlias;
+    if (id) {
+      out.add(SelectField('id', tableAlias: tableAlias, alias: aliasFor('id')));
+    }
+    if (plan) {
+      out.add(
+        SelectField('plan', tableAlias: tableAlias, alias: aliasFor('plan')),
+      );
+    }
+    if (status) {
+      out.add(
+        SelectField(
+          'status',
+          tableAlias: tableAlias,
+          alias: aliasFor('status'),
+        ),
+      );
+    }
+    if (currentPeriodEnd) {
+      out.add(
+        SelectField(
+          'current_period_end',
+          tableAlias: tableAlias,
+          alias: aliasFor('current_period_end'),
+        ),
+      );
+    }
+    if (createdAt) {
+      out.add(
+        SelectField(
+          'created_at',
+          tableAlias: tableAlias,
+          alias: aliasFor('created_at'),
+        ),
+      );
+    }
+    if (updatedAt) {
+      out.add(
+        SelectField(
+          'updated_at',
+          tableAlias: tableAlias,
+          alias: aliasFor('updated_at'),
+        ),
+      );
+    }
+    final rels = relations;
+    if (rels != null && rels.hasSelections) {
+      rels.collect(scoped, out, path: path);
+    }
+  }
+
+  @override
+  SubscriptionPartial hydrate(Map<String, dynamic> row, {String? path}) {
+    return SubscriptionPartial(
+      id: id ? readValue(row, 'id', path: path) as String : null,
+      plan: plan
+          ? Plan.values.byName(readValue(row, 'plan', path: path) as String)
+          : null,
+      status: status
+          ? SubscriptionStatus.values.byName(
+              readValue(row, 'status', path: path) as String,
+            )
+          : null,
+      currentPeriodEnd: currentPeriodEnd
+          ? (readValue(row, 'current_period_end', path: path) is String
+                ? DateTime.parse(
+                    readValue(row, 'current_period_end', path: path) as String,
+                  )
+                : readValue(row, 'current_period_end', path: path) as DateTime)
+          : null,
+      createdAt: createdAt
+          ? readValue(row, 'created_at', path: path) == null
+                ? null
+                : (readValue(row, 'created_at', path: path) is String
+                      ? DateTime.parse(
+                          readValue(row, 'created_at', path: path) as String,
+                        )
+                      : readValue(row, 'created_at', path: path) as DateTime)
+          : null,
+      updatedAt: updatedAt
+          ? readValue(row, 'updated_at', path: path) == null
+                ? null
+                : (readValue(row, 'updated_at', path: path) is String
+                      ? DateTime.parse(
+                          readValue(row, 'updated_at', path: path) as String,
+                        )
+                      : readValue(row, 'updated_at', path: path) as DateTime)
+          : null,
+    );
+  }
+
+  @override
+  bool get hasCollectionRelations => false;
+
+  @override
+  String? get primaryKeyColumn => 'id';
+}
+
+class SubscriptionRelations {
+  const SubscriptionRelations();
+
+  bool get hasSelections => false;
+
+  void collect(
+    SubscriptionFieldsContext context,
+    List<SelectField> out, {
+    String? path,
+  }) {}
+}
+
+class SubscriptionPartial extends PartialEntity<Subscription> {
+  const SubscriptionPartial({
+    this.id,
+    this.plan,
+    this.status,
+    this.currentPeriodEnd,
+    this.createdAt,
+    this.updatedAt,
+  });
+
+  final String? id;
+
+  final Plan? plan;
+
+  final SubscriptionStatus? status;
+
+  final DateTime? currentPeriodEnd;
+
+  final DateTime? createdAt;
+
+  final DateTime? updatedAt;
+
+  @override
+  Object? get primaryKeyValue {
+    return id;
+  }
+
+  @override
+  SubscriptionInsertDto toInsertDto() {
+    final missing = <String>[];
+    if (plan == null) missing.add('plan');
+    if (status == null) missing.add('status');
+    if (currentPeriodEnd == null) missing.add('currentPeriodEnd');
+    if (missing.isNotEmpty) {
+      throw StateError(
+        'Cannot convert SubscriptionPartial to SubscriptionInsertDto: missing required fields: ${missing.join(', ')}',
+      );
+    }
+    return SubscriptionInsertDto(
+      plan: plan!,
+      status: status!,
+      currentPeriodEnd: currentPeriodEnd!,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+    );
+  }
+
+  @override
+  SubscriptionUpdateDto toUpdateDto() {
+    return SubscriptionUpdateDto(
+      plan: plan,
+      status: status,
+      currentPeriodEnd: currentPeriodEnd,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+    );
+  }
+
+  @override
+  Subscription toEntity() {
+    final missing = <String>[];
+    if (id == null) missing.add('id');
+    if (plan == null) missing.add('plan');
+    if (status == null) missing.add('status');
+    if (currentPeriodEnd == null) missing.add('currentPeriodEnd');
+    if (missing.isNotEmpty) {
+      throw StateError(
+        'Cannot convert SubscriptionPartial to Subscription: missing required fields: ${missing.join(', ')}',
+      );
+    }
+    return Subscription(
+      id: id!,
+      plan: plan!,
+      status: status!,
+      currentPeriodEnd: currentPeriodEnd!,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+    );
+  }
+
+  @override
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'plan': plan?.name,
+      'status': status?.name,
+      'currentPeriodEnd': currentPeriodEnd?.toIso8601String(),
+      'createdAt': createdAt?.toIso8601String(),
+      'updatedAt': updatedAt?.toIso8601String(),
+    };
+  }
+}
+
+class SubscriptionInsertDto implements InsertDto<Subscription> {
+  const SubscriptionInsertDto({
+    required this.plan,
+    required this.status,
+    required this.currentPeriodEnd,
+    this.createdAt,
+    this.updatedAt,
+  });
+
+  final Plan plan;
+
+  final SubscriptionStatus status;
+
+  final DateTime currentPeriodEnd;
+
+  final DateTime? createdAt;
+
+  final DateTime? updatedAt;
+
+  @override
+  Map<String, dynamic> toMap() {
+    return {
+      'plan': plan.name,
+      'status': status.name,
+      'current_period_end': currentPeriodEnd.toIso8601String(),
+      'created_at': DateTime.now().toIso8601String(),
+      'updated_at': DateTime.now().toIso8601String(),
+    };
+  }
+
+  Map<String, dynamic> get cascades {
+    return const {};
+  }
+
+  SubscriptionInsertDto copyWith({
+    Plan? plan,
+    SubscriptionStatus? status,
+    DateTime? currentPeriodEnd,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) {
+    return SubscriptionInsertDto(
+      plan: plan ?? this.plan,
+      status: status ?? this.status,
+      currentPeriodEnd: currentPeriodEnd ?? this.currentPeriodEnd,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+}
+
+class SubscriptionUpdateDto implements UpdateDto<Subscription> {
+  const SubscriptionUpdateDto({
+    this.plan,
+    this.status,
+    this.currentPeriodEnd,
+    this.createdAt,
+    this.updatedAt,
+  });
+
+  final Plan? plan;
+
+  final SubscriptionStatus? status;
+
+  final DateTime? currentPeriodEnd;
+
+  final DateTime? createdAt;
+
+  final DateTime? updatedAt;
+
+  @override
+  Map<String, dynamic> toMap() {
+    return {
+      if (plan != null) 'plan': plan?.name,
+      if (status != null) 'status': status?.name,
+      if (currentPeriodEnd != null)
+        'current_period_end': currentPeriodEnd?.toIso8601String(),
+      if (createdAt != null)
+        'created_at': createdAt is DateTime
+            ? (createdAt as DateTime).toIso8601String()
+            : createdAt?.toString(),
+      'updated_at': DateTime.now().toIso8601String(),
+    };
+  }
+
+  Map<String, dynamic> get cascades {
+    return const {};
+  }
+}
+
+class SubscriptionRepository
+    extends EntityRepository<Subscription, SubscriptionPartial> {
+  SubscriptionRepository(EngineAdapter engine)
+    : super(
+        $SubscriptionEntityDescriptor,
+        engine,
+        $SubscriptionEntityDescriptor.fieldsContext,
+      );
+}
+
+extension SubscriptionJson on Subscription {
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'plan': plan.name,
+      'status': status.name,
+      'currentPeriodEnd': currentPeriodEnd.toIso8601String(),
+      'createdAt': createdAt?.toIso8601String(),
+      'updatedAt': updatedAt?.toIso8601String(),
+    };
+  }
+}
+
+extension SubscriptionRepositoryExtensions
+    on EntityRepository<Subscription, PartialEntity<Subscription>> {}
+
 final EntityDescriptor<Movie, MoviePartial> $MovieEntityDescriptor =
     EntityDescriptor(
       entityType: Movie,

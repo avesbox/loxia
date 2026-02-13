@@ -121,6 +121,43 @@ class Tag extends Entity {
   static EntityDescriptor<Tag, TagPartial> get entity => $TagEntityDescriptor;
 }
 
+@EntityMeta(table: 'subscriptions')
+class Subscription extends Entity {
+  Subscription({
+    required this.id,
+    required this.plan,
+    required this.status,
+    required this.currentPeriodEnd,
+    this.createdAt,
+    this.updatedAt,
+  });
+
+  @PrimaryKey(uuid: true)
+  final String id;
+
+  @Column(type: ColumnType.text)
+  final Plan plan;
+
+  @Column(type: ColumnType.text)
+  final SubscriptionStatus status;
+
+  @Column()
+  final DateTime currentPeriodEnd;
+
+  @CreatedAt()
+  DateTime? createdAt;
+
+  @UpdatedAt()
+  DateTime? updatedAt;
+
+  static EntityDescriptor<Subscription, SubscriptionPartial> get entity =>
+      $SubscriptionEntityDescriptor;
+}
+
+enum Plan { basic, pro }
+
+enum SubscriptionStatus { active, expired, canceled, trial }
+
 @EntityMeta(table: 'movies')
 class Movie extends Entity {
   Movie({

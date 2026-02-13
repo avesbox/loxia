@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.12
+
+- Fix a bug on bidirectional relationships where foreign key columns were generated before the table they referenced, causing a failure during schema synchronization. This fix ensures that the migration planner correctly orders the creation of tables and their foreign key constraints, allowing for successful schema synchronization even in cases of circular references between entities.
+- Fix a bug on DateTime fields in Partial Entities where the generated code didn't account for the fact that all fields in a Partial Entity are nullable, causing a runtime error when trying to serialize a DateTime field that was null. This fix updates the generated code to properly handle nullable DateTime fields in Partial Entities by using the null-aware operator when calling `toIso8601String()`, ensuring that it won't throw an error when the field is null and will instead return null in that case.
+
 ## 0.0.11
 
 - Fix a bug in PostgresEngine that won't connect after hot reload, causing the application to lose database connectivity after a hot reload. This fix ensures that the PostgresEngine properly re-establishes the connection to the database after a hot reload, allowing your application to continue functioning without interruption.

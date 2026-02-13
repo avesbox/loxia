@@ -21,6 +21,10 @@ class MigrationPlanner {
     final entityByType = {for (final e in entities) e.entityType: e};
     final processedJoinTables = <String>{};
     final joinTableSpecs = <_JoinTableSpec>[];
+    // Collect foreign key constraints to add after all tables are created.
+    // This avoids "relation does not exist" errors for bidirectional relations.
+    final deferredForeignKeys = <_DeferredForeignKey>[];
+
     for (final entity in entities) {
       final joinColumns = _collectJoinColumns(entity, entityByType);
       final table = current.tables[entity.tableName];
@@ -29,8 +33,15 @@ class MigrationPlanner {
         for (final c in entity.columns) {
           cols.add(_columnDDL(c));
         }
+        // Add join columns WITHOUT inline foreign key constraints
         for (final jc in joinColumns) {
-          cols.add(_joinColumnDDL(jc));
+          cols.add(_joinColumnDDLWithoutFK(jc));
+          deferredForeignKeys.add(_DeferredForeignKey(
+            tableName: entity.tableName,
+            columnName: jc.name,
+            referencesTable: jc.referencesTable,
+            referencesColumn: jc.referencesColumn,
+          ));
         }
         final create =
             'CREATE TABLE IF NOT EXISTS ${entity.tableName} (\n  ${cols.join(',\n  ')}\n)';
@@ -46,8 +57,14 @@ class MigrationPlanner {
         for (final jc in joinColumns) {
           if (!table.columns.containsKey(jc.name)) {
             stmts.add(
-              'ALTER TABLE ${entity.tableName} ADD COLUMN ${_joinColumnDDL(jc)}',
+              'ALTER TABLE ${entity.tableName} ADD COLUMN ${_joinColumnDDLWithoutFK(jc)}',
             );
+            deferredForeignKeys.add(_DeferredForeignKey(
+              tableName: entity.tableName,
+              columnName: jc.name,
+              referencesTable: jc.referencesTable,
+              referencesColumn: jc.referencesColumn,
+            ));
           }
         }
       }
@@ -62,24 +79,44 @@ class MigrationPlanner {
       }
     }
 
-    // Process join tables after all base tables are ensured to exist, so
-    // foreign key references resolve correctly on PostgreSQL.
+    // Process join tables after all base tables are ensured to exist.
+    // Add columns without FK constraints, defer FKs to the final phase.
     for (final joinSpec in joinTableSpecs) {
       final schemaTable = current.tables[joinSpec.name];
       if (schemaTable == null) {
-        final cols = joinSpec.columns.map(_joinColumnDDL).join(',\n  ');
+        final cols = joinSpec.columns.map(_joinColumnDDLWithoutFK).join(',\n  ');
         final create =
             'CREATE TABLE IF NOT EXISTS ${joinSpec.name} (\n  $cols\n)';
         stmts.add(create);
+        for (final col in joinSpec.columns) {
+          deferredForeignKeys.add(_DeferredForeignKey(
+            tableName: joinSpec.name,
+            columnName: col.name,
+            referencesTable: col.referencesTable,
+            referencesColumn: col.referencesColumn,
+          ));
+        }
       } else {
         for (final col in joinSpec.columns) {
           if (!schemaTable.columns.containsKey(col.name)) {
             stmts.add(
-              'ALTER TABLE ${joinSpec.name} ADD COLUMN ${_joinColumnDDL(col)}',
+              'ALTER TABLE ${joinSpec.name} ADD COLUMN ${_joinColumnDDLWithoutFK(col)}',
             );
+            deferredForeignKeys.add(_DeferredForeignKey(
+              tableName: joinSpec.name,
+              columnName: col.name,
+              referencesTable: col.referencesTable,
+              referencesColumn: col.referencesColumn,
+            ));
           }
         }
       }
+    }
+
+    // Add all foreign key constraints after all tables and columns exist.
+    // This ensures bidirectional relations work correctly.
+    for (final fk in deferredForeignKeys) {
+      stmts.add(_foreignKeyConstraintDDL(fk));
     }
 
     // Process composite unique constraints after all tables are created.
@@ -120,14 +157,23 @@ class MigrationPlanner {
     return parts.join(' ');
   }
 
-  String _joinColumnDDL(_JoinColumnSpec spec) {
+
+  /// Creates column DDL without inline foreign key constraint.
+  /// Foreign keys are added later via ALTER TABLE to handle circular references.
+  String _joinColumnDDLWithoutFK(_JoinColumnSpec spec) {
     final parts = <String>['"${spec.name}" ${_typeToSql(spec.type)}'];
     if (!spec.nullable) parts.add('NOT NULL');
     if (spec.unique) parts.add('UNIQUE');
-    parts.add(
-      'REFERENCES ${_quoteQualified(spec.referencesTable)}("${spec.referencesColumn}")',
-    );
     return parts.join(' ');
+  }
+
+  /// Generates ALTER TABLE statement to add a foreign key constraint.
+  String _foreignKeyConstraintDDL(_DeferredForeignKey fk) {
+    final constraintName = 'fk_${fk.tableName}_${fk.columnName}';
+    return 'ALTER TABLE ${_quoteQualified(fk.tableName)} '
+        'ADD CONSTRAINT "$constraintName" '
+        'FOREIGN KEY ("${fk.columnName}") '
+        'REFERENCES ${_quoteQualified(fk.referencesTable)}("${fk.referencesColumn}")';
   }
 
   String _typeToSql(ColumnType t) {
@@ -305,6 +351,17 @@ class MigrationGenerator {
         down.add('ALTER TABLE $table DROP COLUMN "$column"');
         continue;
       }
+
+      final addConstraintMatch = RegExp(
+        r'^ALTER\s+TABLE\s+([^\s]+)\s+ADD\s+CONSTRAINT\s+"([^"]+)"',
+        caseSensitive: false,
+      ).firstMatch(stmt);
+      if (addConstraintMatch != null) {
+        final table = addConstraintMatch.group(1)!;
+        final constraint = addConstraintMatch.group(2)!;
+        down.add('ALTER TABLE $table DROP CONSTRAINT IF EXISTS "$constraint"');
+        continue;
+      }
     }
     return down;
   }
@@ -344,4 +401,19 @@ class _JoinTableSpec {
 
   final String name;
   final List<_JoinColumnSpec> columns;
+}
+
+/// Represents a deferred foreign key constraint to be added after all tables exist.
+class _DeferredForeignKey {
+  const _DeferredForeignKey({
+    required this.tableName,
+    required this.columnName,
+    required this.referencesTable,
+    required this.referencesColumn,
+  });
+
+  final String tableName;
+  final String columnName;
+  final String referencesTable;
+  final String referencesColumn;
 }
