@@ -351,7 +351,7 @@ class PostgresEngine implements EngineAdapter {
     }
     return db;
   }
-  
+
   @override
   bool get supportsAlterTableAddConstraint => true;
 }
@@ -435,7 +435,7 @@ class _PostgresSessionEngine implements EngineAdapter {
         .map((row) => row.toColumnMap()['version'] as int)
         .toList(growable: false);
   }
-  
+
   @override
   bool get supportsAlterTableAddConstraint => true;
 }
