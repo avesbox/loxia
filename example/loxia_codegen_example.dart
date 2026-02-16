@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:loxia/loxia.dart';
 import 'package:postgres/postgres.dart';
 
@@ -266,7 +268,7 @@ Future<void> main() async {
   final ds = DataSource(
     InMemoryDataSourceOptions(
       entities: [User.entity, Post.entity, Tag.entity],
-      migrations: [UniqueConstraintMigration(1)],
+      migrations: [],
     ),
     // PostgresDataSourceOptions.connect(
     //   host: 'localhost',
@@ -295,7 +297,7 @@ Future<void> main() async {
   final user = await users.findOneBy(
     where: UserQuery((q) => q.email.equals('new@example.com')),
   );
-  print('User: id=${user?.toJson()}');
+  print('User: id=${jsonEncode(user?.toJson())}');
   final posts = ds.getRepository<Post>();
   await posts.save(
     PostPartial(

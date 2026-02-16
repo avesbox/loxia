@@ -76,7 +76,12 @@ class DataSource {
     if (options.synchronize) {
       final planner = MigrationPlanner();
       final current = await _engine.readSchema();
-      final plan = planner.diff(entities: options.entities, current: current);
+      final plan = planner.diff(
+        entities: options.entities,
+        current: current,
+        supportsAlterTableAddConstraint:
+            _engine.supportsAlterTableAddConstraint,
+      );
       if (!plan.isEmpty) {
         await _engine.executeBatch(plan.statements);
       }

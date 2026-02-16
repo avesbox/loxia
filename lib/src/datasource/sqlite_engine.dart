@@ -27,6 +27,9 @@ final class InMemoryDataSourceOptions extends DataSourceOptions {
 class SqliteEngine implements EngineAdapter {
   SqliteEngine._(this._open);
 
+  @override
+  bool get supportsAlterTableAddConstraint => false;
+
   final sq.Database Function() _open;
   sq.Database? _db;
   bool _inTransaction = false;

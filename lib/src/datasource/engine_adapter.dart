@@ -2,6 +2,12 @@ import '../migrations/schema.dart';
 
 /// Basic interface that each SQL engine adapter must implement.
 abstract class EngineAdapter {
+  /// Whether the engine supports adding foreign key constraints via
+  /// `ALTER TABLE ... ADD CONSTRAINT ...`.
+  ///
+  /// SQLite does not support this syntax.
+  bool get supportsAlterTableAddConstraint => true;
+
   Future<void> open();
   Future<void> close();
 

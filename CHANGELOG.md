@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.13
+
+- Fix a bug on foreign key migration in SQLite where the migration planner would generate `ALTER TABLE ... ADD CONSTRAINT ...` statements for adding foreign key constraints, which is not supported by SQLite and would cause the migration to fail. This fix updates the migration planner to check if the engine supports adding foreign key constraints via `ALTER TABLE` and, if not, it will instead generate the necessary SQL statements to create a new table with the correct foreign key constraints and copy the data from the old table to the new one, allowing for successful schema synchronization even in SQLite databases.
+
 ## 0.0.12
 
 - Fix a bug on bidirectional relationships where foreign key columns were generated before the table they referenced, causing a failure during schema synchronization. This fix ensures that the migration planner correctly orders the creation of tables and their foreign key constraints, allowing for successful schema synchronization even in cases of circular references between entities.

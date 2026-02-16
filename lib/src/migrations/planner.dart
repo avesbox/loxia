@@ -16,6 +16,7 @@ class MigrationPlanner {
   MigrationPlan diff({
     required List<EntityDescriptor> entities,
     required SchemaState current,
+    bool supportsAlterTableAddConstraint = true,
   }) {
     final stmts = <String>[];
     final entityByType = {for (final e in entities) e.entityType: e};
@@ -33,17 +34,24 @@ class MigrationPlanner {
         for (final c in entity.columns) {
           cols.add(_columnDDL(c));
         }
-        // Add join columns WITHOUT inline foreign key constraints
+        // Add join columns and defer FK constraints only if the engine
+        // supports ALTER TABLE ... ADD CONSTRAINT.
         for (final jc in joinColumns) {
-          cols.add(_joinColumnDDLWithoutFK(jc));
-          deferredForeignKeys.add(
-            _DeferredForeignKey(
-              tableName: entity.tableName,
-              columnName: jc.name,
-              referencesTable: jc.referencesTable,
-              referencesColumn: jc.referencesColumn,
-            ),
+          cols.add(
+            supportsAlterTableAddConstraint
+                ? _joinColumnDDLWithoutFK(jc)
+                : _joinColumnDDLWithFK(jc),
           );
+          if (supportsAlterTableAddConstraint) {
+            deferredForeignKeys.add(
+              _DeferredForeignKey(
+                tableName: entity.tableName,
+                columnName: jc.name,
+                referencesTable: jc.referencesTable,
+                referencesColumn: jc.referencesColumn,
+              ),
+            );
+          }
         }
         final create =
             'CREATE TABLE IF NOT EXISTS ${entity.tableName} (\n  ${cols.join(',\n  ')}\n)';
@@ -61,14 +69,16 @@ class MigrationPlanner {
             stmts.add(
               'ALTER TABLE ${entity.tableName} ADD COLUMN ${_joinColumnDDLWithoutFK(jc)}',
             );
-            deferredForeignKeys.add(
-              _DeferredForeignKey(
-                tableName: entity.tableName,
-                columnName: jc.name,
-                referencesTable: jc.referencesTable,
-                referencesColumn: jc.referencesColumn,
-              ),
-            );
+            if (supportsAlterTableAddConstraint) {
+              deferredForeignKeys.add(
+                _DeferredForeignKey(
+                  tableName: entity.tableName,
+                  columnName: jc.name,
+                  referencesTable: jc.referencesTable,
+                  referencesColumn: jc.referencesColumn,
+                ),
+              );
+            }
           }
         }
       }
@@ -89,27 +99,17 @@ class MigrationPlanner {
       final schemaTable = current.tables[joinSpec.name];
       if (schemaTable == null) {
         final cols = joinSpec.columns
-            .map(_joinColumnDDLWithoutFK)
+            .map(
+              supportsAlterTableAddConstraint
+                  ? _joinColumnDDLWithoutFK
+                  : _joinColumnDDLWithFK,
+            )
             .join(',\n  ');
         final create =
             'CREATE TABLE IF NOT EXISTS ${joinSpec.name} (\n  $cols\n)';
         stmts.add(create);
-        for (final col in joinSpec.columns) {
-          deferredForeignKeys.add(
-            _DeferredForeignKey(
-              tableName: joinSpec.name,
-              columnName: col.name,
-              referencesTable: col.referencesTable,
-              referencesColumn: col.referencesColumn,
-            ),
-          );
-        }
-      } else {
-        for (final col in joinSpec.columns) {
-          if (!schemaTable.columns.containsKey(col.name)) {
-            stmts.add(
-              'ALTER TABLE ${joinSpec.name} ADD COLUMN ${_joinColumnDDLWithoutFK(col)}',
-            );
+        if (supportsAlterTableAddConstraint) {
+          for (final col in joinSpec.columns) {
             deferredForeignKeys.add(
               _DeferredForeignKey(
                 tableName: joinSpec.name,
@@ -120,13 +120,33 @@ class MigrationPlanner {
             );
           }
         }
+      } else {
+        for (final col in joinSpec.columns) {
+          if (!schemaTable.columns.containsKey(col.name)) {
+            stmts.add(
+              'ALTER TABLE ${joinSpec.name} ADD COLUMN ${_joinColumnDDLWithoutFK(col)}',
+            );
+            if (supportsAlterTableAddConstraint) {
+              deferredForeignKeys.add(
+                _DeferredForeignKey(
+                  tableName: joinSpec.name,
+                  columnName: col.name,
+                  referencesTable: col.referencesTable,
+                  referencesColumn: col.referencesColumn,
+                ),
+              );
+            }
+          }
+        }
       }
     }
 
     // Add all foreign key constraints after all tables and columns exist.
     // This ensures bidirectional relations work correctly.
-    for (final fk in deferredForeignKeys) {
-      stmts.add(_foreignKeyConstraintDDL(fk));
+    if (supportsAlterTableAddConstraint) {
+      for (final fk in deferredForeignKeys) {
+        stmts.add(_foreignKeyConstraintDDL(fk));
+      }
     }
 
     // Process composite unique constraints after all tables are created.
@@ -173,6 +193,14 @@ class MigrationPlanner {
     final parts = <String>['"${spec.name}" ${_typeToSql(spec.type)}'];
     if (!spec.nullable) parts.add('NOT NULL');
     if (spec.unique) parts.add('UNIQUE');
+    return parts.join(' ');
+  }
+
+  String _joinColumnDDLWithFK(_JoinColumnSpec spec) {
+    final parts = <String>[
+      _joinColumnDDLWithoutFK(spec),
+      'REFERENCES ${_quoteQualified(spec.referencesTable)}("${spec.referencesColumn}")',
+    ];
     return parts.join(' ');
   }
 
