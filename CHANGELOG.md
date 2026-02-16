@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.14
+
+- Add seamless integration with JSON Codec for Entities, allowing for a more smooth experience when converting them to JSON format.
+
 ## 0.0.13
 
 - Fix a bug on foreign key migration in SQLite where the migration planner would generate `ALTER TABLE ... ADD CONSTRAINT ...` statements for adding foreign key constraints, which is not supported by SQLite and would cause the migration to fail. This fix updates the migration planner to check if the engine supports adding foreign key constraints via `ALTER TABLE` and, if not, it will instead generate the necessary SQL statements to create a new table with the correct foreign key constraints and copy the data from the old table to the new one, allowing for successful schema synchronization even in SQLite databases.

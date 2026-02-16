@@ -1,6 +1,6 @@
 name: loxia
 description: A lightweight Dart ORM for Relational Databases built to be simple and extensible.
-version: 0.0.13
+version: 0.0.14
 repository: https://github.com/avesbox/loxia
 documentation: https://loxia.avesbox.com
 homepage: https://loxia.avesbox.com
