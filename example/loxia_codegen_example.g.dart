@@ -6,83 +6,85 @@ part of 'loxia_codegen_example.dart';
 // LoxiaEntityGenerator
 // **************************************************************************
 
-final EntityDescriptor<User, UserPartial> $UserEntityDescriptor =
-    EntityDescriptor(
-      entityType: User,
-      tableName: 'users',
-      columns: [
-        ColumnDescriptor(
-          name: 'id',
-          propertyName: 'id',
-          type: ColumnType.integer,
-          nullable: false,
-          unique: false,
-          isPrimaryKey: true,
-          autoIncrement: true,
-          uuid: false,
-        ),
-        ColumnDescriptor(
-          name: 'email',
-          propertyName: 'email',
-          type: ColumnType.text,
-          nullable: false,
-          unique: false,
-          isPrimaryKey: false,
-          autoIncrement: false,
-          uuid: false,
-        ),
-        ColumnDescriptor(
-          name: 'role',
-          propertyName: 'role',
-          type: ColumnType.text,
-          nullable: false,
-          unique: false,
-          isPrimaryKey: false,
-          autoIncrement: false,
-          uuid: false,
-        ),
-        ColumnDescriptor(
-          name: 'tags',
-          propertyName: 'tags',
-          type: ColumnType.json,
-          nullable: false,
-          unique: false,
-          isPrimaryKey: false,
-          autoIncrement: false,
-          uuid: false,
-        ),
-      ],
-      relations: const [
-        RelationDescriptor(
-          fieldName: 'posts',
-          type: RelationType.oneToMany,
-          target: Post,
-          isOwningSide: false,
-          mappedBy: 'user',
-          fetch: RelationFetchStrategy.lazy,
-          cascade: const [RelationCascade.persist],
-          cascadePersist: true,
-          cascadeMerge: false,
-          cascadeRemove: false,
-        ),
-      ],
-      fromRow: (row) => User(
-        id: (row['id'] as int),
-        email: (row['email'] as String),
-        role: Role.values.byName(row['role'] as String),
-        tags: (decodeJsonColumn(row['tags']) as List).cast<String>(),
-        posts: const <Post>[],
+final EntityDescriptor<User, UserPartial> $UserEntityDescriptor = () {
+  $initUserJsonCodec();
+  return EntityDescriptor(
+    entityType: User,
+    tableName: 'users',
+    columns: [
+      ColumnDescriptor(
+        name: 'id',
+        propertyName: 'id',
+        type: ColumnType.integer,
+        nullable: false,
+        unique: false,
+        isPrimaryKey: true,
+        autoIncrement: true,
+        uuid: false,
       ),
-      toRow: (e) => {
-        'id': e.id,
-        'email': e.email,
-        'role': e.role.name,
-        'tags': encodeJsonColumn(e.tags),
-      },
-      fieldsContext: const UserFieldsContext(),
-      repositoryFactory: (EngineAdapter engine) => UserRepository(engine),
-      defaultSelect: () => UserSelect(),
-    );
+      ColumnDescriptor(
+        name: 'email',
+        propertyName: 'email',
+        type: ColumnType.text,
+        nullable: false,
+        unique: false,
+        isPrimaryKey: false,
+        autoIncrement: false,
+        uuid: false,
+      ),
+      ColumnDescriptor(
+        name: 'role',
+        propertyName: 'role',
+        type: ColumnType.text,
+        nullable: false,
+        unique: false,
+        isPrimaryKey: false,
+        autoIncrement: false,
+        uuid: false,
+      ),
+      ColumnDescriptor(
+        name: 'tags',
+        propertyName: 'tags',
+        type: ColumnType.json,
+        nullable: false,
+        unique: false,
+        isPrimaryKey: false,
+        autoIncrement: false,
+        uuid: false,
+      ),
+    ],
+    relations: const [
+      RelationDescriptor(
+        fieldName: 'posts',
+        type: RelationType.oneToMany,
+        target: Post,
+        isOwningSide: false,
+        mappedBy: 'user',
+        fetch: RelationFetchStrategy.lazy,
+        cascade: const [RelationCascade.persist],
+        cascadePersist: true,
+        cascadeMerge: false,
+        cascadeRemove: false,
+      ),
+    ],
+    fromRow: (row) => User(
+      id: (row['id'] as int),
+      email: (row['email'] as String),
+      role: Role.values.byName(row['role'] as String),
+      tags: (decodeJsonColumn(row['tags']) as List).cast<String>(),
+      posts: const <Post>[],
+    ),
+    toRow: (e) => {
+      'id': e.id,
+      'email': e.email,
+      'role': e.role.name,
+      'tags': encodeJsonColumn(e.tags),
+    },
+    fieldsContext: const UserFieldsContext(),
+    repositoryFactory: (EngineAdapter engine) => UserRepository(engine),
+    defaultSelect: () => UserSelect(),
+  );
+}();
 
 class UserFieldsContext extends QueryFieldsContext<User> {
   const UserFieldsContext([super.runtimeContext, super.alias]);
@@ -439,6 +441,33 @@ extension UserJson on User {
   }
 }
 
+extension UserCodec on User {
+  Object? toEncodable() {
+    return toJson();
+  }
+
+  String toJsonString() {
+    return encodeJsonColumn(toJson()) as String;
+  }
+}
+
+extension UserPartialCodec on UserPartial {
+  Object? toEncodable() {
+    return toJson();
+  }
+
+  String toJsonString() {
+    return encodeJsonColumn(toJson()) as String;
+  }
+}
+
+var $isUserJsonCodecInitialized = false;
+void $initUserJsonCodec() {
+  if ($isUserJsonCodecInitialized) return;
+  EntityJsonRegistry.register<User>((value) => UserJson(value).toJson());
+  $isUserJsonCodecInitialized = true;
+}
+
 /// Result DTO for the [countUsers] query.
 final class CountUsersResult {
   const CountUsersResult({required this.total});
@@ -479,170 +508,172 @@ extension UserRepositoryExtensions
   }
 }
 
-final EntityDescriptor<Post, PostPartial> $PostEntityDescriptor =
-    EntityDescriptor(
-      entityType: Post,
-      tableName: 'posts',
-      columns: [
-        ColumnDescriptor(
-          name: 'id',
-          propertyName: 'id',
-          type: ColumnType.uuid,
-          nullable: false,
-          unique: false,
-          isPrimaryKey: true,
-          autoIncrement: false,
-          uuid: true,
-        ),
-        ColumnDescriptor(
-          name: 'title',
-          propertyName: 'title',
-          type: ColumnType.text,
-          nullable: false,
-          unique: false,
-          isPrimaryKey: false,
-          autoIncrement: false,
-          uuid: false,
-        ),
-        ColumnDescriptor(
-          name: 'content',
-          propertyName: 'content',
-          type: ColumnType.text,
-          nullable: false,
-          unique: false,
-          isPrimaryKey: false,
-          autoIncrement: false,
-          uuid: false,
-        ),
-        ColumnDescriptor(
-          name: 'likes',
-          propertyName: 'likes',
-          type: ColumnType.integer,
-          nullable: false,
-          unique: false,
-          isPrimaryKey: false,
-          autoIncrement: false,
-          uuid: false,
-          defaultValue: 0,
-        ),
-        ColumnDescriptor(
-          name: 'created_at',
-          propertyName: 'createdAt',
-          type: ColumnType.dateTime,
-          nullable: true,
-          unique: false,
-          isPrimaryKey: false,
-          autoIncrement: false,
-          uuid: false,
-        ),
-        ColumnDescriptor(
-          name: 'last_updated_at',
-          propertyName: 'lastUpdatedAt',
-          type: ColumnType.dateTime,
-          nullable: true,
-          unique: false,
-          isPrimaryKey: false,
-          autoIncrement: false,
-          uuid: false,
-        ),
-      ],
-      relations: const [
-        RelationDescriptor(
-          fieldName: 'user',
-          type: RelationType.manyToOne,
-          target: User,
-          isOwningSide: true,
-          fetch: RelationFetchStrategy.lazy,
-          cascade: const [],
-          cascadePersist: false,
-          cascadeMerge: false,
-          cascadeRemove: false,
-          joinColumn: JoinColumnDescriptor(
-            name: 'user_id',
-            referencedColumnName: 'id',
-            nullable: true,
-            unique: false,
-          ),
-        ),
-        RelationDescriptor(
-          fieldName: 'tags',
-          type: RelationType.manyToMany,
-          target: Tag,
-          isOwningSide: true,
-          fetch: RelationFetchStrategy.lazy,
-          cascade: const [RelationCascade.persist, RelationCascade.remove],
-          cascadePersist: true,
-          cascadeMerge: false,
-          cascadeRemove: true,
-          joinTable: JoinTableDescriptor(
-            name: 'post_tags',
-            joinColumns: [
-              JoinColumnDescriptor(
-                name: 'post_id',
-                referencedColumnName: 'id',
-                nullable: true,
-                unique: false,
-              ),
-            ],
-            inverseJoinColumns: [
-              JoinColumnDescriptor(
-                name: 'tag_id',
-                referencedColumnName: 'id',
-                nullable: true,
-                unique: false,
-              ),
-            ],
-          ),
-        ),
-      ],
-      fromRow: (row) => Post(
-        id: (row['id'] as String),
-        title: (row['title'] as String),
-        content: (row['content'] as String),
-        likes: (row['likes'] as int),
-        createdAt: row['created_at'] == null
-            ? null
-            : row['created_at'] is String
-            ? DateTime.parse(row['created_at'].toString())
-            : row['created_at'] as DateTime,
-        lastUpdatedAt: row['last_updated_at'] == null
-            ? null
-            : (row['last_updated_at'] is String
-                      ? DateTime.parse(row['last_updated_at'].toString())
-                      : row['last_updated_at'] as DateTime)
-                  .millisecondsSinceEpoch,
-        user: null,
-        tags: const <Tag>[],
+final EntityDescriptor<Post, PostPartial> $PostEntityDescriptor = () {
+  $initPostJsonCodec();
+  return EntityDescriptor(
+    entityType: Post,
+    tableName: 'posts',
+    columns: [
+      ColumnDescriptor(
+        name: 'id',
+        propertyName: 'id',
+        type: ColumnType.uuid,
+        nullable: false,
+        unique: false,
+        isPrimaryKey: true,
+        autoIncrement: false,
+        uuid: true,
       ),
-      toRow: (e) => {
-        'id': e.id,
-        'title': e.title,
-        'content': e.content,
-        'likes': e.likes,
-        'created_at': e.createdAt?.toIso8601String(),
-        'last_updated_at': e.lastUpdatedAt == null
-            ? null
-            : DateTime.fromMillisecondsSinceEpoch(
-                e.lastUpdatedAt as int,
-              ).toIso8601String(),
-        'user_id': e.user?.id,
+      ColumnDescriptor(
+        name: 'title',
+        propertyName: 'title',
+        type: ColumnType.text,
+        nullable: false,
+        unique: false,
+        isPrimaryKey: false,
+        autoIncrement: false,
+        uuid: false,
+      ),
+      ColumnDescriptor(
+        name: 'content',
+        propertyName: 'content',
+        type: ColumnType.text,
+        nullable: false,
+        unique: false,
+        isPrimaryKey: false,
+        autoIncrement: false,
+        uuid: false,
+      ),
+      ColumnDescriptor(
+        name: 'likes',
+        propertyName: 'likes',
+        type: ColumnType.integer,
+        nullable: false,
+        unique: false,
+        isPrimaryKey: false,
+        autoIncrement: false,
+        uuid: false,
+        defaultValue: 0,
+      ),
+      ColumnDescriptor(
+        name: 'created_at',
+        propertyName: 'createdAt',
+        type: ColumnType.dateTime,
+        nullable: true,
+        unique: false,
+        isPrimaryKey: false,
+        autoIncrement: false,
+        uuid: false,
+      ),
+      ColumnDescriptor(
+        name: 'last_updated_at',
+        propertyName: 'lastUpdatedAt',
+        type: ColumnType.dateTime,
+        nullable: true,
+        unique: false,
+        isPrimaryKey: false,
+        autoIncrement: false,
+        uuid: false,
+      ),
+    ],
+    relations: const [
+      RelationDescriptor(
+        fieldName: 'user',
+        type: RelationType.manyToOne,
+        target: User,
+        isOwningSide: true,
+        fetch: RelationFetchStrategy.lazy,
+        cascade: const [],
+        cascadePersist: false,
+        cascadeMerge: false,
+        cascadeRemove: false,
+        joinColumn: JoinColumnDescriptor(
+          name: 'user_id',
+          referencedColumnName: 'id',
+          nullable: true,
+          unique: false,
+        ),
+      ),
+      RelationDescriptor(
+        fieldName: 'tags',
+        type: RelationType.manyToMany,
+        target: Tag,
+        isOwningSide: true,
+        fetch: RelationFetchStrategy.lazy,
+        cascade: const [RelationCascade.persist, RelationCascade.remove],
+        cascadePersist: true,
+        cascadeMerge: false,
+        cascadeRemove: true,
+        joinTable: JoinTableDescriptor(
+          name: 'post_tags',
+          joinColumns: [
+            JoinColumnDescriptor(
+              name: 'post_id',
+              referencedColumnName: 'id',
+              nullable: true,
+              unique: false,
+            ),
+          ],
+          inverseJoinColumns: [
+            JoinColumnDescriptor(
+              name: 'tag_id',
+              referencedColumnName: 'id',
+              nullable: true,
+              unique: false,
+            ),
+          ],
+        ),
+      ),
+    ],
+    fromRow: (row) => Post(
+      id: (row['id'] as String),
+      title: (row['title'] as String),
+      content: (row['content'] as String),
+      likes: (row['likes'] as int),
+      createdAt: row['created_at'] == null
+          ? null
+          : row['created_at'] is String
+          ? DateTime.parse(row['created_at'].toString())
+          : row['created_at'] as DateTime,
+      lastUpdatedAt: row['last_updated_at'] == null
+          ? null
+          : (row['last_updated_at'] is String
+                    ? DateTime.parse(row['last_updated_at'].toString())
+                    : row['last_updated_at'] as DateTime)
+                .millisecondsSinceEpoch,
+      user: null,
+      tags: const <Tag>[],
+    ),
+    toRow: (e) => {
+      'id': e.id,
+      'title': e.title,
+      'content': e.content,
+      'likes': e.likes,
+      'created_at': e.createdAt?.toIso8601String(),
+      'last_updated_at': e.lastUpdatedAt == null
+          ? null
+          : DateTime.fromMillisecondsSinceEpoch(
+              e.lastUpdatedAt as int,
+            ).toIso8601String(),
+      'user_id': e.user?.id,
+    },
+    fieldsContext: const PostFieldsContext(),
+    repositoryFactory: (EngineAdapter engine) => PostRepository(engine),
+    hooks: EntityHooks<Post>(
+      preRemove: (e) {
+        e.beforeDelete();
       },
-      fieldsContext: const PostFieldsContext(),
-      repositoryFactory: (EngineAdapter engine) => PostRepository(engine),
-      hooks: EntityHooks<Post>(
-        preRemove: (e) {
-          e.beforeDelete();
-        },
-        prePersist: (e) {
-          e.createdAt = DateTime.now();
-          e.lastUpdatedAt = DateTime.now().millisecondsSinceEpoch;
-        },
-        preUpdate: (e) {
-          e.lastUpdatedAt = DateTime.now().millisecondsSinceEpoch;
-        },
-      ),
-      defaultSelect: () => PostSelect(),
-    );
+      prePersist: (e) {
+        e.createdAt = DateTime.now();
+        e.lastUpdatedAt = DateTime.now().millisecondsSinceEpoch;
+      },
+      preUpdate: (e) {
+        e.lastUpdatedAt = DateTime.now().millisecondsSinceEpoch;
+      },
+    ),
+    defaultSelect: () => PostSelect(),
+  );
+}();
 
 class PostFieldsContext extends QueryFieldsContext<Post> {
   const PostFieldsContext([super.runtimeContext, super.alias]);
@@ -1138,58 +1169,88 @@ extension PostJson on Post {
   }
 }
 
+extension PostCodec on Post {
+  Object? toEncodable() {
+    return toJson();
+  }
+
+  String toJsonString() {
+    return encodeJsonColumn(toJson()) as String;
+  }
+}
+
+extension PostPartialCodec on PostPartial {
+  Object? toEncodable() {
+    return toJson();
+  }
+
+  String toJsonString() {
+    return encodeJsonColumn(toJson()) as String;
+  }
+}
+
+var $isPostJsonCodecInitialized = false;
+void $initPostJsonCodec() {
+  if ($isPostJsonCodecInitialized) return;
+  EntityJsonRegistry.register<Post>((value) => PostJson(value).toJson());
+  $isPostJsonCodecInitialized = true;
+}
+
 extension PostRepositoryExtensions
     on EntityRepository<Post, PartialEntity<Post>> {}
 
-final EntityDescriptor<Tag, TagPartial> $TagEntityDescriptor = EntityDescriptor(
-  entityType: Tag,
-  tableName: 'tag',
-  columns: [
-    ColumnDescriptor(
-      name: 'id',
-      propertyName: 'id',
-      type: ColumnType.integer,
-      nullable: false,
-      unique: false,
-      isPrimaryKey: true,
-      autoIncrement: true,
-      uuid: false,
+final EntityDescriptor<Tag, TagPartial> $TagEntityDescriptor = () {
+  $initTagJsonCodec();
+  return EntityDescriptor(
+    entityType: Tag,
+    tableName: 'tag',
+    columns: [
+      ColumnDescriptor(
+        name: 'id',
+        propertyName: 'id',
+        type: ColumnType.integer,
+        nullable: false,
+        unique: false,
+        isPrimaryKey: true,
+        autoIncrement: true,
+        uuid: false,
+      ),
+      ColumnDescriptor(
+        name: 'name',
+        propertyName: 'name',
+        type: ColumnType.text,
+        nullable: false,
+        unique: false,
+        isPrimaryKey: false,
+        autoIncrement: false,
+        uuid: false,
+      ),
+    ],
+    relations: const [
+      RelationDescriptor(
+        fieldName: 'posts',
+        type: RelationType.manyToMany,
+        target: Post,
+        isOwningSide: false,
+        mappedBy: 'tags',
+        fetch: RelationFetchStrategy.lazy,
+        cascade: const [],
+        cascadePersist: false,
+        cascadeMerge: false,
+        cascadeRemove: false,
+      ),
+    ],
+    fromRow: (row) => Tag(
+      id: (row['id'] as int),
+      name: (row['name'] as String),
+      posts: const <Post>[],
     ),
-    ColumnDescriptor(
-      name: 'name',
-      propertyName: 'name',
-      type: ColumnType.text,
-      nullable: false,
-      unique: false,
-      isPrimaryKey: false,
-      autoIncrement: false,
-      uuid: false,
-    ),
-  ],
-  relations: const [
-    RelationDescriptor(
-      fieldName: 'posts',
-      type: RelationType.manyToMany,
-      target: Post,
-      isOwningSide: false,
-      mappedBy: 'tags',
-      fetch: RelationFetchStrategy.lazy,
-      cascade: const [],
-      cascadePersist: false,
-      cascadeMerge: false,
-      cascadeRemove: false,
-    ),
-  ],
-  fromRow: (row) => Tag(
-    id: (row['id'] as int),
-    name: (row['name'] as String),
-    posts: const <Post>[],
-  ),
-  toRow: (e) => {'id': e.id, 'name': e.name},
-  fieldsContext: const TagFieldsContext(),
-  repositoryFactory: (EngineAdapter engine) => TagRepository(engine),
-  defaultSelect: () => TagSelect(),
-);
+    toRow: (e) => {'id': e.id, 'name': e.name},
+    fieldsContext: const TagFieldsContext(),
+    repositoryFactory: (EngineAdapter engine) => TagRepository(engine),
+    defaultSelect: () => TagSelect(),
+  );
+}();
 
 class TagFieldsContext extends QueryFieldsContext<Tag> {
   const TagFieldsContext([super.runtimeContext, super.alias]);
@@ -1460,115 +1521,145 @@ extension TagJson on Tag {
   }
 }
 
+extension TagCodec on Tag {
+  Object? toEncodable() {
+    return toJson();
+  }
+
+  String toJsonString() {
+    return encodeJsonColumn(toJson()) as String;
+  }
+}
+
+extension TagPartialCodec on TagPartial {
+  Object? toEncodable() {
+    return toJson();
+  }
+
+  String toJsonString() {
+    return encodeJsonColumn(toJson()) as String;
+  }
+}
+
+var $isTagJsonCodecInitialized = false;
+void $initTagJsonCodec() {
+  if ($isTagJsonCodecInitialized) return;
+  EntityJsonRegistry.register<Tag>((value) => TagJson(value).toJson());
+  $isTagJsonCodecInitialized = true;
+}
+
 extension TagRepositoryExtensions
     on EntityRepository<Tag, PartialEntity<Tag>> {}
 
 final EntityDescriptor<Subscription, SubscriptionPartial>
-$SubscriptionEntityDescriptor = EntityDescriptor(
-  entityType: Subscription,
-  tableName: 'subscriptions',
-  columns: [
-    ColumnDescriptor(
-      name: 'id',
-      propertyName: 'id',
-      type: ColumnType.uuid,
-      nullable: false,
-      unique: false,
-      isPrimaryKey: true,
-      autoIncrement: false,
-      uuid: true,
+$SubscriptionEntityDescriptor = () {
+  $initSubscriptionJsonCodec();
+  return EntityDescriptor(
+    entityType: Subscription,
+    tableName: 'subscriptions',
+    columns: [
+      ColumnDescriptor(
+        name: 'id',
+        propertyName: 'id',
+        type: ColumnType.uuid,
+        nullable: false,
+        unique: false,
+        isPrimaryKey: true,
+        autoIncrement: false,
+        uuid: true,
+      ),
+      ColumnDescriptor(
+        name: 'plan',
+        propertyName: 'plan',
+        type: ColumnType.text,
+        nullable: false,
+        unique: false,
+        isPrimaryKey: false,
+        autoIncrement: false,
+        uuid: false,
+      ),
+      ColumnDescriptor(
+        name: 'status',
+        propertyName: 'status',
+        type: ColumnType.text,
+        nullable: false,
+        unique: false,
+        isPrimaryKey: false,
+        autoIncrement: false,
+        uuid: false,
+      ),
+      ColumnDescriptor(
+        name: 'current_period_end',
+        propertyName: 'currentPeriodEnd',
+        type: ColumnType.dateTime,
+        nullable: false,
+        unique: false,
+        isPrimaryKey: false,
+        autoIncrement: false,
+        uuid: false,
+      ),
+      ColumnDescriptor(
+        name: 'created_at',
+        propertyName: 'createdAt',
+        type: ColumnType.dateTime,
+        nullable: true,
+        unique: false,
+        isPrimaryKey: false,
+        autoIncrement: false,
+        uuid: false,
+      ),
+      ColumnDescriptor(
+        name: 'updated_at',
+        propertyName: 'updatedAt',
+        type: ColumnType.dateTime,
+        nullable: true,
+        unique: false,
+        isPrimaryKey: false,
+        autoIncrement: false,
+        uuid: false,
+      ),
+    ],
+    relations: const [],
+    fromRow: (row) => Subscription(
+      id: (row['id'] as String),
+      plan: Plan.values.byName(row['plan'] as String),
+      status: SubscriptionStatus.values.byName(row['status'] as String),
+      currentPeriodEnd: row['current_period_end'] is String
+          ? DateTime.parse(row['current_period_end'].toString())
+          : row['current_period_end'] as DateTime,
+      createdAt: row['created_at'] == null
+          ? null
+          : row['created_at'] is String
+          ? DateTime.parse(row['created_at'].toString())
+          : row['created_at'] as DateTime,
+      updatedAt: row['updated_at'] == null
+          ? null
+          : row['updated_at'] is String
+          ? DateTime.parse(row['updated_at'].toString())
+          : row['updated_at'] as DateTime,
     ),
-    ColumnDescriptor(
-      name: 'plan',
-      propertyName: 'plan',
-      type: ColumnType.text,
-      nullable: false,
-      unique: false,
-      isPrimaryKey: false,
-      autoIncrement: false,
-      uuid: false,
-    ),
-    ColumnDescriptor(
-      name: 'status',
-      propertyName: 'status',
-      type: ColumnType.text,
-      nullable: false,
-      unique: false,
-      isPrimaryKey: false,
-      autoIncrement: false,
-      uuid: false,
-    ),
-    ColumnDescriptor(
-      name: 'current_period_end',
-      propertyName: 'currentPeriodEnd',
-      type: ColumnType.dateTime,
-      nullable: false,
-      unique: false,
-      isPrimaryKey: false,
-      autoIncrement: false,
-      uuid: false,
-    ),
-    ColumnDescriptor(
-      name: 'created_at',
-      propertyName: 'createdAt',
-      type: ColumnType.dateTime,
-      nullable: true,
-      unique: false,
-      isPrimaryKey: false,
-      autoIncrement: false,
-      uuid: false,
-    ),
-    ColumnDescriptor(
-      name: 'updated_at',
-      propertyName: 'updatedAt',
-      type: ColumnType.dateTime,
-      nullable: true,
-      unique: false,
-      isPrimaryKey: false,
-      autoIncrement: false,
-      uuid: false,
-    ),
-  ],
-  relations: const [],
-  fromRow: (row) => Subscription(
-    id: (row['id'] as String),
-    plan: Plan.values.byName(row['plan'] as String),
-    status: SubscriptionStatus.values.byName(row['status'] as String),
-    currentPeriodEnd: row['current_period_end'] is String
-        ? DateTime.parse(row['current_period_end'].toString())
-        : row['current_period_end'] as DateTime,
-    createdAt: row['created_at'] == null
-        ? null
-        : row['created_at'] is String
-        ? DateTime.parse(row['created_at'].toString())
-        : row['created_at'] as DateTime,
-    updatedAt: row['updated_at'] == null
-        ? null
-        : row['updated_at'] is String
-        ? DateTime.parse(row['updated_at'].toString())
-        : row['updated_at'] as DateTime,
-  ),
-  toRow: (e) => {
-    'id': e.id,
-    'plan': e.plan.name,
-    'status': e.status.name,
-    'current_period_end': e.currentPeriodEnd.toIso8601String(),
-    'created_at': e.createdAt?.toIso8601String(),
-    'updated_at': e.updatedAt?.toIso8601String(),
-  },
-  fieldsContext: const SubscriptionFieldsContext(),
-  repositoryFactory: (EngineAdapter engine) => SubscriptionRepository(engine),
-  hooks: EntityHooks<Subscription>(
-    prePersist: (e) {
-      e.createdAt = DateTime.now();
-      e.updatedAt = DateTime.now();
+    toRow: (e) => {
+      'id': e.id,
+      'plan': e.plan.name,
+      'status': e.status.name,
+      'current_period_end': e.currentPeriodEnd.toIso8601String(),
+      'created_at': e.createdAt?.toIso8601String(),
+      'updated_at': e.updatedAt?.toIso8601String(),
     },
-    preUpdate: (e) {
-      e.updatedAt = DateTime.now();
-    },
-  ),
-  defaultSelect: () => SubscriptionSelect(),
-);
+    fieldsContext: const SubscriptionFieldsContext(),
+    repositoryFactory: (EngineAdapter engine) => SubscriptionRepository(engine),
+    hooks: EntityHooks<Subscription>(
+      prePersist: (e) {
+        e.createdAt = DateTime.now();
+        e.updatedAt = DateTime.now();
+      },
+      preUpdate: (e) {
+        e.updatedAt = DateTime.now();
+      },
+    ),
+    defaultSelect: () => SubscriptionSelect(),
+  );
+}();
 
 class SubscriptionFieldsContext extends QueryFieldsContext<Subscription> {
   const SubscriptionFieldsContext([super.runtimeContext, super.alias]);
@@ -1980,149 +2071,180 @@ extension SubscriptionJson on Subscription {
   }
 }
 
+extension SubscriptionCodec on Subscription {
+  Object? toEncodable() {
+    return toJson();
+  }
+
+  String toJsonString() {
+    return encodeJsonColumn(toJson()) as String;
+  }
+}
+
+extension SubscriptionPartialCodec on SubscriptionPartial {
+  Object? toEncodable() {
+    return toJson();
+  }
+
+  String toJsonString() {
+    return encodeJsonColumn(toJson()) as String;
+  }
+}
+
+var $isSubscriptionJsonCodecInitialized = false;
+void $initSubscriptionJsonCodec() {
+  if ($isSubscriptionJsonCodecInitialized) return;
+  EntityJsonRegistry.register<Subscription>(
+    (value) => SubscriptionJson(value).toJson(),
+  );
+  $isSubscriptionJsonCodecInitialized = true;
+}
+
 extension SubscriptionRepositoryExtensions
     on EntityRepository<Subscription, PartialEntity<Subscription>> {}
 
-final EntityDescriptor<Movie, MoviePartial> $MovieEntityDescriptor =
-    EntityDescriptor(
-      entityType: Movie,
-      tableName: 'movies',
-      columns: [
-        ColumnDescriptor(
-          name: 'id',
-          propertyName: 'id',
-          type: ColumnType.uuid,
-          nullable: false,
-          unique: false,
-          isPrimaryKey: true,
-          autoIncrement: false,
-          uuid: true,
-        ),
-        ColumnDescriptor(
-          name: 'title',
-          propertyName: 'title',
-          type: ColumnType.text,
-          nullable: false,
-          unique: false,
-          isPrimaryKey: false,
-          autoIncrement: false,
-          uuid: false,
-        ),
-        ColumnDescriptor(
-          name: 'overview',
-          propertyName: 'overview',
-          type: ColumnType.text,
-          nullable: true,
-          unique: false,
-          isPrimaryKey: false,
-          autoIncrement: false,
-          uuid: false,
-        ),
-        ColumnDescriptor(
-          name: 'release_year',
-          propertyName: 'releaseYear',
-          type: ColumnType.integer,
-          nullable: false,
-          unique: false,
-          isPrimaryKey: false,
-          autoIncrement: false,
-          uuid: false,
-        ),
-        ColumnDescriptor(
-          name: 'genres',
-          propertyName: 'genres',
-          type: ColumnType.json,
-          nullable: false,
-          unique: false,
-          isPrimaryKey: false,
-          autoIncrement: false,
-          uuid: false,
-        ),
-        ColumnDescriptor(
-          name: 'runtime',
-          propertyName: 'runtime',
-          type: ColumnType.integer,
-          nullable: true,
-          unique: false,
-          isPrimaryKey: false,
-          autoIncrement: false,
-          uuid: false,
-        ),
-        ColumnDescriptor(
-          name: 'poster_url',
-          propertyName: 'posterUrl',
-          type: ColumnType.text,
-          nullable: true,
-          unique: false,
-          isPrimaryKey: false,
-          autoIncrement: false,
-          uuid: false,
-        ),
-        ColumnDescriptor(
-          name: 'created_at',
-          propertyName: 'createdAt',
-          type: ColumnType.dateTime,
-          nullable: true,
-          unique: false,
-          isPrimaryKey: false,
-          autoIncrement: false,
-          uuid: false,
-        ),
-        ColumnDescriptor(
-          name: 'updated_at',
-          propertyName: 'updatedAt',
-          type: ColumnType.dateTime,
-          nullable: true,
-          unique: false,
-          isPrimaryKey: false,
-          autoIncrement: false,
-          uuid: false,
-        ),
-      ],
-      relations: const [],
-      fromRow: (row) => Movie(
-        id: (row['id'] as String),
-        title: (row['title'] as String),
-        overview: (row['overview'] as String?),
-        releaseYear: (row['release_year'] as int),
-        genres: (decodeJsonColumn(row['genres']) as List).cast<String>(),
-        runtime: (row['runtime'] as int?),
-        posterUrl: (row['poster_url'] as String?),
-        createdAt: row['created_at'] == null
-            ? null
-            : row['created_at'] is String
-            ? DateTime.parse(row['created_at'].toString())
-            : row['created_at'] as DateTime,
-        updatedAt: row['updated_at'] == null
-            ? null
-            : row['updated_at'] is String
-            ? DateTime.parse(row['updated_at'].toString())
-            : row['updated_at'] as DateTime,
+final EntityDescriptor<Movie, MoviePartial> $MovieEntityDescriptor = () {
+  $initMovieJsonCodec();
+  return EntityDescriptor(
+    entityType: Movie,
+    tableName: 'movies',
+    columns: [
+      ColumnDescriptor(
+        name: 'id',
+        propertyName: 'id',
+        type: ColumnType.uuid,
+        nullable: false,
+        unique: false,
+        isPrimaryKey: true,
+        autoIncrement: false,
+        uuid: true,
       ),
-      toRow: (e) => {
-        'id': e.id,
-        'title': e.title,
-        'overview': e.overview,
-        'release_year': e.releaseYear,
-        'genres': encodeJsonColumn(e.genres),
-        'runtime': e.runtime,
-        'poster_url': e.posterUrl,
-        'created_at': e.createdAt?.toIso8601String(),
-        'updated_at': e.updatedAt?.toIso8601String(),
+      ColumnDescriptor(
+        name: 'title',
+        propertyName: 'title',
+        type: ColumnType.text,
+        nullable: false,
+        unique: false,
+        isPrimaryKey: false,
+        autoIncrement: false,
+        uuid: false,
+      ),
+      ColumnDescriptor(
+        name: 'overview',
+        propertyName: 'overview',
+        type: ColumnType.text,
+        nullable: true,
+        unique: false,
+        isPrimaryKey: false,
+        autoIncrement: false,
+        uuid: false,
+      ),
+      ColumnDescriptor(
+        name: 'release_year',
+        propertyName: 'releaseYear',
+        type: ColumnType.integer,
+        nullable: false,
+        unique: false,
+        isPrimaryKey: false,
+        autoIncrement: false,
+        uuid: false,
+      ),
+      ColumnDescriptor(
+        name: 'genres',
+        propertyName: 'genres',
+        type: ColumnType.json,
+        nullable: false,
+        unique: false,
+        isPrimaryKey: false,
+        autoIncrement: false,
+        uuid: false,
+      ),
+      ColumnDescriptor(
+        name: 'runtime',
+        propertyName: 'runtime',
+        type: ColumnType.integer,
+        nullable: true,
+        unique: false,
+        isPrimaryKey: false,
+        autoIncrement: false,
+        uuid: false,
+      ),
+      ColumnDescriptor(
+        name: 'poster_url',
+        propertyName: 'posterUrl',
+        type: ColumnType.text,
+        nullable: true,
+        unique: false,
+        isPrimaryKey: false,
+        autoIncrement: false,
+        uuid: false,
+      ),
+      ColumnDescriptor(
+        name: 'created_at',
+        propertyName: 'createdAt',
+        type: ColumnType.dateTime,
+        nullable: true,
+        unique: false,
+        isPrimaryKey: false,
+        autoIncrement: false,
+        uuid: false,
+      ),
+      ColumnDescriptor(
+        name: 'updated_at',
+        propertyName: 'updatedAt',
+        type: ColumnType.dateTime,
+        nullable: true,
+        unique: false,
+        isPrimaryKey: false,
+        autoIncrement: false,
+        uuid: false,
+      ),
+    ],
+    relations: const [],
+    fromRow: (row) => Movie(
+      id: (row['id'] as String),
+      title: (row['title'] as String),
+      overview: (row['overview'] as String?),
+      releaseYear: (row['release_year'] as int),
+      genres: (decodeJsonColumn(row['genres']) as List).cast<String>(),
+      runtime: (row['runtime'] as int?),
+      posterUrl: (row['poster_url'] as String?),
+      createdAt: row['created_at'] == null
+          ? null
+          : row['created_at'] is String
+          ? DateTime.parse(row['created_at'].toString())
+          : row['created_at'] as DateTime,
+      updatedAt: row['updated_at'] == null
+          ? null
+          : row['updated_at'] is String
+          ? DateTime.parse(row['updated_at'].toString())
+          : row['updated_at'] as DateTime,
+    ),
+    toRow: (e) => {
+      'id': e.id,
+      'title': e.title,
+      'overview': e.overview,
+      'release_year': e.releaseYear,
+      'genres': encodeJsonColumn(e.genres),
+      'runtime': e.runtime,
+      'poster_url': e.posterUrl,
+      'created_at': e.createdAt?.toIso8601String(),
+      'updated_at': e.updatedAt?.toIso8601String(),
+    },
+    fieldsContext: const MovieFieldsContext(),
+    repositoryFactory: (EngineAdapter engine) => MovieRepository(engine),
+    hooks: EntityHooks<Movie>(
+      prePersist: (e) {
+        e.createdAt = DateTime.now();
+        e.updatedAt = DateTime.now();
       },
-      fieldsContext: const MovieFieldsContext(),
-      repositoryFactory: (EngineAdapter engine) => MovieRepository(engine),
-      hooks: EntityHooks<Movie>(
-        prePersist: (e) {
-          e.createdAt = DateTime.now();
-          e.updatedAt = DateTime.now();
-        },
-        preUpdate: (e) {
-          e.updatedAt = DateTime.now();
-        },
-      ),
-      defaultSelect: () => MovieSelect(),
-    );
+      preUpdate: (e) {
+        e.updatedAt = DateTime.now();
+      },
+    ),
+    defaultSelect: () => MovieSelect(),
+  );
+}();
 
 class MovieFieldsContext extends QueryFieldsContext<Movie> {
   const MovieFieldsContext([super.runtimeContext, super.alias]);
@@ -2622,111 +2744,142 @@ extension MovieJson on Movie {
   }
 }
 
+extension MovieCodec on Movie {
+  Object? toEncodable() {
+    return toJson();
+  }
+
+  String toJsonString() {
+    return encodeJsonColumn(toJson()) as String;
+  }
+}
+
+extension MoviePartialCodec on MoviePartial {
+  Object? toEncodable() {
+    return toJson();
+  }
+
+  String toJsonString() {
+    return encodeJsonColumn(toJson()) as String;
+  }
+}
+
+var $isMovieJsonCodecInitialized = false;
+void $initMovieJsonCodec() {
+  if ($isMovieJsonCodecInitialized) return;
+  EntityJsonRegistry.register<Movie>((value) => MovieJson(value).toJson());
+  $isMovieJsonCodecInitialized = true;
+}
+
 extension MovieRepositoryExtensions
     on EntityRepository<Movie, PartialEntity<Movie>> {}
 
 final EntityDescriptor<WatchlistItem, WatchlistItemPartial>
-$WatchlistItemEntityDescriptor = EntityDescriptor(
-  entityType: WatchlistItem,
-  tableName: 'watchlist_items',
-  columns: [
-    ColumnDescriptor(
-      name: 'id',
-      propertyName: 'id',
-      type: ColumnType.integer,
-      nullable: false,
-      unique: false,
-      isPrimaryKey: true,
-      autoIncrement: true,
-      uuid: false,
-    ),
-    ColumnDescriptor(
-      name: 'notes',
-      propertyName: 'notes',
-      type: ColumnType.text,
-      nullable: true,
-      unique: false,
-      isPrimaryKey: false,
-      autoIncrement: false,
-      uuid: false,
-    ),
-    ColumnDescriptor(
-      name: 'created_at',
-      propertyName: 'createdAt',
-      type: ColumnType.dateTime,
-      nullable: true,
-      unique: false,
-      isPrimaryKey: false,
-      autoIncrement: false,
-      uuid: false,
-    ),
-  ],
-  relations: const [
-    RelationDescriptor(
-      fieldName: 'user',
-      type: RelationType.manyToOne,
-      target: User,
-      isOwningSide: true,
-      fetch: RelationFetchStrategy.lazy,
-      cascade: const [],
-      cascadePersist: false,
-      cascadeMerge: false,
-      cascadeRemove: false,
-      joinColumn: JoinColumnDescriptor(
-        name: 'user_id',
-        referencedColumnName: 'id',
+$WatchlistItemEntityDescriptor = () {
+  $initWatchlistItemJsonCodec();
+  return EntityDescriptor(
+    entityType: WatchlistItem,
+    tableName: 'watchlist_items',
+    columns: [
+      ColumnDescriptor(
+        name: 'id',
+        propertyName: 'id',
+        type: ColumnType.integer,
+        nullable: false,
+        unique: false,
+        isPrimaryKey: true,
+        autoIncrement: true,
+        uuid: false,
+      ),
+      ColumnDescriptor(
+        name: 'notes',
+        propertyName: 'notes',
+        type: ColumnType.text,
         nullable: true,
         unique: false,
+        isPrimaryKey: false,
+        autoIncrement: false,
+        uuid: false,
       ),
-    ),
-    RelationDescriptor(
-      fieldName: 'movie',
-      type: RelationType.manyToOne,
-      target: Movie,
-      isOwningSide: true,
-      fetch: RelationFetchStrategy.lazy,
-      cascade: const [],
-      cascadePersist: false,
-      cascadeMerge: false,
-      cascadeRemove: false,
-      joinColumn: JoinColumnDescriptor(
-        name: 'movie_id',
-        referencedColumnName: 'id',
+      ColumnDescriptor(
+        name: 'created_at',
+        propertyName: 'createdAt',
+        type: ColumnType.dateTime,
         nullable: true,
         unique: false,
+        isPrimaryKey: false,
+        autoIncrement: false,
+        uuid: false,
       ),
+    ],
+    relations: const [
+      RelationDescriptor(
+        fieldName: 'user',
+        type: RelationType.manyToOne,
+        target: User,
+        isOwningSide: true,
+        fetch: RelationFetchStrategy.lazy,
+        cascade: const [],
+        cascadePersist: false,
+        cascadeMerge: false,
+        cascadeRemove: false,
+        joinColumn: JoinColumnDescriptor(
+          name: 'user_id',
+          referencedColumnName: 'id',
+          nullable: true,
+          unique: false,
+        ),
+      ),
+      RelationDescriptor(
+        fieldName: 'movie',
+        type: RelationType.manyToOne,
+        target: Movie,
+        isOwningSide: true,
+        fetch: RelationFetchStrategy.lazy,
+        cascade: const [],
+        cascadePersist: false,
+        cascadeMerge: false,
+        cascadeRemove: false,
+        joinColumn: JoinColumnDescriptor(
+          name: 'movie_id',
+          referencedColumnName: 'id',
+          nullable: true,
+          unique: false,
+        ),
+      ),
+    ],
+    uniqueConstraints: const [
+      UniqueConstraintDescriptor(columns: ['user_id', 'movie_id']),
+    ],
+    fromRow: (row) => WatchlistItem(
+      id: (row['id'] as int),
+      notes: (row['notes'] as String?),
+      createdAt: row['created_at'] == null
+          ? null
+          : row['created_at'] is String
+          ? DateTime.parse(row['created_at'].toString())
+          : row['created_at'] as DateTime,
+      user: null,
+      movie: null,
     ),
-  ],
-  uniqueConstraints: const [
-    UniqueConstraintDescriptor(columns: ['user_id', 'movie_id']),
-  ],
-  fromRow: (row) => WatchlistItem(
-    id: (row['id'] as int),
-    notes: (row['notes'] as String?),
-    createdAt: row['created_at'] == null
-        ? null
-        : row['created_at'] is String
-        ? DateTime.parse(row['created_at'].toString())
-        : row['created_at'] as DateTime,
-    user: null,
-    movie: null,
-  ),
-  toRow: (e) => {
-    'id': e.id,
-    'notes': e.notes,
-    'created_at': e.createdAt?.toIso8601String(),
-    'user_id': e.user?.id,
-    'movie_id': e.movie?.id,
-  },
-  fieldsContext: const WatchlistItemFieldsContext(),
-  repositoryFactory: (EngineAdapter engine) => WatchlistItemRepository(engine),
-  hooks: EntityHooks<WatchlistItem>(
-    prePersist: (e) {
-      e.createdAt = DateTime.now();
+    toRow: (e) => {
+      'id': e.id,
+      'notes': e.notes,
+      'created_at': e.createdAt?.toIso8601String(),
+      'user_id': e.user?.id,
+      'movie_id': e.movie?.id,
     },
-  ),
-  defaultSelect: () => WatchlistItemSelect(),
-);
+    fieldsContext: const WatchlistItemFieldsContext(),
+    repositoryFactory: (EngineAdapter engine) =>
+        WatchlistItemRepository(engine),
+    hooks: EntityHooks<WatchlistItem>(
+      prePersist: (e) {
+        e.createdAt = DateTime.now();
+      },
+    ),
+    defaultSelect: () => WatchlistItemSelect(),
+  );
+}();
 
 class WatchlistItemFieldsContext extends QueryFieldsContext<WatchlistItem> {
   const WatchlistItemFieldsContext([super.runtimeContext, super.alias]);
@@ -3139,6 +3292,35 @@ extension WatchlistItemJson on WatchlistItem {
       'movie': movie?.toJson(),
     };
   }
+}
+
+extension WatchlistItemCodec on WatchlistItem {
+  Object? toEncodable() {
+    return toJson();
+  }
+
+  String toJsonString() {
+    return encodeJsonColumn(toJson()) as String;
+  }
+}
+
+extension WatchlistItemPartialCodec on WatchlistItemPartial {
+  Object? toEncodable() {
+    return toJson();
+  }
+
+  String toJsonString() {
+    return encodeJsonColumn(toJson()) as String;
+  }
+}
+
+var $isWatchlistItemJsonCodecInitialized = false;
+void $initWatchlistItemJsonCodec() {
+  if ($isWatchlistItemJsonCodecInitialized) return;
+  EntityJsonRegistry.register<WatchlistItem>(
+    (value) => WatchlistItemJson(value).toJson(),
+  );
+  $isWatchlistItemJsonCodecInitialized = true;
 }
 
 extension WatchlistItemRepositoryExtensions

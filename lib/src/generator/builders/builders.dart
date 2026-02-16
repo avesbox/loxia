@@ -2,6 +2,7 @@
 library;
 
 export 'column_builder.dart';
+export 'codec_builder.dart';
 export 'dto_builders.dart';
 export 'entity_descriptor_builder.dart';
 export 'fields_context_builder.dart';

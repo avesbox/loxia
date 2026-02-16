@@ -186,6 +186,12 @@ class EntityGenerationContext {
   /// Entity descriptor variable name.
   String get descriptorVarName => '\$${className}EntityDescriptor';
 
+  /// Internal codec init function name.
+  String get codecInitFunctionName => '\$init${className}JsonCodec';
+
+  /// Internal codec initialized flag variable name.
+  String get codecInitializedFlagName => '\$is${className}JsonCodecInitialized';
+
   /// Relations with owning join columns (ManyToOne, OneToOne owning).
   List<GenRelation> get owningJoinColumns =>
       relations.where((r) => r.joinColumn != null && r.isOwningSide).toList();

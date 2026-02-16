@@ -64,6 +64,7 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
   final _updateDtoBuilder = const UpdateDtoBuilder();
   final _repositoryClassBuilder = const RepositoryClassBuilder();
   final _jsonExtensionBuilder = const JsonExtensionBuilder();
+  final _codecBuilder = const CodecBuilder();
   final _repositoryExtensionsBuilder = const RepositoryExtensionsBuilder();
   final _queryResultDtoBuilder = const QueryResultDtoBuilder();
 
@@ -96,6 +97,7 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
         ..body.add(_updateDtoBuilder.build(context))
         ..body.add(_repositoryClassBuilder.build(context))
         ..body.add(_jsonExtensionBuilder.build(context))
+        ..body.addAll(_codecBuilder.buildAll(context))
         // Add query result DTOs before the extension that uses them
         ..body.addAll(_queryResultDtoBuilder.buildAll(context))
         ..body.add(_repositoryExtensionsBuilder.build(context)),

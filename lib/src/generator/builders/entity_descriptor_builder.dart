@@ -17,6 +17,19 @@ class EntityDescriptorBuilder {
 
   /// Builds the EntityDescriptor field declaration.
   Field build(EntityGenerationContext context) {
+    final descriptorExpr = _buildDescriptorInstance(context);
+    final descriptorWithCodecInit = Method(
+      (m) => m
+        ..body = Block(
+          (b) => b
+            ..statements.add(
+              refer(context.codecInitFunctionName).call([]).statement,
+            )
+            ..statements.add(descriptorExpr.returned.statement),
+        )
+        ..lambda = false,
+    ).closure.call([]);
+
     return Field(
       (b) => b
         ..name = context.descriptorVarName
@@ -29,7 +42,7 @@ class EntityDescriptorBuilder {
               refer(context.partialEntityName),
             ]),
         )
-        ..assignment = _buildDescriptorInstance(context).code,
+        ..assignment = descriptorWithCodecInit.code,
     );
   }
 
