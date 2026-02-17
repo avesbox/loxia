@@ -341,14 +341,20 @@ Future<void> main() async {
       tags: ['new', 'test'],
     ),
   );
-  await users.insert(UserInsertDto(email: 'example@example.com', role: Role.guest, tags: ['new', 'test']));
+  await users.insert(
+    UserInsertDto(
+      email: 'example@example.com',
+      role: Role.guest,
+      tags: ['new', 'test'],
+    ),
+  );
   final posts = ds.getRepository<Post>();
   await posts.insert(
     PostInsertDto(
       title: 'Hello World',
       content: 'This is my first post',
       likes: 0,
-      userId: 1
+      userId: 1,
     ),
   );
   await users.update(
@@ -358,11 +364,7 @@ Future<void> main() async {
   await users.findByEmail('new@example.com');
   final user = await users.findOne(
     where: UserQuery((q) => q.email.equals('new@example.com')),
-    select: UserSelect(
-      relations: UserRelations(
-        posts: PostSelect()
-      )
-    )
+    select: UserSelect(relations: UserRelations(posts: PostSelect())),
   );
   final partial = user as UserPartial?;
   print('User: id=${jsonEncode(user?.toJson())}');
@@ -375,7 +377,9 @@ Future<void> main() async {
     ),
   );
   final post = await posts.findOne(
-    where: PostQuery((q) => q.id.equals(newPost.id).and(q.userId.equals(partial?.id ?? 0))),
+    where: PostQuery(
+      (q) => q.id.equals(newPost.id).and(q.userId.equals(partial?.id ?? 0)),
+    ),
     select: PostSelect(relations: PostRelations(user: UserSelect())),
   );
   final partialPost = post as PostPartial?;

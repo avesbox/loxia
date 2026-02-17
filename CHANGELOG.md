@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.15
+
+- Added support for omitting null fields in JSON serialization of entities and partial entities. This allows you to exclude fields with null values from the generated JSON output, resulting in cleaner and more concise JSON representations of your entities. By default, `omitNullJsonFields` is set to true.
+- Added support for relations in findBy and findOneBy methods, allowing you to include related entities in your queries by specifying the relation in the `relations` parameter.
+
 ## 0.0.14
 
 - Add seamless integration with JSON Codec for Entities, allowing for a more smooth experience when converting them to JSON format.

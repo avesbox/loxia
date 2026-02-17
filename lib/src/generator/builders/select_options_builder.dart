@@ -259,9 +259,7 @@ if (rels != null && rels.hasSelections) {
               ),
           ),
         )
-        ..body = Code(
-          'return ${context.selectClassName}(${args.join(', ')});',
-        ),
+        ..body = Code('return ${context.selectClassName}(${args.join(', ')});'),
     );
   }
 

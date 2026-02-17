@@ -122,7 +122,8 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
     final hooks = _parseHooks(clazz);
     final timestamps = _parseTimestampFields(clazz);
     final uniqueConstraints = _parseUniqueConstraints(annotation);
-    final omitNullJsonFields = annotation.peek('omitNullJsonFields')?.boolValue ?? true;
+    final omitNullJsonFields =
+        annotation.peek('omitNullJsonFields')?.boolValue ?? true;
 
     return EntityGenerationContext(
       className: className,

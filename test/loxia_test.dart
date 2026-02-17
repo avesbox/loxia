@@ -195,7 +195,9 @@ void main() {
       );
 
       final store = await repository.findOneBy(
-        where: QueryBuilder<_StoreEntity>.from((q) => q.field<int>('id').equals(2)),
+        where: QueryBuilder<_StoreEntity>.from(
+          (q) => q.field<int>('id').equals(2),
+        ),
         relations: const _StoreRelations(
           merchant: _MerchantSelect(id: true, name: true),
         ),
@@ -221,7 +223,9 @@ void main() {
       );
 
       final stores = await repository.findBy(
-        where: QueryBuilder<_StoreEntity>.from((q) => q.field<int>('id').equals(3)),
+        where: QueryBuilder<_StoreEntity>.from(
+          (q) => q.field<int>('id').equals(3),
+        ),
       );
 
       expect(stores, hasLength(1));
@@ -261,7 +265,10 @@ EntityDescriptor<_StoreEntity, _StorePartial> _buildStoreDescriptor() {
         type: RelationType.manyToOne,
         target: _MerchantEntity,
         isOwningSide: true,
-        joinColumn: JoinColumnDescriptor(name: 'merchant_id', referencedColumnName: 'id'),
+        joinColumn: JoinColumnDescriptor(
+          name: 'merchant_id',
+          referencedColumnName: 'id',
+        ),
       ),
     ],
     fromRow: (row) => _StoreEntity(
@@ -533,11 +540,7 @@ class _MerchantFields extends QueryFieldsContext<_StoreEntity> {
 }
 
 class _StoreSelect extends SelectOptions<_StoreEntity, _StorePartial> {
-  const _StoreSelect({
-    this.id = false,
-    this.name = false,
-    this.relations,
-  });
+  const _StoreSelect({this.id = false, this.name = false, this.relations});
 
   final bool id;
   final bool name;

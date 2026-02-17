@@ -159,3 +159,19 @@ class UserMovie extends Entity {
 ```
 
 In this example, we define a unique constraint on the combination of `user_id` and `movie_id` columns in the `user_movies` table. This ensures that each user can only have one entry for each movie, preventing duplicate records in the database. You can define multiple unique constraints on the same entity if needed, allowing you to enforce complex uniqueness rules across your database tables.
+
+## Omit Null JSON Fields
+
+Loxia provides an option to omit null fields when serializing entities and partial entities to JSON. This can help produce cleaner and more concise JSON output by excluding fields that have null values. This feauture is enabled by default, but you can disable it by setting the `omitNullJsonFields` option to `false` in your `@EntityMeta` annotation. For example:
+
+```dart
+@EntityMeta(
+  table: 'users',
+  omitNullJsonFields: true, // Set to false to include null fields in JSON output
+)
+class User extends Entity {
+  // ...
+}
+```
+
+When `omitNullJsonFields` is set to `true`, any fields in your entities or partial entities that have null values will be excluded from the generated JSON output when calling the `toJson()` method. This can help reduce the size of the JSON payload and make it easier to work with in client applications. If you prefer to include null fields in the JSON output, simply set `omitNullJsonFields` to `false`.
