@@ -171,12 +171,40 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
   ///
   /// This method always selects all columns and returns fully hydrated [T] entities.
   /// Use this when you need the complete entity with all fields.
+  ///
+  /// If [relations] is provided, this method delegates to [find] using the
+  /// entity default select with the supplied relations injected, then converts
+  /// each partial entity to [T] via [PartialEntity.toEntity].
   Future<List<T>> findBy({
     QueryBuilder<T>? where,
     List<OrderBy>? orderBy,
     int? offset,
     int? limit,
+    RelationsOptions<T, P>? relations,
   }) async {
+    if (relations != null) {
+      final defaultSelectFactory = _descriptor.defaultSelect;
+      if (defaultSelectFactory == null) {
+        throw StateError(
+          'findBy(relations: ...) requires a defaultSelect for '
+          '${_descriptor.tableName}',
+        );
+      }
+      final selectWithRelations = defaultSelectFactory().withRelations(
+        relations,
+      );
+      final partialItems = await find(
+        select: selectWithRelations,
+        where: where,
+        orderBy: orderBy,
+        limit: limit,
+        offset: offset,
+      );
+      final items = partialItems.map((partial) => partial.toEntity()).toList();
+      _applyPostLoad(items);
+      return items;
+    }
+
     final alias = 't';
     final runtime = QueryRuntimeContext(rootAlias: alias);
     final boundContext = _fieldsContext.bind(runtime, alias);
@@ -207,12 +235,14 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     QueryBuilder<T>? where,
     List<OrderBy>? orderBy,
     int? offset,
+    RelationsOptions<T, P>? relations,
   }) async {
     final results = await findBy(
       where: where,
       orderBy: orderBy,
       limit: 1,
       offset: offset,
+      relations: relations,
     );
     return results.firstOrNull;
   }

@@ -1,4 +1,5 @@
 import 'package:loxia/loxia.dart';
+import 'package:loxia/src/migrations/schema.dart';
 import 'package:test/test.dart';
 
 class _Fields extends QueryFieldsContext<_FakeEntity> {
@@ -138,6 +139,145 @@ void main() {
       expect(spec.foreignColumn, 'parent_id');
     });
   });
+
+  group('EntityRepository.findBy relations hydration', () {
+    test('hydrates relation when relations are requested', () async {
+      final engine = _RepoFakeEngine(
+        rows: [
+          {
+            'id': 1,
+            'name': 'Downtown',
+            'merchant_id': 10,
+            'merchant_name': 'Acme',
+          },
+        ],
+      );
+      final descriptor = _buildStoreDescriptor();
+      final repository = EntityRepository<_StoreEntity, _StorePartial>(
+        descriptor,
+        engine,
+        const _StoreFields(),
+      );
+
+      final stores = await repository.findBy(
+        where: QueryBuilder<_StoreEntity>.from(
+          (q) => q.field<int>('merchant_id').equals(10),
+        ),
+        relations: const _StoreRelations(
+          merchant: _MerchantSelect(id: true, name: true),
+        ),
+      );
+
+      expect(stores, hasLength(1));
+      expect(stores.first.name, 'Downtown');
+      expect(stores.first.merchant?.id, 10);
+      expect(stores.first.merchant?.name, 'Acme');
+      expect(engine.lastSql, contains('LEFT JOIN "merchants" AS "t_merchant"'));
+      expect(engine.lastParams, [10]);
+    });
+
+    test('findOneBy forwards relations and hydrates relation', () async {
+      final engine = _RepoFakeEngine(
+        rows: [
+          {
+            'id': 2,
+            'name': 'Airport',
+            'merchant_id': 11,
+            'merchant_name': 'Sky Trade',
+          },
+        ],
+      );
+      final descriptor = _buildStoreDescriptor();
+      final repository = EntityRepository<_StoreEntity, _StorePartial>(
+        descriptor,
+        engine,
+        const _StoreFields(),
+      );
+
+      final store = await repository.findOneBy(
+        where: QueryBuilder<_StoreEntity>.from((q) => q.field<int>('id').equals(2)),
+        relations: const _StoreRelations(
+          merchant: _MerchantSelect(id: true, name: true),
+        ),
+      );
+
+      expect(store != null, isTrue);
+      expect(store?.merchant?.name, 'Sky Trade');
+      expect(engine.lastSql, contains('LIMIT 1'));
+      expect(engine.lastParams, [2]);
+    });
+
+    test('keeps legacy findBy behavior when withSelect is omitted', () async {
+      final engine = _RepoFakeEngine(
+        rows: [
+          {'id': 3, 'name': 'Old Path', 'merchant_id': 99},
+        ],
+      );
+      final descriptor = _buildStoreDescriptor();
+      final repository = EntityRepository<_StoreEntity, _StorePartial>(
+        descriptor,
+        engine,
+        const _StoreFields(),
+      );
+
+      final stores = await repository.findBy(
+        where: QueryBuilder<_StoreEntity>.from((q) => q.field<int>('id').equals(3)),
+      );
+
+      expect(stores, hasLength(1));
+      expect(stores.first.id, 3);
+      expect(stores.first.merchant == null, isTrue);
+      expect(engine.lastSql, isNot(contains('LEFT JOIN merchants')));
+    });
+  });
+}
+
+EntityDescriptor<_StoreEntity, _StorePartial> _buildStoreDescriptor() {
+  return EntityDescriptor<_StoreEntity, _StorePartial>(
+    entityType: _StoreEntity,
+    tableName: 'stores',
+    columns: [
+      ColumnDescriptor(
+        name: 'id',
+        propertyName: 'id',
+        type: ColumnType.integer,
+        isPrimaryKey: true,
+      ),
+      ColumnDescriptor(
+        name: 'name',
+        propertyName: 'name',
+        type: ColumnType.text,
+      ),
+      ColumnDescriptor(
+        name: 'merchant_id',
+        propertyName: 'merchant',
+        type: ColumnType.integer,
+        nullable: true,
+      ),
+    ],
+    relations: const [
+      RelationDescriptor(
+        fieldName: 'merchant',
+        type: RelationType.manyToOne,
+        target: _MerchantEntity,
+        isOwningSide: true,
+        joinColumn: JoinColumnDescriptor(name: 'merchant_id', referencedColumnName: 'id'),
+      ),
+    ],
+    fromRow: (row) => _StoreEntity(
+      id: row['id'] as int,
+      name: row['name'] as String,
+      merchant: null,
+    ),
+    toRow: (entity) => {
+      'id': entity.id,
+      'name': entity.name,
+      'merchant_id': entity.merchant?.id,
+    },
+    fieldsContext: const _StoreFields(),
+    repositoryFactory: (engine) => throw UnimplementedError(),
+    defaultSelect: () => const _StoreSelect(id: true, name: true),
+  );
 }
 
 class _FakeEntity extends Entity {}
@@ -272,4 +412,327 @@ class _ChildSelect extends SelectOptions<_FakeEntity, _PartialFakeEntity> {
   _PartialFakeEntity hydrate(Map<String, dynamic> row, {String? path}) {
     return _PartialFakeEntity();
   }
+}
+
+class _StoreEntity extends Entity {
+  _StoreEntity({required this.id, required this.name, this.merchant});
+
+  final int id;
+  final String name;
+  final _MerchantEntity? merchant;
+}
+
+class _MerchantEntity extends Entity {
+  _MerchantEntity({required this.id, required this.name});
+
+  final int id;
+  final String name;
+}
+
+class _StorePartial extends PartialEntity<_StoreEntity> {
+  const _StorePartial({this.id, this.name, this.merchant});
+
+  final int? id;
+  final String? name;
+  final _MerchantPartial? merchant;
+
+  @override
+  Object? get primaryKeyValue => id;
+
+  @override
+  _StoreEntity toEntity() {
+    if (id == null || name == null) {
+      throw StateError('Missing required fields for _StoreEntity');
+    }
+    return _StoreEntity(id: id!, name: name!, merchant: merchant?.toEntity());
+  }
+
+  @override
+  InsertDto<_StoreEntity> toInsertDto() {
+    throw UnimplementedError();
+  }
+
+  @override
+  UpdateDto<_StoreEntity> toUpdateDto() {
+    throw UnimplementedError();
+  }
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'name': name,
+    'merchant': merchant?.toJson(),
+  };
+}
+
+class _MerchantPartial extends PartialEntity<_MerchantEntity> {
+  const _MerchantPartial({this.id, this.name});
+
+  final int? id;
+  final String? name;
+
+  @override
+  Object? get primaryKeyValue => id;
+
+  @override
+  _MerchantEntity toEntity() {
+    if (id == null || name == null) {
+      throw StateError('Missing required fields for _MerchantEntity');
+    }
+    return _MerchantEntity(id: id!, name: name!);
+  }
+
+  @override
+  InsertDto<_MerchantEntity> toInsertDto() {
+    throw UnimplementedError();
+  }
+
+  @override
+  UpdateDto<_MerchantEntity> toUpdateDto() {
+    throw UnimplementedError();
+  }
+
+  @override
+  Map<String, dynamic> toJson() => {'id': id, 'name': name};
+}
+
+class _StoreFields extends QueryFieldsContext<_StoreEntity> {
+  const _StoreFields([super.runtime, super.alias]);
+
+  @override
+  _StoreFields bind(QueryRuntimeContext runtime, String alias) =>
+      _StoreFields(runtime, alias);
+
+  QueryField<int> get id => field<int>('id');
+
+  QueryField<String> get name => field<String>('name');
+
+  QueryField<int?> get merchantId => field<int?>('merchant_id');
+
+  _MerchantFields get merchant {
+    final relAlias = ensureRelationJoin(
+      relationName: 'merchant',
+      targetTableName: 'merchants',
+      localColumn: 'merchant_id',
+      foreignColumn: 'id',
+    );
+    return _MerchantFields(runtimeOrThrow, relAlias);
+  }
+}
+
+class _MerchantFields extends QueryFieldsContext<_StoreEntity> {
+  const _MerchantFields([super.runtime, super.alias]);
+
+  @override
+  _MerchantFields bind(QueryRuntimeContext runtime, String alias) =>
+      _MerchantFields(runtime, alias);
+
+  QueryField<int> get id => field<int>('id');
+
+  QueryField<String> get name => field<String>('name');
+}
+
+class _StoreSelect extends SelectOptions<_StoreEntity, _StorePartial> {
+  const _StoreSelect({
+    this.id = false,
+    this.name = false,
+    this.relations,
+  });
+
+  final bool id;
+  final bool name;
+  final _StoreRelations? relations;
+
+  @override
+  SelectOptions<_StoreEntity, _StorePartial> withRelations(
+    RelationsOptions<_StoreEntity, _StorePartial>? relations,
+  ) {
+    return _StoreSelect(
+      id: id,
+      name: name,
+      relations: relations as _StoreRelations?,
+    );
+  }
+
+  @override
+  bool get hasSelections => id || name || (relations?.hasSelections ?? false);
+
+  @override
+  void collect(
+    QueryFieldsContext<_StoreEntity> context,
+    List<SelectField> out, {
+    String? path,
+  }) {
+    if (context is! _StoreFields) {
+      throw ArgumentError('Expected _StoreFields for _StoreSelect');
+    }
+    final tableAlias = context.currentAlias;
+    if (id) {
+      out.add(
+        SelectField(
+          'id',
+          tableAlias: tableAlias,
+          alias: composeAlias(path, 'id'),
+        ),
+      );
+    }
+    if (name) {
+      out.add(
+        SelectField(
+          'name',
+          tableAlias: tableAlias,
+          alias: composeAlias(path, 'name'),
+        ),
+      );
+    }
+    final selectedRelations = relations;
+    if (selectedRelations != null && selectedRelations.hasSelections) {
+      selectedRelations.collect(context, out, path: path);
+    }
+  }
+
+  @override
+  _StorePartial hydrate(Map<String, dynamic> row, {String? path}) {
+    final selectedRelations = relations;
+    _MerchantPartial? merchantPartial;
+    if (selectedRelations?.merchant != null) {
+      final relationPath = extendPath(path, 'merchant');
+      final merchantId = selectedRelations!.merchant!.readValue(
+        row,
+        'id',
+        path: relationPath,
+      );
+      if (merchantId != null) {
+        merchantPartial = selectedRelations.merchant!.hydrate(
+          row,
+          path: relationPath,
+        );
+      }
+    }
+    return _StorePartial(
+      id: readValue(row, 'id', path: path) as int?,
+      name: readValue(row, 'name', path: path) as String?,
+      merchant: merchantPartial,
+    );
+  }
+}
+
+class _StoreRelations extends RelationsOptions<_StoreEntity, _StorePartial> {
+  const _StoreRelations({this.merchant});
+
+  final _MerchantSelect? merchant;
+
+  @override
+  bool get hasSelections => merchant?.hasSelections ?? false;
+
+  @override
+  void collect(
+    QueryFieldsContext<_StoreEntity> context,
+    List<SelectField> out, {
+    String? path,
+  }) {
+    if (context is! _StoreFields) {
+      throw ArgumentError('Expected _StoreFields for _StoreRelations');
+    }
+    final merchantSelect = merchant;
+    if (merchantSelect != null && merchantSelect.hasSelections) {
+      final relationPath = merchantSelect.extendPath(path, 'merchant');
+      merchantSelect.collect(context.merchant, out, path: relationPath);
+    }
+  }
+}
+
+class _MerchantSelect extends SelectOptions<_StoreEntity, _MerchantPartial> {
+  const _MerchantSelect({this.id = false, this.name = false});
+
+  final bool id;
+  final bool name;
+
+  @override
+  bool get hasSelections => id || name;
+
+  @override
+  void collect(
+    QueryFieldsContext<_StoreEntity> context,
+    List<SelectField> out, {
+    String? path,
+  }) {
+    if (context is! _MerchantFields) {
+      throw ArgumentError('Expected _MerchantFields for _MerchantSelect');
+    }
+    final tableAlias = context.currentAlias;
+    if (id) {
+      out.add(
+        SelectField(
+          'id',
+          tableAlias: tableAlias,
+          alias: composeAlias(path, 'id'),
+        ),
+      );
+    }
+    if (name) {
+      out.add(
+        SelectField(
+          'name',
+          tableAlias: tableAlias,
+          alias: composeAlias(path, 'name'),
+        ),
+      );
+    }
+  }
+
+  @override
+  _MerchantPartial hydrate(Map<String, dynamic> row, {String? path}) {
+    return _MerchantPartial(
+      id: readValue(row, 'id', path: path) as int?,
+      name: readValue(row, 'name', path: path) as String?,
+    );
+  }
+}
+
+class _RepoFakeEngine implements EngineAdapter {
+  _RepoFakeEngine({required this.rows});
+
+  final List<Map<String, dynamic>> rows;
+  String? lastSql;
+  List<Object?> lastParams = const [];
+
+  @override
+  bool get supportsAlterTableAddConstraint => true;
+
+  @override
+  Future<void> open() async {}
+
+  @override
+  Future<void> close() async {}
+
+  @override
+  Future<SchemaState> readSchema() async => SchemaState.empty();
+
+  @override
+  Future<void> executeBatch(List<String> statements) async {}
+
+  @override
+  Future<List<Map<String, dynamic>>> query(
+    String sql, [
+    List<Object?> params = const [],
+  ]) async {
+    lastSql = sql;
+    lastParams = params;
+    return rows;
+  }
+
+  @override
+  Future<int> execute(String sql, [List<Object?> params = const []]) async => 0;
+
+  @override
+  Future<T> transaction<T>(Future<T> Function(EngineAdapter txEngine) action) {
+    return action(this);
+  }
+
+  @override
+  Future<void> ensureHistoryTable() async {}
+
+  @override
+  Future<List<int>> getAppliedVersions() async => const [];
 }

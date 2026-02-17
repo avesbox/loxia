@@ -139,6 +139,7 @@ class EntityGenerationContext {
     required this.columns,
     required this.queries,
     required this.relations,
+    this.omitNullJsonFields = true,
     Map<String, List<String>>? hooks,
     List<GenTimestampField>? createdAtFields,
     List<GenTimestampField>? updatedAtFields,
@@ -158,6 +159,7 @@ class EntityGenerationContext {
   final List<GenTimestampField> createdAtFields;
   final List<GenTimestampField> updatedAtFields;
   final List<GenUniqueConstraint> uniqueConstraints;
+  final bool omitNullJsonFields;
 
   /// Entity class name.
   String get entityName => className;

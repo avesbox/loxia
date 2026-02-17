@@ -9,6 +9,9 @@ class EntityMeta {
   /// Database schema or namespace.
   final String? schema;
 
+  /// If true, null values are omitted from the JSON representation of this entity.
+  final bool omitNullJsonFields;
+
   final List<Query> queries;
 
   /// Composite unique constraints for this entity.
@@ -30,6 +33,7 @@ class EntityMeta {
   const EntityMeta({
     this.table,
     this.schema,
+    this.omitNullJsonFields = true,
     this.queries = const [],
     this.uniqueConstraints = const [],
   });

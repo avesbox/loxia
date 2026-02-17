@@ -370,7 +370,11 @@ if (missing.isNotEmpty) {
         // All fields in a Partial are nullable
         value = '$value?.toIso8601String()';
       }
-      entries.add('$key: $value');
+      if (!context.omitNullJsonFields) {
+        entries.add('$key: $value');
+      } else {
+        entries.add('if (${c.prop} != null) $key: $value');
+      }
     }
 
     // Relations
@@ -385,14 +389,22 @@ if (missing.isNotEmpty) {
         // Partial?
         value = '$value?.toJson()';
       }
-      entries.add('$key: $value');
+      if (!context.omitNullJsonFields) {
+        entries.add('$key: $value');
+      } else {
+        entries.add('if (${r.fieldName} != null) $key: $value');
+      }
     }
 
     // Join Columns (exposed as IDs usually, e.g. userId)
     for (final r in context.owningJoinColumns) {
       final prop = r.joinColumnPropertyName;
       if (prop != null) {
-        entries.add("'$prop': $prop");
+        if (!context.omitNullJsonFields) {
+          entries.add("'$prop': $prop");
+        } else {
+          entries.add('if ($prop != null) \'$prop\': $prop');
+        }
       }
     }
 

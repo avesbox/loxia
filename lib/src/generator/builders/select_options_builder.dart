@@ -29,6 +29,7 @@ class SelectOptionsBuilder {
         ..fields.addAll(_buildJoinColumnFields(context))
         ..fields.add(_buildRelationsField(context))
         ..methods.add(_buildHasSelectionsGetter(context))
+        ..methods.add(_buildWithRelationsMethod(context))
         ..methods.add(_buildCollectMethod(context))
         ..methods.add(_buildHydrateMethod(context))
         ..methods.add(_buildHasCollectionRelationsGetter(context))
@@ -215,6 +216,52 @@ if (rels != null && rels.hasSelections) {
           ),
         )
         ..body = Block.of(statements),
+    );
+  }
+
+  Method _buildWithRelationsMethod(EntityGenerationContext context) {
+    final args = <String>[];
+    for (final c in context.columns) {
+      args.add('${c.prop}: ${c.prop}');
+    }
+    for (final relation in context.owningJoinColumns) {
+      final joinProp = relation.joinColumnPropertyName;
+      if (joinProp != null) {
+        args.add('$joinProp: $joinProp');
+      }
+    }
+    args.add('relations: relations as ${context.relationsClassName}?');
+
+    return Method(
+      (m) => m
+        ..annotations.add(refer('override'))
+        ..name = 'withRelations'
+        ..returns = TypeReference(
+          (t) => t
+            ..symbol = 'SelectOptions'
+            ..types.addAll([
+              refer(context.entityName),
+              refer(context.partialEntityName),
+            ]),
+        )
+        ..requiredParameters.add(
+          Parameter(
+            (p) => p
+              ..name = 'relations'
+              ..type = TypeReference(
+                (t) => t
+                  ..symbol = 'RelationsOptions'
+                  ..types.addAll([
+                    refer(context.entityName),
+                    refer(context.partialEntityName),
+                  ])
+                  ..isNullable = true,
+              ),
+          ),
+        )
+        ..body = Code(
+          'return ${context.selectClassName}(${args.join(', ')});',
+        ),
     );
   }
 

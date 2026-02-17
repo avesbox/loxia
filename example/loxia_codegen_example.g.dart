@@ -6,6 +6,660 @@ part of 'loxia_codegen_example.dart';
 // LoxiaEntityGenerator
 // **************************************************************************
 
+final EntityDescriptor<Merchant, MerchantPartial> $MerchantEntityDescriptor =
+    () {
+      $initMerchantJsonCodec();
+      return EntityDescriptor(
+        entityType: Merchant,
+        tableName: 'merchants',
+        columns: [
+          ColumnDescriptor(
+            name: 'id',
+            propertyName: 'id',
+            type: ColumnType.uuid,
+            nullable: false,
+            unique: false,
+            isPrimaryKey: true,
+            autoIncrement: false,
+            uuid: true,
+          ),
+          ColumnDescriptor(
+            name: 'name',
+            propertyName: 'name',
+            type: ColumnType.text,
+            nullable: false,
+            unique: false,
+            isPrimaryKey: false,
+            autoIncrement: false,
+            uuid: false,
+          ),
+          ColumnDescriptor(
+            name: 'business_name',
+            propertyName: 'businessName',
+            type: ColumnType.text,
+            nullable: false,
+            unique: false,
+            isPrimaryKey: false,
+            autoIncrement: false,
+            uuid: false,
+          ),
+          ColumnDescriptor(
+            name: 'mobile_number',
+            propertyName: 'mobileNumber',
+            type: ColumnType.text,
+            nullable: false,
+            unique: true,
+            isPrimaryKey: false,
+            autoIncrement: false,
+            uuid: false,
+          ),
+          ColumnDescriptor(
+            name: 'email',
+            propertyName: 'email',
+            type: ColumnType.text,
+            nullable: false,
+            unique: true,
+            isPrimaryKey: false,
+            autoIncrement: false,
+            uuid: false,
+          ),
+          ColumnDescriptor(
+            name: 'password_hash',
+            propertyName: 'passwordHash',
+            type: ColumnType.text,
+            nullable: false,
+            unique: false,
+            isPrimaryKey: false,
+            autoIncrement: false,
+            uuid: false,
+          ),
+          ColumnDescriptor(
+            name: 'created_at',
+            propertyName: 'createdAt',
+            type: ColumnType.dateTime,
+            nullable: true,
+            unique: false,
+            isPrimaryKey: false,
+            autoIncrement: false,
+            uuid: false,
+          ),
+          ColumnDescriptor(
+            name: 'updated_at',
+            propertyName: 'updatedAt',
+            type: ColumnType.dateTime,
+            nullable: true,
+            unique: false,
+            isPrimaryKey: false,
+            autoIncrement: false,
+            uuid: false,
+          ),
+        ],
+        relations: const [],
+        fromRow: (row) => Merchant(
+          id: (row['id'] as String),
+          name: (row['name'] as String),
+          businessName: (row['business_name'] as String),
+          mobileNumber: (row['mobile_number'] as String),
+          email: (row['email'] as String),
+          passwordHash: (row['password_hash'] as String),
+          createdAt: row['created_at'] == null
+              ? null
+              : row['created_at'] is String
+              ? DateTime.parse(row['created_at'].toString())
+              : row['created_at'] as DateTime,
+          updatedAt: row['updated_at'] == null
+              ? null
+              : row['updated_at'] is String
+              ? DateTime.parse(row['updated_at'].toString())
+              : row['updated_at'] as DateTime,
+        ),
+        toRow: (e) => {
+          'id': e.id,
+          'name': e.name,
+          'business_name': e.businessName,
+          'mobile_number': e.mobileNumber,
+          'email': e.email,
+          'password_hash': e.passwordHash,
+          'created_at': e.createdAt?.toIso8601String(),
+          'updated_at': e.updatedAt?.toIso8601String(),
+        },
+        fieldsContext: const MerchantFieldsContext(),
+        repositoryFactory: (EngineAdapter engine) => MerchantRepository(engine),
+        hooks: EntityHooks<Merchant>(
+          prePersist: (e) {
+            e.createdAt = DateTime.now();
+            e.updatedAt = DateTime.now();
+          },
+          preUpdate: (e) {
+            e.updatedAt = DateTime.now();
+          },
+        ),
+        defaultSelect: () => MerchantSelect(),
+      );
+    }();
+
+class MerchantFieldsContext extends QueryFieldsContext<Merchant> {
+  const MerchantFieldsContext([super.runtimeContext, super.alias]);
+
+  @override
+  MerchantFieldsContext bind(
+    QueryRuntimeContext runtimeContext,
+    String alias,
+  ) => MerchantFieldsContext(runtimeContext, alias);
+
+  QueryField<String> get id => field<String>('id');
+
+  QueryField<String> get name => field<String>('name');
+
+  QueryField<String> get businessName => field<String>('business_name');
+
+  QueryField<String> get mobileNumber => field<String>('mobile_number');
+
+  QueryField<String> get email => field<String>('email');
+
+  QueryField<String> get passwordHash => field<String>('password_hash');
+
+  QueryField<DateTime?> get createdAt => field<DateTime?>('created_at');
+
+  QueryField<DateTime?> get updatedAt => field<DateTime?>('updated_at');
+}
+
+class MerchantQuery extends QueryBuilder<Merchant> {
+  const MerchantQuery(this._builder);
+
+  final WhereExpression Function(MerchantFieldsContext) _builder;
+
+  @override
+  WhereExpression build(QueryFieldsContext<Merchant> context) {
+    if (context is! MerchantFieldsContext) {
+      throw ArgumentError('Expected MerchantFieldsContext for MerchantQuery');
+    }
+    return _builder(context);
+  }
+}
+
+class MerchantSelect extends SelectOptions<Merchant, MerchantPartial> {
+  const MerchantSelect({
+    this.id = true,
+    this.name = true,
+    this.businessName = true,
+    this.mobileNumber = true,
+    this.email = true,
+    this.passwordHash = true,
+    this.createdAt = true,
+    this.updatedAt = true,
+    this.relations,
+  });
+
+  final bool id;
+
+  final bool name;
+
+  final bool businessName;
+
+  final bool mobileNumber;
+
+  final bool email;
+
+  final bool passwordHash;
+
+  final bool createdAt;
+
+  final bool updatedAt;
+
+  final MerchantRelations? relations;
+
+  @override
+  bool get hasSelections =>
+      id ||
+      name ||
+      businessName ||
+      mobileNumber ||
+      email ||
+      passwordHash ||
+      createdAt ||
+      updatedAt ||
+      (relations?.hasSelections ?? false);
+
+  @override
+  SelectOptions<Merchant, MerchantPartial> withRelations(
+    RelationsOptions<Merchant, MerchantPartial>? relations,
+  ) {
+    return MerchantSelect(
+      id: id,
+      name: name,
+      businessName: businessName,
+      mobileNumber: mobileNumber,
+      email: email,
+      passwordHash: passwordHash,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+      relations: relations as MerchantRelations?,
+    );
+  }
+
+  @override
+  void collect(
+    QueryFieldsContext<Merchant> context,
+    List<SelectField> out, {
+    String? path,
+  }) {
+    if (context is! MerchantFieldsContext) {
+      throw ArgumentError('Expected MerchantFieldsContext for MerchantSelect');
+    }
+    final MerchantFieldsContext scoped = context;
+    String? aliasFor(String column) {
+      final current = path;
+      if (current == null || current.isEmpty) return null;
+      return '${current}_$column';
+    }
+
+    final tableAlias = scoped.currentAlias;
+    if (id) {
+      out.add(SelectField('id', tableAlias: tableAlias, alias: aliasFor('id')));
+    }
+    if (name) {
+      out.add(
+        SelectField('name', tableAlias: tableAlias, alias: aliasFor('name')),
+      );
+    }
+    if (businessName) {
+      out.add(
+        SelectField(
+          'business_name',
+          tableAlias: tableAlias,
+          alias: aliasFor('business_name'),
+        ),
+      );
+    }
+    if (mobileNumber) {
+      out.add(
+        SelectField(
+          'mobile_number',
+          tableAlias: tableAlias,
+          alias: aliasFor('mobile_number'),
+        ),
+      );
+    }
+    if (email) {
+      out.add(
+        SelectField('email', tableAlias: tableAlias, alias: aliasFor('email')),
+      );
+    }
+    if (passwordHash) {
+      out.add(
+        SelectField(
+          'password_hash',
+          tableAlias: tableAlias,
+          alias: aliasFor('password_hash'),
+        ),
+      );
+    }
+    if (createdAt) {
+      out.add(
+        SelectField(
+          'created_at',
+          tableAlias: tableAlias,
+          alias: aliasFor('created_at'),
+        ),
+      );
+    }
+    if (updatedAt) {
+      out.add(
+        SelectField(
+          'updated_at',
+          tableAlias: tableAlias,
+          alias: aliasFor('updated_at'),
+        ),
+      );
+    }
+    final rels = relations;
+    if (rels != null && rels.hasSelections) {
+      rels.collect(scoped, out, path: path);
+    }
+  }
+
+  @override
+  MerchantPartial hydrate(Map<String, dynamic> row, {String? path}) {
+    return MerchantPartial(
+      id: id ? readValue(row, 'id', path: path) as String : null,
+      name: name ? readValue(row, 'name', path: path) as String : null,
+      businessName: businessName
+          ? readValue(row, 'business_name', path: path) as String
+          : null,
+      mobileNumber: mobileNumber
+          ? readValue(row, 'mobile_number', path: path) as String
+          : null,
+      email: email ? readValue(row, 'email', path: path) as String : null,
+      passwordHash: passwordHash
+          ? readValue(row, 'password_hash', path: path) as String
+          : null,
+      createdAt: createdAt
+          ? readValue(row, 'created_at', path: path) == null
+                ? null
+                : (readValue(row, 'created_at', path: path) is String
+                      ? DateTime.parse(
+                          readValue(row, 'created_at', path: path) as String,
+                        )
+                      : readValue(row, 'created_at', path: path) as DateTime)
+          : null,
+      updatedAt: updatedAt
+          ? readValue(row, 'updated_at', path: path) == null
+                ? null
+                : (readValue(row, 'updated_at', path: path) is String
+                      ? DateTime.parse(
+                          readValue(row, 'updated_at', path: path) as String,
+                        )
+                      : readValue(row, 'updated_at', path: path) as DateTime)
+          : null,
+    );
+  }
+
+  @override
+  bool get hasCollectionRelations => false;
+
+  @override
+  String? get primaryKeyColumn => 'id';
+}
+
+class MerchantRelations extends RelationsOptions<Merchant, MerchantPartial> {
+  const MerchantRelations();
+
+  @override
+  bool get hasSelections => false;
+
+  @override
+  void collect(
+    QueryFieldsContext<Merchant> context,
+    List<SelectField> out, {
+    String? path,
+  }) {
+    if (context is! MerchantFieldsContext) {
+      throw ArgumentError(
+        'Expected MerchantFieldsContext for MerchantRelations',
+      );
+    }
+  }
+}
+
+class MerchantPartial extends PartialEntity<Merchant> {
+  const MerchantPartial({
+    this.id,
+    this.name,
+    this.businessName,
+    this.mobileNumber,
+    this.email,
+    this.passwordHash,
+    this.createdAt,
+    this.updatedAt,
+  });
+
+  final String? id;
+
+  final String? name;
+
+  final String? businessName;
+
+  final String? mobileNumber;
+
+  final String? email;
+
+  final String? passwordHash;
+
+  final DateTime? createdAt;
+
+  final DateTime? updatedAt;
+
+  @override
+  Object? get primaryKeyValue {
+    return id;
+  }
+
+  @override
+  MerchantInsertDto toInsertDto() {
+    final missing = <String>[];
+    if (name == null) missing.add('name');
+    if (businessName == null) missing.add('businessName');
+    if (mobileNumber == null) missing.add('mobileNumber');
+    if (email == null) missing.add('email');
+    if (passwordHash == null) missing.add('passwordHash');
+    if (missing.isNotEmpty) {
+      throw StateError(
+        'Cannot convert MerchantPartial to MerchantInsertDto: missing required fields: ${missing.join(', ')}',
+      );
+    }
+    return MerchantInsertDto(
+      name: name!,
+      businessName: businessName!,
+      mobileNumber: mobileNumber!,
+      email: email!,
+      passwordHash: passwordHash!,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+    );
+  }
+
+  @override
+  MerchantUpdateDto toUpdateDto() {
+    return MerchantUpdateDto(
+      name: name,
+      businessName: businessName,
+      mobileNumber: mobileNumber,
+      email: email,
+      passwordHash: passwordHash,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+    );
+  }
+
+  @override
+  Merchant toEntity() {
+    final missing = <String>[];
+    if (id == null) missing.add('id');
+    if (name == null) missing.add('name');
+    if (businessName == null) missing.add('businessName');
+    if (mobileNumber == null) missing.add('mobileNumber');
+    if (email == null) missing.add('email');
+    if (passwordHash == null) missing.add('passwordHash');
+    if (missing.isNotEmpty) {
+      throw StateError(
+        'Cannot convert MerchantPartial to Merchant: missing required fields: ${missing.join(', ')}',
+      );
+    }
+    return Merchant(
+      id: id!,
+      name: name!,
+      businessName: businessName!,
+      mobileNumber: mobileNumber!,
+      email: email!,
+      passwordHash: passwordHash!,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+    );
+  }
+
+  @override
+  Map<String, dynamic> toJson() {
+    return {
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (businessName != null) 'businessName': businessName,
+      if (mobileNumber != null) 'mobileNumber': mobileNumber,
+      if (email != null) 'email': email,
+      if (passwordHash != null) 'passwordHash': passwordHash,
+      if (createdAt != null) 'createdAt': createdAt?.toIso8601String(),
+      if (updatedAt != null) 'updatedAt': updatedAt?.toIso8601String(),
+    };
+  }
+}
+
+class MerchantInsertDto implements InsertDto<Merchant> {
+  const MerchantInsertDto({
+    required this.name,
+    required this.businessName,
+    required this.mobileNumber,
+    required this.email,
+    required this.passwordHash,
+    this.createdAt,
+    this.updatedAt,
+  });
+
+  final String name;
+
+  final String businessName;
+
+  final String mobileNumber;
+
+  final String email;
+
+  final String passwordHash;
+
+  final DateTime? createdAt;
+
+  final DateTime? updatedAt;
+
+  @override
+  Map<String, dynamic> toMap() {
+    return {
+      'name': name,
+      'business_name': businessName,
+      'mobile_number': mobileNumber,
+      'email': email,
+      'password_hash': passwordHash,
+      'created_at': DateTime.now().toIso8601String(),
+      'updated_at': DateTime.now().toIso8601String(),
+    };
+  }
+
+  Map<String, dynamic> get cascades {
+    return const {};
+  }
+
+  MerchantInsertDto copyWith({
+    String? name,
+    String? businessName,
+    String? mobileNumber,
+    String? email,
+    String? passwordHash,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) {
+    return MerchantInsertDto(
+      name: name ?? this.name,
+      businessName: businessName ?? this.businessName,
+      mobileNumber: mobileNumber ?? this.mobileNumber,
+      email: email ?? this.email,
+      passwordHash: passwordHash ?? this.passwordHash,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+}
+
+class MerchantUpdateDto implements UpdateDto<Merchant> {
+  const MerchantUpdateDto({
+    this.name,
+    this.businessName,
+    this.mobileNumber,
+    this.email,
+    this.passwordHash,
+    this.createdAt,
+    this.updatedAt,
+  });
+
+  final String? name;
+
+  final String? businessName;
+
+  final String? mobileNumber;
+
+  final String? email;
+
+  final String? passwordHash;
+
+  final DateTime? createdAt;
+
+  final DateTime? updatedAt;
+
+  @override
+  Map<String, dynamic> toMap() {
+    return {
+      if (name != null) 'name': name,
+      if (businessName != null) 'business_name': businessName,
+      if (mobileNumber != null) 'mobile_number': mobileNumber,
+      if (email != null) 'email': email,
+      if (passwordHash != null) 'password_hash': passwordHash,
+      if (createdAt != null)
+        'created_at': createdAt is DateTime
+            ? (createdAt as DateTime).toIso8601String()
+            : createdAt?.toString(),
+      'updated_at': DateTime.now().toIso8601String(),
+    };
+  }
+
+  Map<String, dynamic> get cascades {
+    return const {};
+  }
+}
+
+class MerchantRepository extends EntityRepository<Merchant, MerchantPartial> {
+  MerchantRepository(EngineAdapter engine)
+    : super(
+        $MerchantEntityDescriptor,
+        engine,
+        $MerchantEntityDescriptor.fieldsContext,
+      );
+}
+
+extension MerchantJson on Merchant {
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'businessName': businessName,
+      'mobileNumber': mobileNumber,
+      'email': email,
+      'passwordHash': passwordHash,
+      if (createdAt?.toIso8601String() != null)
+        'createdAt': createdAt?.toIso8601String(),
+      if (updatedAt?.toIso8601String() != null)
+        'updatedAt': updatedAt?.toIso8601String(),
+    };
+  }
+}
+
+extension MerchantCodec on Merchant {
+  Object? toEncodable() {
+    return toJson();
+  }
+
+  String toJsonString() {
+    return encodeJsonColumn(toJson()) as String;
+  }
+}
+
+extension MerchantPartialCodec on MerchantPartial {
+  Object? toEncodable() {
+    return toJson();
+  }
+
+  String toJsonString() {
+    return encodeJsonColumn(toJson()) as String;
+  }
+}
+
+var $isMerchantJsonCodecInitialized = false;
+void $initMerchantJsonCodec() {
+  if ($isMerchantJsonCodecInitialized) return;
+  EntityJsonRegistry.register<Merchant>(
+    (value) => MerchantJson(value).toJson(),
+  );
+  $isMerchantJsonCodecInitialized = true;
+}
+
+extension MerchantRepositoryExtensions
+    on EntityRepository<Merchant, PartialEntity<Merchant>> {}
+
 final EntityDescriptor<User, UserPartial> $UserEntityDescriptor = () {
   $initUserJsonCodec();
   return EntityDescriptor(
@@ -156,6 +810,19 @@ class UserSelect extends SelectOptions<User, UserPartial> {
       id || email || role || tags || (relations?.hasSelections ?? false);
 
   @override
+  SelectOptions<User, UserPartial> withRelations(
+    RelationsOptions<User, UserPartial>? relations,
+  ) {
+    return UserSelect(
+      id: id,
+      email: email,
+      role: role,
+      tags: tags,
+      relations: relations as UserRelations?,
+    );
+  }
+
+  @override
   void collect(
     QueryFieldsContext<User> context,
     List<SelectField> out, {
@@ -263,24 +930,31 @@ class UserSelect extends SelectOptions<User, UserPartial> {
   }
 }
 
-class UserRelations {
+class UserRelations extends RelationsOptions<User, UserPartial> {
   const UserRelations({this.posts});
 
   final PostSelect? posts;
 
+  @override
   bool get hasSelections => (posts?.hasSelections ?? false);
 
+  @override
   void collect(
-    UserFieldsContext context,
+    QueryFieldsContext<User> context,
     List<SelectField> out, {
     String? path,
   }) {
+    if (context is! UserFieldsContext) {
+      throw ArgumentError('Expected UserFieldsContext for UserRelations');
+    }
+    final UserFieldsContext scoped = context;
+
     final postsSelect = posts;
     if (postsSelect != null && postsSelect.hasSelections) {
       final relationPath = path == null || path.isEmpty
           ? 'posts'
           : '${path}_posts';
-      final relationContext = context.posts;
+      final relationContext = scoped.posts;
       postsSelect.collect(relationContext, out, path: relationPath);
     }
   }
@@ -352,11 +1026,11 @@ class UserPartial extends PartialEntity<User> {
   @override
   Map<String, dynamic> toJson() {
     return {
-      'id': id,
-      'email': email,
-      'role': role?.name,
-      'tags': tags,
-      'posts': posts?.map((e) => e.toJson()).toList(),
+      if (id != null) 'id': id,
+      if (email != null) 'email': email,
+      if (role != null) 'role': role?.name,
+      if (tags != null) 'tags': tags,
+      if (posts != null) 'posts': posts?.map((e) => e.toJson()).toList(),
     };
   }
 }
@@ -782,6 +1456,22 @@ class PostSelect extends SelectOptions<Post, PostPartial> {
       (relations?.hasSelections ?? false);
 
   @override
+  SelectOptions<Post, PostPartial> withRelations(
+    RelationsOptions<Post, PostPartial>? relations,
+  ) {
+    return PostSelect(
+      id: id,
+      title: title,
+      content: content,
+      likes: likes,
+      createdAt: createdAt,
+      lastUpdatedAt: lastUpdatedAt,
+      userId: userId,
+      relations: relations as PostRelations?,
+    );
+  }
+
+  @override
   void collect(
     QueryFieldsContext<Post> context,
     List<SelectField> out, {
@@ -898,27 +1588,34 @@ class PostSelect extends SelectOptions<Post, PostPartial> {
   String? get primaryKeyColumn => 'id';
 }
 
-class PostRelations {
+class PostRelations extends RelationsOptions<Post, PostPartial> {
   const PostRelations({this.user, this.tags});
 
   final UserSelect? user;
 
   final TagSelect? tags;
 
+  @override
   bool get hasSelections =>
       (user?.hasSelections ?? false) || (tags?.hasSelections ?? false);
 
+  @override
   void collect(
-    PostFieldsContext context,
+    QueryFieldsContext<Post> context,
     List<SelectField> out, {
     String? path,
   }) {
+    if (context is! PostFieldsContext) {
+      throw ArgumentError('Expected PostFieldsContext for PostRelations');
+    }
+    final PostFieldsContext scoped = context;
+
     final userSelect = user;
     if (userSelect != null && userSelect.hasSelections) {
       final relationPath = path == null || path.isEmpty
           ? 'user'
           : '${path}_user';
-      final relationContext = context.user;
+      final relationContext = scoped.user;
       userSelect.collect(relationContext, out, path: relationPath);
     }
     final tagsSelect = tags;
@@ -926,7 +1623,7 @@ class PostRelations {
       final relationPath = path == null || path.isEmpty
           ? 'tags'
           : '${path}_tags';
-      final relationContext = context.tags;
+      final relationContext = scoped.tags;
       tagsSelect.collect(relationContext, out, path: relationPath);
     }
   }
@@ -1028,15 +1725,15 @@ class PostPartial extends PartialEntity<Post> {
   @override
   Map<String, dynamic> toJson() {
     return {
-      'id': id,
-      'title': title,
-      'content': content,
-      'likes': likes,
-      'createdAt': createdAt?.toIso8601String(),
-      'lastUpdatedAt': lastUpdatedAt,
-      'user': user?.toJson(),
-      'tags': tags?.map((e) => e.toJson()).toList(),
-      'userId': userId,
+      if (id != null) 'id': id,
+      if (title != null) 'title': title,
+      if (content != null) 'content': content,
+      if (likes != null) 'likes': likes,
+      if (createdAt != null) 'createdAt': createdAt?.toIso8601String(),
+      if (lastUpdatedAt != null) 'lastUpdatedAt': lastUpdatedAt,
+      if (user != null) 'user': user?.toJson(),
+      if (tags != null) 'tags': tags?.map((e) => e.toJson()).toList(),
+      if (userId != null) 'userId': userId,
     };
   }
 }
@@ -1161,9 +1858,10 @@ extension PostJson on Post {
       'title': title,
       'content': content,
       'likes': likes,
-      'createdAt': createdAt?.toIso8601String(),
-      'lastUpdatedAt': lastUpdatedAt,
-      'user': user?.toJson(),
+      if (createdAt?.toIso8601String() != null)
+        'createdAt': createdAt?.toIso8601String(),
+      if (lastUpdatedAt != null) 'lastUpdatedAt': lastUpdatedAt,
+      if (user?.toJson() != null) 'user': user?.toJson(),
       'tags': tags.map((e) => e.toJson()).toList(),
     };
   }
@@ -1307,6 +2005,13 @@ class TagSelect extends SelectOptions<Tag, TagPartial> {
   bool get hasSelections => id || name || (relations?.hasSelections ?? false);
 
   @override
+  SelectOptions<Tag, TagPartial> withRelations(
+    RelationsOptions<Tag, TagPartial>? relations,
+  ) {
+    return TagSelect(id: id, name: name, relations: relations as TagRelations?);
+  }
+
+  @override
   void collect(
     QueryFieldsContext<Tag> context,
     List<SelectField> out, {
@@ -1391,24 +2096,31 @@ class TagSelect extends SelectOptions<Tag, TagPartial> {
   }
 }
 
-class TagRelations {
+class TagRelations extends RelationsOptions<Tag, TagPartial> {
   const TagRelations({this.posts});
 
   final PostSelect? posts;
 
+  @override
   bool get hasSelections => (posts?.hasSelections ?? false);
 
+  @override
   void collect(
-    TagFieldsContext context,
+    QueryFieldsContext<Tag> context,
     List<SelectField> out, {
     String? path,
   }) {
+    if (context is! TagFieldsContext) {
+      throw ArgumentError('Expected TagFieldsContext for TagRelations');
+    }
+    final TagFieldsContext scoped = context;
+
     final postsSelect = posts;
     if (postsSelect != null && postsSelect.hasSelections) {
       final relationPath = path == null || path.isEmpty
           ? 'posts'
           : '${path}_posts';
-      final relationContext = context.posts;
+      final relationContext = scoped.posts;
       postsSelect.collect(relationContext, out, path: relationPath);
     }
   }
@@ -1465,9 +2177,9 @@ class TagPartial extends PartialEntity<Tag> {
   @override
   Map<String, dynamic> toJson() {
     return {
-      'id': id,
-      'name': name,
-      'posts': posts?.map((e) => e.toJson()).toList(),
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (posts != null) 'posts': posts?.map((e) => e.toJson()).toList(),
     };
   }
 }
@@ -1738,6 +2450,21 @@ class SubscriptionSelect
       (relations?.hasSelections ?? false);
 
   @override
+  SelectOptions<Subscription, SubscriptionPartial> withRelations(
+    RelationsOptions<Subscription, SubscriptionPartial>? relations,
+  ) {
+    return SubscriptionSelect(
+      id: id,
+      plan: plan,
+      status: status,
+      currentPeriodEnd: currentPeriodEnd,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+      relations: relations as SubscriptionRelations?,
+    );
+  }
+
+  @override
   void collect(
     QueryFieldsContext<Subscription> context,
     List<SelectField> out, {
@@ -1853,16 +2580,25 @@ class SubscriptionSelect
   String? get primaryKeyColumn => 'id';
 }
 
-class SubscriptionRelations {
+class SubscriptionRelations
+    extends RelationsOptions<Subscription, SubscriptionPartial> {
   const SubscriptionRelations();
 
+  @override
   bool get hasSelections => false;
 
+  @override
   void collect(
-    SubscriptionFieldsContext context,
+    QueryFieldsContext<Subscription> context,
     List<SelectField> out, {
     String? path,
-  }) {}
+  }) {
+    if (context is! SubscriptionFieldsContext) {
+      throw ArgumentError(
+        'Expected SubscriptionFieldsContext for SubscriptionRelations',
+      );
+    }
+  }
 }
 
 class SubscriptionPartial extends PartialEntity<Subscription> {
@@ -1948,12 +2684,13 @@ class SubscriptionPartial extends PartialEntity<Subscription> {
   @override
   Map<String, dynamic> toJson() {
     return {
-      'id': id,
-      'plan': plan?.name,
-      'status': status?.name,
-      'currentPeriodEnd': currentPeriodEnd?.toIso8601String(),
-      'createdAt': createdAt?.toIso8601String(),
-      'updatedAt': updatedAt?.toIso8601String(),
+      if (id != null) 'id': id,
+      if (plan != null) 'plan': plan?.name,
+      if (status != null) 'status': status?.name,
+      if (currentPeriodEnd != null)
+        'currentPeriodEnd': currentPeriodEnd?.toIso8601String(),
+      if (createdAt != null) 'createdAt': createdAt?.toIso8601String(),
+      if (updatedAt != null) 'updatedAt': updatedAt?.toIso8601String(),
     };
   }
 }
@@ -2065,8 +2802,10 @@ extension SubscriptionJson on Subscription {
       'plan': plan.name,
       'status': status.name,
       'currentPeriodEnd': currentPeriodEnd.toIso8601String(),
-      'createdAt': createdAt?.toIso8601String(),
-      'updatedAt': updatedAt?.toIso8601String(),
+      if (createdAt?.toIso8601String() != null)
+        'createdAt': createdAt?.toIso8601String(),
+      if (updatedAt?.toIso8601String() != null)
+        'updatedAt': updatedAt?.toIso8601String(),
     };
   }
 }
@@ -2334,6 +3073,24 @@ class MovieSelect extends SelectOptions<Movie, MoviePartial> {
       (relations?.hasSelections ?? false);
 
   @override
+  SelectOptions<Movie, MoviePartial> withRelations(
+    RelationsOptions<Movie, MoviePartial>? relations,
+  ) {
+    return MovieSelect(
+      id: id,
+      title: title,
+      overview: overview,
+      releaseYear: releaseYear,
+      genres: genres,
+      runtime: runtime,
+      posterUrl: posterUrl,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+      relations: relations as MovieRelations?,
+    );
+  }
+
+  @override
   void collect(
     QueryFieldsContext<Movie> context,
     List<SelectField> out, {
@@ -2474,16 +3231,22 @@ class MovieSelect extends SelectOptions<Movie, MoviePartial> {
   String? get primaryKeyColumn => 'id';
 }
 
-class MovieRelations {
+class MovieRelations extends RelationsOptions<Movie, MoviePartial> {
   const MovieRelations();
 
+  @override
   bool get hasSelections => false;
 
+  @override
   void collect(
-    MovieFieldsContext context,
+    QueryFieldsContext<Movie> context,
     List<SelectField> out, {
     String? path,
-  }) {}
+  }) {
+    if (context is! MovieFieldsContext) {
+      throw ArgumentError('Expected MovieFieldsContext for MovieRelations');
+    }
+  }
 }
 
 class MoviePartial extends PartialEntity<Movie> {
@@ -2587,15 +3350,15 @@ class MoviePartial extends PartialEntity<Movie> {
   @override
   Map<String, dynamic> toJson() {
     return {
-      'id': id,
-      'title': title,
-      'overview': overview,
-      'releaseYear': releaseYear,
-      'genres': genres,
-      'runtime': runtime,
-      'posterUrl': posterUrl,
-      'createdAt': createdAt?.toIso8601String(),
-      'updatedAt': updatedAt?.toIso8601String(),
+      if (id != null) 'id': id,
+      if (title != null) 'title': title,
+      if (overview != null) 'overview': overview,
+      if (releaseYear != null) 'releaseYear': releaseYear,
+      if (genres != null) 'genres': genres,
+      if (runtime != null) 'runtime': runtime,
+      if (posterUrl != null) 'posterUrl': posterUrl,
+      if (createdAt != null) 'createdAt': createdAt?.toIso8601String(),
+      if (updatedAt != null) 'updatedAt': updatedAt?.toIso8601String(),
     };
   }
 }
@@ -2733,13 +3496,15 @@ extension MovieJson on Movie {
     return {
       'id': id,
       'title': title,
-      'overview': overview,
+      if (overview != null) 'overview': overview,
       'releaseYear': releaseYear,
       'genres': genres,
-      'runtime': runtime,
-      'posterUrl': posterUrl,
-      'createdAt': createdAt?.toIso8601String(),
-      'updatedAt': updatedAt?.toIso8601String(),
+      if (runtime != null) 'runtime': runtime,
+      if (posterUrl != null) 'posterUrl': posterUrl,
+      if (createdAt?.toIso8601String() != null)
+        'createdAt': createdAt?.toIso8601String(),
+      if (updatedAt?.toIso8601String() != null)
+        'updatedAt': updatedAt?.toIso8601String(),
     };
   }
 }
@@ -2972,6 +3737,20 @@ class WatchlistItemSelect
       (relations?.hasSelections ?? false);
 
   @override
+  SelectOptions<WatchlistItem, WatchlistItemPartial> withRelations(
+    RelationsOptions<WatchlistItem, WatchlistItemPartial>? relations,
+  ) {
+    return WatchlistItemSelect(
+      id: id,
+      notes: notes,
+      createdAt: createdAt,
+      userId: userId,
+      movieId: movieId,
+      relations: relations as WatchlistItemRelations?,
+    );
+  }
+
+  @override
   void collect(
     QueryFieldsContext<WatchlistItem> context,
     List<SelectField> out, {
@@ -3071,27 +3850,37 @@ class WatchlistItemSelect
   String? get primaryKeyColumn => 'id';
 }
 
-class WatchlistItemRelations {
+class WatchlistItemRelations
+    extends RelationsOptions<WatchlistItem, WatchlistItemPartial> {
   const WatchlistItemRelations({this.user, this.movie});
 
   final UserSelect? user;
 
   final MovieSelect? movie;
 
+  @override
   bool get hasSelections =>
       (user?.hasSelections ?? false) || (movie?.hasSelections ?? false);
 
+  @override
   void collect(
-    WatchlistItemFieldsContext context,
+    QueryFieldsContext<WatchlistItem> context,
     List<SelectField> out, {
     String? path,
   }) {
+    if (context is! WatchlistItemFieldsContext) {
+      throw ArgumentError(
+        'Expected WatchlistItemFieldsContext for WatchlistItemRelations',
+      );
+    }
+    final WatchlistItemFieldsContext scoped = context;
+
     final userSelect = user;
     if (userSelect != null && userSelect.hasSelections) {
       final relationPath = path == null || path.isEmpty
           ? 'user'
           : '${path}_user';
-      final relationContext = context.user;
+      final relationContext = scoped.user;
       userSelect.collect(relationContext, out, path: relationPath);
     }
     final movieSelect = movie;
@@ -3099,7 +3888,7 @@ class WatchlistItemRelations {
       final relationPath = path == null || path.isEmpty
           ? 'movie'
           : '${path}_movie';
-      final relationContext = context.movie;
+      final relationContext = scoped.movie;
       movieSelect.collect(relationContext, out, path: relationPath);
     }
   }
@@ -3182,13 +3971,13 @@ class WatchlistItemPartial extends PartialEntity<WatchlistItem> {
   @override
   Map<String, dynamic> toJson() {
     return {
-      'id': id,
-      'notes': notes,
-      'createdAt': createdAt?.toIso8601String(),
-      'user': user?.toJson(),
-      'movie': movie?.toJson(),
-      'userId': userId,
-      'movieId': movieId,
+      if (id != null) 'id': id,
+      if (notes != null) 'notes': notes,
+      if (createdAt != null) 'createdAt': createdAt?.toIso8601String(),
+      if (user != null) 'user': user?.toJson(),
+      if (movie != null) 'movie': movie?.toJson(),
+      if (userId != null) 'userId': userId,
+      if (movieId != null) 'movieId': movieId,
     };
   }
 }
@@ -3286,10 +4075,11 @@ extension WatchlistItemJson on WatchlistItem {
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'notes': notes,
-      'createdAt': createdAt?.toIso8601String(),
-      'user': user?.toJson(),
-      'movie': movie?.toJson(),
+      if (notes != null) 'notes': notes,
+      if (createdAt?.toIso8601String() != null)
+        'createdAt': createdAt?.toIso8601String(),
+      if (user?.toJson() != null) 'user': user?.toJson(),
+      if (movie?.toJson() != null) 'movie': movie?.toJson(),
     };
   }
 }

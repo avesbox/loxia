@@ -38,7 +38,11 @@ class JsonExtensionBuilder {
           value = '$value.toIso8601String()';
         }
       }
-      entries.add('$key: $value');
+      if (!c.nullable || !context.omitNullJsonFields) {
+        entries.add('$key: $value');
+      } else {
+        entries.add('if ($value != null) $key: $value');
+      }
     }
 
     // Relations
@@ -50,7 +54,11 @@ class JsonExtensionBuilder {
       } else {
         value = '$value?.toJson()';
       }
-      entries.add('$key: $value');
+      if (context.omitNullJsonFields && !r.isCollection) {
+        entries.add('if ($value != null) $key: $value');
+      } else {
+        entries.add('$key: $value');
+      }
     }
 
     return Method(

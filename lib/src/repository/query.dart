@@ -501,6 +501,17 @@ class SelectProjection<P> {
 abstract class SelectOptions<T, P> {
   const SelectOptions();
 
+  /// Returns a new select options instance with [relations] applied.
+  ///
+  /// Generated selects override this to return a properly typed clone.
+  /// Base implementation throws to make unsupported custom selects explicit.
+  SelectOptions<T, P> withRelations(RelationsOptions<T, P>? relations) {
+    throw UnsupportedError(
+      '$runtimeType does not support relation injection. '
+      'Override withRelations in this select class.',
+    );
+  }
+
   /// Whether this selection exposes at least one column or relation.
   bool get hasSelections;
 
@@ -591,4 +602,16 @@ class SelectField {
     }
     return buffer.toString();
   }
+}
+
+abstract class RelationsOptions<T, P> {
+  const RelationsOptions();
+
+  bool get hasSelections;
+
+  void collect(
+    QueryFieldsContext<T> context,
+    List<SelectField> out, {
+    String? path,
+  });
 }

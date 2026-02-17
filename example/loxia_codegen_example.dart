@@ -7,6 +7,58 @@ part 'loxia_codegen_example.g.dart';
 
 enum Role { admin, user, guest }
 
+/// Represents a merchant account in the system.
+@EntityMeta(table: 'merchants')
+class Merchant extends Entity {
+  /// Creates a merchant record.
+  Merchant({
+    required this.id,
+    required this.name,
+    required this.businessName,
+    required this.mobileNumber,
+    required this.email,
+    required this.passwordHash,
+    this.createdAt,
+    this.updatedAt,
+  });
+
+  /// Unique identifier for the merchant.
+  @PrimaryKey(uuid: true)
+  final String id;
+
+  /// Merchant owner's full name.
+  @Column()
+  final String name;
+
+  /// Registered business name.
+  @Column()
+  final String businessName;
+
+  /// Merchant mobile number.
+  @Column(unique: true)
+  final String mobileNumber;
+
+  /// Merchant email address.
+  @Column(unique: true)
+  final String email;
+
+  /// Hashed password used for authentication.
+  @Column()
+  final String passwordHash;
+
+  /// Timestamp when the merchant was created.
+  @CreatedAt()
+  DateTime? createdAt;
+
+  /// Timestamp when the merchant was last updated.
+  @UpdatedAt()
+  DateTime? updatedAt;
+
+  /// Entity descriptor used by Loxia for metadata and query operations.
+  static EntityDescriptor<Merchant, MerchantPartial> get entity =>
+      $MerchantEntityDescriptor;
+}
+
 @EntityMeta(
   table: 'users',
   queries: [
@@ -289,30 +341,46 @@ Future<void> main() async {
       tags: ['new', 'test'],
     ),
   );
+  await users.insert(UserInsertDto(email: 'example@example.com', role: Role.guest, tags: ['new', 'test']));
+  final posts = ds.getRepository<Post>();
+  await posts.insert(
+    PostInsertDto(
+      title: 'Hello World',
+      content: 'This is my first post',
+      likes: 0,
+      userId: 1
+    ),
+  );
   await users.update(
     UserUpdateDto(email: 'new@example.com'),
     where: UserQuery((q) => q.id.equals(1)),
   );
   await users.findByEmail('new@example.com');
-  final user = await users.findOneBy(
+  final user = await users.findOne(
     where: UserQuery((q) => q.email.equals('new@example.com')),
+    select: UserSelect(
+      relations: UserRelations(
+        posts: PostSelect()
+      )
+    )
   );
+  final partial = user as UserPartial?;
   print('User: id=${jsonEncode(user?.toJson())}');
-  final posts = ds.getRepository<Post>();
-  await posts.save(
+  final newPost = await posts.save(
     PostPartial(
       title: 'Hello World',
       content: 'This is my first post',
       likes: 0,
-      userId: user?.id,
+      userId: partial?.id,
     ),
   );
   final post = await posts.findOne(
-    where: PostQuery((q) => q.title.equals('Hello World')),
+    where: PostQuery((q) => q.id.equals(newPost.id).and(q.userId.equals(partial?.id ?? 0))),
+    select: PostSelect(relations: PostRelations(user: UserSelect())),
   );
   final partialPost = post as PostPartial?;
   print(
-    'Post: id=${partialPost?.id}, title=${partialPost?.title}, content=${partialPost?.content}, likes=${partialPost?.likes}, userId=${partialPost?.user?.id} - ${partialPost?.createdAt} - ${partialPost?.lastUpdatedAt}',
+    'Post: id=${partialPost?.id}, title=${partialPost?.title}, content=${partialPost?.content}, likes=${partialPost?.likes}, userId=${partialPost?.user?.id} - ${partialPost?.createdAt} - ${partialPost?.lastUpdatedAt} - ${partialPost?.user?.toJsonString()}',
   );
   await ds.dispose();
 }

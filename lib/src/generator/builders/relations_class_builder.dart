@@ -17,6 +17,14 @@ class RelationsClassBuilder {
     return Class(
       (c) => c
         ..name = context.relationsClassName
+        ..extend = TypeReference(
+          (t) => t
+            ..symbol = 'RelationsOptions'
+            ..types.addAll([
+              refer(context.entityName),
+              refer(context.partialEntityName),
+            ]),
+        )
         ..constructors.add(_buildConstructor(allRelations))
         ..fields.addAll(_buildFields(allRelations))
         ..methods.add(_buildHasSelectionsGetter(allRelations))
@@ -60,6 +68,7 @@ class RelationsClassBuilder {
     if (relations.isEmpty) {
       return Method(
         (m) => m
+          ..annotations.add(refer('override'))
           ..type = MethodType.getter
           ..name = 'hasSelections'
           ..returns = refer('bool')
@@ -74,6 +83,7 @@ class RelationsClassBuilder {
 
     return Method(
       (m) => m
+        ..annotations.add(refer('override'))
         ..type = MethodType.getter
         ..name = 'hasSelections'
         ..returns = refer('bool')
@@ -89,13 +99,18 @@ class RelationsClassBuilder {
     if (relations.isEmpty) {
       return Method(
         (m) => m
+          ..annotations.add(refer('override'))
           ..name = 'collect'
           ..returns = refer('void')
           ..requiredParameters.addAll([
             Parameter(
               (p) => p
                 ..name = 'context'
-                ..type = refer(context.fieldsContextName),
+                ..type = TypeReference(
+                  (t) => t
+                    ..symbol = 'QueryFieldsContext'
+                    ..types.add(refer(context.entityName)),
+                ),
             ),
             Parameter(
               (p) => p
@@ -111,7 +126,13 @@ class RelationsClassBuilder {
                 ..type = refer('String?'),
             ),
           )
-          ..body = Block.of([]),
+          ..body = Block.of([
+            Code('''
+if (context is! ${context.fieldsContextName}) {
+  throw ArgumentError('Expected ${context.fieldsContextName} for ${context.relationsClassName}');
+}
+'''),
+          ]),
       );
     }
 
@@ -123,7 +144,7 @@ class RelationsClassBuilder {
         Code('''
 if (${relationName}Select != null && ${relationName}Select.hasSelections) {
   final relationPath = path == null || path.isEmpty ? '$relationName' : '\${path}_$relationName';
-  final relationContext = context.$relationName;
+  final relationContext = scoped.$relationName;
   ${relationName}Select.collect(relationContext, out, path: relationPath);
 }'''),
       ]);
@@ -131,13 +152,18 @@ if (${relationName}Select != null && ${relationName}Select.hasSelections) {
 
     return Method(
       (m) => m
+        ..annotations.add(refer('override'))
         ..name = 'collect'
         ..returns = refer('void')
         ..requiredParameters.addAll([
           Parameter(
             (p) => p
               ..name = 'context'
-              ..type = refer(context.fieldsContextName),
+              ..type = TypeReference(
+                (t) => t
+                  ..symbol = 'QueryFieldsContext'
+                  ..types.add(refer(context.entityName)),
+              ),
           ),
           Parameter(
             (p) => p
@@ -153,7 +179,15 @@ if (${relationName}Select != null && ${relationName}Select.hasSelections) {
               ..type = refer('String?'),
           ),
         )
-        ..body = Block.of(statements),
+        ..body = Block.of([
+          Code('''
+if (context is! ${context.fieldsContextName}) {
+  throw ArgumentError('Expected ${context.fieldsContextName} for ${context.relationsClassName}');
+}
+final ${context.fieldsContextName} scoped = context;
+'''),
+          ...statements,
+        ]),
     );
   }
 }
