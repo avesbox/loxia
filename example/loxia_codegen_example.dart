@@ -386,7 +386,7 @@ Future<void> main() async {
       (q) => q.id.equals(newPost.id).and(q.userId.equals(partial?.id ?? 0)),
     ),
     select: PostSelect(relations: PostRelations(user: UserSelect())),
-    includeDeleted: true
+    includeDeleted: true,
   );
   final partialPost = post as PostPartial?;
   print(

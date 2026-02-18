@@ -51,7 +51,8 @@ class InsertDtoBuilder {
     final params = <Parameter>[];
 
     for (final c in columns) {
-      final isTimestampManaged = c.isCreatedAt || c.isUpdatedAt || c.isDeletedAt;
+      final isTimestampManaged =
+          c.isCreatedAt || c.isUpdatedAt || c.isDeletedAt;
       params.add(
         Parameter(
           (p) => p
@@ -158,7 +159,10 @@ class InsertDtoBuilder {
     final entries = <String>[];
 
     for (final c in columns) {
-      final timestampExpr = createdAtExpr[c.prop] ?? updatedAtExpr[c.prop] ?? deletedAtExpr[c.prop];
+      final timestampExpr =
+          createdAtExpr[c.prop] ??
+          updatedAtExpr[c.prop] ??
+          deletedAtExpr[c.prop];
       var valueExpr = timestampExpr != null
           ? _timestampLiteralToDateTime(c, timestampExpr)
           : _timestampPropToDateTime(c, c.prop);
@@ -517,13 +521,22 @@ String _timestampPropToDateTime(
   }
 }
 
-String _enumToStorage(GenColumn c, String expr, [bool toUpdateDto = false, bool toDeletedAt = false]) {
+String _enumToStorage(
+  GenColumn c,
+  String expr, [
+  bool toUpdateDto = false,
+  bool toDeletedAt = false,
+]) {
   if (!c.isEnum) return expr;
   switch (c.type) {
     case ColumnType.text:
-      return c.nullable || toUpdateDto || toDeletedAt ? '$expr?.name' : '$expr.name';
+      return c.nullable || toUpdateDto || toDeletedAt
+          ? '$expr?.name'
+          : '$expr.name';
     case ColumnType.integer:
-      return c.nullable || toUpdateDto || toDeletedAt ? '$expr?.index' : '$expr.index';
+      return c.nullable || toUpdateDto || toDeletedAt
+          ? '$expr?.index'
+          : '$expr.index';
     default:
       return expr;
   }

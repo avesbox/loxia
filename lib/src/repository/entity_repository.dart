@@ -850,7 +850,10 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
 
       final selectAlias = 't';
       final selectRuntime = QueryRuntimeContext(rootAlias: selectAlias);
-      final selectBoundContext = _fieldsContext.bind(selectRuntime, selectAlias);
+      final selectBoundContext = _fieldsContext.bind(
+        selectRuntime,
+        selectAlias,
+      );
       final selectParams = <Object?>[];
       final selectWhereSql = where.toSql(selectBoundContext, selectParams);
       final selectSql =

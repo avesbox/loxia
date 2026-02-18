@@ -264,7 +264,11 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
       if (hasDeletedAt) deletedAt.add(model);
     }
 
-    return _TimestampFields(createdAt: createdAt, updatedAt: updatedAt, deletedAt: deletedAt);
+    return _TimestampFields(
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+      deletedAt: deletedAt,
+    );
   }
 
   String _timestampValueExpression(FieldElement field) {
@@ -364,7 +368,10 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
       final createdAtAnn = _firstAnnotation(field, CreatedAt);
       final updatedAtAnn = _firstAnnotation(field, UpdatedAt);
       final deletedAtAnn = _firstAnnotation(field, DeletedAt);
-      if (colAnnObj == null && createdAtAnn == null && updatedAtAnn == null && deletedAtAnn == null) {
+      if (colAnnObj == null &&
+          createdAtAnn == null &&
+          updatedAtAnn == null &&
+          deletedAtAnn == null) {
         continue;
       }
       final colAnn = colAnnObj == null ? null : ConstantReader(colAnnObj);
@@ -396,7 +403,8 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
       final isUpdatedAt = updatedAtAnn != null;
       final isDeletedAt = deletedAtAnn != null;
 
-      var type = (createdAtAnn != null || updatedAtAnn != null || deletedAtAnn != null)
+      var type =
+          (createdAtAnn != null || updatedAtAnn != null || deletedAtAnn != null)
           ? ColumnType.dateTime
           : _resolveColumnType(
               colAnn,
@@ -1009,7 +1017,11 @@ class _RelationMatch {
 }
 
 class _TimestampFields {
-  _TimestampFields({required this.createdAt, required this.updatedAt, required this.deletedAt});
+  _TimestampFields({
+    required this.createdAt,
+    required this.updatedAt,
+    required this.deletedAt,
+  });
 
   final List<GenTimestampField> createdAt;
   final List<GenTimestampField> updatedAt;

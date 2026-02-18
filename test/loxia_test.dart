@@ -274,26 +274,28 @@ void main() {
       expect(engine.lastSql, isNot(contains('"t"."deleted_at" IS NULL')));
     });
 
-    test('findBy/findOneBy add filter by default and support includeDeleted',
-        () async {
-      final engine = _RepoFakeEngine(
-        rows: [
-          {'id': 3, 'name': 'Filtered', 'merchant_id': null},
-        ],
-      );
-      final descriptor = _buildStoreDescriptorWithDeletedAt();
-      final repository = EntityRepository<_StoreEntity, _StorePartial>(
-        descriptor,
-        engine,
-        const _StoreFields(),
-      );
+    test(
+      'findBy/findOneBy add filter by default and support includeDeleted',
+      () async {
+        final engine = _RepoFakeEngine(
+          rows: [
+            {'id': 3, 'name': 'Filtered', 'merchant_id': null},
+          ],
+        );
+        final descriptor = _buildStoreDescriptorWithDeletedAt();
+        final repository = EntityRepository<_StoreEntity, _StorePartial>(
+          descriptor,
+          engine,
+          const _StoreFields(),
+        );
 
-      await repository.findBy();
-      expect(engine.lastSql, contains('"t"."deleted_at" IS NULL'));
+        await repository.findBy();
+        expect(engine.lastSql, contains('"t"."deleted_at" IS NULL'));
 
-      await repository.findOneBy(includeDeleted: true);
-      expect(engine.lastSql, isNot(contains('"t"."deleted_at" IS NULL')));
-    });
+        await repository.findOneBy(includeDeleted: true);
+        expect(engine.lastSql, isNot(contains('"t"."deleted_at" IS NULL')));
+      },
+    );
 
     test('paginate applies includeDeleted to count and page queries', () async {
       final engine = _RepoFakeEngine(
@@ -340,10 +342,7 @@ void main() {
     });
 
     test('softDelete updates DeletedAt column for matching rows', () async {
-      final engine = _RepoFakeEngine(
-        rows: const [],
-        executeResult: 2,
-      );
+      final engine = _RepoFakeEngine(rows: const [], executeResult: 2);
       final descriptor = _buildStoreDescriptorWithDeletedAt();
       final repository = EntityRepository<_StoreEntity, _StorePartial>(
         descriptor,
@@ -359,7 +358,9 @@ void main() {
       expect(engine.executeHistory, isNotEmpty);
       expect(
         engine.executeHistory.first,
-        contains('UPDATE stores AS "t" SET "deleted_at" = ? WHERE "t"."id" = ?'),
+        contains(
+          'UPDATE stores AS "t" SET "deleted_at" = ? WHERE "t"."id" = ?',
+        ),
       );
       expect(engine.executeParamsHistory.first.length, 2);
       expect(engine.executeParamsHistory.first[1], 1);
@@ -437,11 +438,12 @@ EntityDescriptor<_StoreEntity, _StorePartial> _buildStoreDescriptor() {
       'merchant_id': entity.merchant?.id,
     },
     fieldsContext: const _StoreFields(),
-    repositoryFactory: (engine) => EntityRepository<_StoreEntity, _StorePartial>(
-      descriptor,
-      engine,
-      const _StoreFields(),
-    ),
+    repositoryFactory: (engine) =>
+        EntityRepository<_StoreEntity, _StorePartial>(
+          descriptor,
+          engine,
+          const _StoreFields(),
+        ),
     defaultSelect: () => const _StoreSelect(id: true, name: true),
   );
   return descriptor;
@@ -503,11 +505,12 @@ _buildStoreDescriptorWithDeletedAt() {
       'deleted_at': null,
     },
     fieldsContext: const _StoreFields(),
-    repositoryFactory: (engine) => EntityRepository<_StoreEntity, _StorePartial>(
-      descriptor,
-      engine,
-      const _StoreFields(),
-    ),
+    repositoryFactory: (engine) =>
+        EntityRepository<_StoreEntity, _StorePartial>(
+          descriptor,
+          engine,
+          const _StoreFields(),
+        ),
     defaultSelect: () => const _StoreSelect(id: true, name: true),
   );
   return descriptor;

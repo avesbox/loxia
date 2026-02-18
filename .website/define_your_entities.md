@@ -102,6 +102,11 @@ Loxia provides a convenient way to manage timestamps for your entities. You can 
 
 - `@CreatedAt`: Automatically sets the timestamp when a new entity is created.
 - `@UpdatedAt`: Automatically updates the timestamp whenever an existing entity is modified.
+- `@DeletedAt`: Automatically sets the timestamp when an entity is soft-deleted.
+
+::: info
+When you use the `@DeletedAt` annotation, Loxia will treat the entity as soft-deleted when the `deletedAt` field is set. This allows you to mark entities as deleted without actually removing them from the database, enabling features like data recovery and audit trails. Also all the repository methods that retrieve entities will have an `includeDeleted` option that allows you to include or exclude soft-deleted entities from the results.
+:::
 
 ## Custom Queries
 
