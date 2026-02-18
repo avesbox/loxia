@@ -21,6 +21,7 @@ class ColumnDescriptorBuilder {
       'isPrimaryKey': literalBool(column.isPk),
       'autoIncrement': literalBool(column.autoIncrement),
       'uuid': literalBool(column.uuid),
+      'isDeletedAt': literalBool(column.isDeletedAt),
       if (column.defaultLiteral != null)
         'defaultValue': CodeExpression(Code(column.defaultLiteral!)),
     });

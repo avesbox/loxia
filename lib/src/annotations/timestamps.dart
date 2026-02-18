@@ -6,3 +6,7 @@ class CreatedAt {
 class UpdatedAt {
   const UpdatedAt();
 }
+
+class DeletedAt {
+  const DeletedAt();
+}

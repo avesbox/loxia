@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.16
+
+- Added support for soft delete functionality in the repository, allowing you to mark entities as deleted without actually removing them from the database. This is achieved by adding a `deletedAt` field to the entities and updating the repository methods to handle soft deletion and querying of soft-deleted entities. You can now use the `softDeleteEntity` method to mark an entity as deleted and the `includeDeleted` option in query methods to include or exclude soft-deleted entities from the results.
+- Make the JSON null fields omission more consistent and robust.
+
 ## 0.0.15
 
 - Added support for omitting null fields in JSON serialization of entities and partial entities. This allows you to exclude fields with null values from the generated JSON output, resulting in cleaner and more concise JSON representations of your entities. By default, `omitNullJsonFields` is set to true.

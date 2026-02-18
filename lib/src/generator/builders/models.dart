@@ -24,6 +24,7 @@ class GenColumn {
     required this.uuid,
     this.isCreatedAt = false,
     this.isUpdatedAt = false,
+    this.isDeletedAt = false,
     this.defaultLiteral,
   });
 
@@ -40,6 +41,7 @@ class GenColumn {
   final bool uuid;
   final bool isCreatedAt;
   final bool isUpdatedAt;
+  final bool isDeletedAt;
   final String? defaultLiteral;
 }
 
@@ -143,10 +145,12 @@ class EntityGenerationContext {
     Map<String, List<String>>? hooks,
     List<GenTimestampField>? createdAtFields,
     List<GenTimestampField>? updatedAtFields,
+    List<GenTimestampField>? deletedAtFields,
     List<GenUniqueConstraint>? uniqueConstraints,
   }) : hooks = hooks ?? const {},
        createdAtFields = createdAtFields ?? const [],
        updatedAtFields = updatedAtFields ?? const [],
+       deletedAtFields = deletedAtFields ?? const [],
        uniqueConstraints = uniqueConstraints ?? const [];
 
   final String className;
@@ -158,6 +162,7 @@ class EntityGenerationContext {
   final List<GenQuery> queries;
   final List<GenTimestampField> createdAtFields;
   final List<GenTimestampField> updatedAtFields;
+  final List<GenTimestampField> deletedAtFields;
   final List<GenUniqueConstraint> uniqueConstraints;
   final bool omitNullJsonFields;
 

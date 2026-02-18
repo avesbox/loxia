@@ -11,6 +11,7 @@ class ColumnDescriptor {
     this.isPrimaryKey = false,
     this.autoIncrement = false,
     this.uuid = false,
+    this.isDeletedAt = false,
     this.defaultValue,
   });
 
@@ -22,5 +23,6 @@ class ColumnDescriptor {
   final bool isPrimaryKey;
   final bool autoIncrement;
   final bool uuid;
+  final bool isDeletedAt;
   final dynamic defaultValue;
 }

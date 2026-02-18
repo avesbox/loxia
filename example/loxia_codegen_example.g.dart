@@ -22,6 +22,7 @@ final EntityDescriptor<Merchant, MerchantPartial> $MerchantEntityDescriptor =
             isPrimaryKey: true,
             autoIncrement: false,
             uuid: true,
+            isDeletedAt: false,
           ),
           ColumnDescriptor(
             name: 'name',
@@ -32,6 +33,7 @@ final EntityDescriptor<Merchant, MerchantPartial> $MerchantEntityDescriptor =
             isPrimaryKey: false,
             autoIncrement: false,
             uuid: false,
+            isDeletedAt: false,
           ),
           ColumnDescriptor(
             name: 'business_name',
@@ -42,6 +44,7 @@ final EntityDescriptor<Merchant, MerchantPartial> $MerchantEntityDescriptor =
             isPrimaryKey: false,
             autoIncrement: false,
             uuid: false,
+            isDeletedAt: false,
           ),
           ColumnDescriptor(
             name: 'mobile_number',
@@ -52,6 +55,7 @@ final EntityDescriptor<Merchant, MerchantPartial> $MerchantEntityDescriptor =
             isPrimaryKey: false,
             autoIncrement: false,
             uuid: false,
+            isDeletedAt: false,
           ),
           ColumnDescriptor(
             name: 'email',
@@ -62,6 +66,7 @@ final EntityDescriptor<Merchant, MerchantPartial> $MerchantEntityDescriptor =
             isPrimaryKey: false,
             autoIncrement: false,
             uuid: false,
+            isDeletedAt: false,
           ),
           ColumnDescriptor(
             name: 'password_hash',
@@ -72,6 +77,7 @@ final EntityDescriptor<Merchant, MerchantPartial> $MerchantEntityDescriptor =
             isPrimaryKey: false,
             autoIncrement: false,
             uuid: false,
+            isDeletedAt: false,
           ),
           ColumnDescriptor(
             name: 'created_at',
@@ -82,6 +88,7 @@ final EntityDescriptor<Merchant, MerchantPartial> $MerchantEntityDescriptor =
             isPrimaryKey: false,
             autoIncrement: false,
             uuid: false,
+            isDeletedAt: false,
           ),
           ColumnDescriptor(
             name: 'updated_at',
@@ -92,6 +99,7 @@ final EntityDescriptor<Merchant, MerchantPartial> $MerchantEntityDescriptor =
             isPrimaryKey: false,
             autoIncrement: false,
             uuid: false,
+            isDeletedAt: false,
           ),
         ],
         relations: const [],
@@ -620,10 +628,8 @@ extension MerchantJson on Merchant {
       'mobileNumber': mobileNumber,
       'email': email,
       'passwordHash': passwordHash,
-      if (createdAt?.toIso8601String() != null)
-        'createdAt': createdAt?.toIso8601String(),
-      if (updatedAt?.toIso8601String() != null)
-        'updatedAt': updatedAt?.toIso8601String(),
+      if (createdAt != null) 'createdAt': createdAt?.toIso8601String(),
+      if (updatedAt != null) 'updatedAt': updatedAt?.toIso8601String(),
     };
   }
 }
@@ -675,6 +681,7 @@ final EntityDescriptor<User, UserPartial> $UserEntityDescriptor = () {
         isPrimaryKey: true,
         autoIncrement: true,
         uuid: false,
+        isDeletedAt: false,
       ),
       ColumnDescriptor(
         name: 'email',
@@ -685,6 +692,7 @@ final EntityDescriptor<User, UserPartial> $UserEntityDescriptor = () {
         isPrimaryKey: false,
         autoIncrement: false,
         uuid: false,
+        isDeletedAt: false,
       ),
       ColumnDescriptor(
         name: 'role',
@@ -695,6 +703,7 @@ final EntityDescriptor<User, UserPartial> $UserEntityDescriptor = () {
         isPrimaryKey: false,
         autoIncrement: false,
         uuid: false,
+        isDeletedAt: false,
       ),
       ColumnDescriptor(
         name: 'tags',
@@ -705,6 +714,7 @@ final EntityDescriptor<User, UserPartial> $UserEntityDescriptor = () {
         isPrimaryKey: false,
         autoIncrement: false,
         uuid: false,
+        isDeletedAt: false,
       ),
     ],
     relations: const [
@@ -1110,7 +1120,7 @@ extension UserJson on User {
       'email': email,
       'role': role.name,
       'tags': tags,
-      'posts': posts.map((e) => e.toJson()).toList(),
+      if (posts != null) 'posts': posts?.map((e) => e.toJson()).toList(),
     };
   }
 }
@@ -1197,6 +1207,7 @@ final EntityDescriptor<Post, PostPartial> $PostEntityDescriptor = () {
         isPrimaryKey: true,
         autoIncrement: false,
         uuid: true,
+        isDeletedAt: false,
       ),
       ColumnDescriptor(
         name: 'title',
@@ -1207,6 +1218,7 @@ final EntityDescriptor<Post, PostPartial> $PostEntityDescriptor = () {
         isPrimaryKey: false,
         autoIncrement: false,
         uuid: false,
+        isDeletedAt: false,
       ),
       ColumnDescriptor(
         name: 'content',
@@ -1217,6 +1229,7 @@ final EntityDescriptor<Post, PostPartial> $PostEntityDescriptor = () {
         isPrimaryKey: false,
         autoIncrement: false,
         uuid: false,
+        isDeletedAt: false,
       ),
       ColumnDescriptor(
         name: 'likes',
@@ -1227,6 +1240,7 @@ final EntityDescriptor<Post, PostPartial> $PostEntityDescriptor = () {
         isPrimaryKey: false,
         autoIncrement: false,
         uuid: false,
+        isDeletedAt: false,
         defaultValue: 0,
       ),
       ColumnDescriptor(
@@ -1238,6 +1252,7 @@ final EntityDescriptor<Post, PostPartial> $PostEntityDescriptor = () {
         isPrimaryKey: false,
         autoIncrement: false,
         uuid: false,
+        isDeletedAt: false,
       ),
       ColumnDescriptor(
         name: 'last_updated_at',
@@ -1248,6 +1263,18 @@ final EntityDescriptor<Post, PostPartial> $PostEntityDescriptor = () {
         isPrimaryKey: false,
         autoIncrement: false,
         uuid: false,
+        isDeletedAt: false,
+      ),
+      ColumnDescriptor(
+        name: 'deleted_at',
+        propertyName: 'deletedAt',
+        type: ColumnType.dateTime,
+        nullable: true,
+        unique: false,
+        isPrimaryKey: false,
+        autoIncrement: false,
+        uuid: false,
+        isDeletedAt: true,
       ),
     ],
     relations: const [
@@ -1315,6 +1342,11 @@ final EntityDescriptor<Post, PostPartial> $PostEntityDescriptor = () {
                     ? DateTime.parse(row['last_updated_at'].toString())
                     : row['last_updated_at'] as DateTime)
                 .millisecondsSinceEpoch,
+      deletedAt: row['deleted_at'] == null
+          ? null
+          : row['deleted_at'] is String
+          ? DateTime.parse(row['deleted_at'].toString())
+          : row['deleted_at'] as DateTime,
       user: null,
       tags: const <Tag>[],
     ),
@@ -1329,6 +1361,7 @@ final EntityDescriptor<Post, PostPartial> $PostEntityDescriptor = () {
           : DateTime.fromMillisecondsSinceEpoch(
               e.lastUpdatedAt as int,
             ).toIso8601String(),
+      'deleted_at': e.deletedAt?.toIso8601String(),
       'user_id': e.user?.id,
     },
     fieldsContext: const PostFieldsContext(),
@@ -1367,6 +1400,8 @@ class PostFieldsContext extends QueryFieldsContext<Post> {
   QueryField<DateTime?> get createdAt => field<DateTime?>('created_at');
 
   QueryField<int?> get lastUpdatedAt => field<int?>('last_updated_at');
+
+  QueryField<DateTime?> get deletedAt => field<DateTime?>('deleted_at');
 
   QueryField<int?> get userId => field<int?>('user_id');
 
@@ -1424,6 +1459,7 @@ class PostSelect extends SelectOptions<Post, PostPartial> {
     this.likes = true,
     this.createdAt = true,
     this.lastUpdatedAt = true,
+    this.deletedAt = true,
     this.userId = true,
     this.relations,
   });
@@ -1440,6 +1476,8 @@ class PostSelect extends SelectOptions<Post, PostPartial> {
 
   final bool lastUpdatedAt;
 
+  final bool deletedAt;
+
   final bool userId;
 
   final PostRelations? relations;
@@ -1452,6 +1490,7 @@ class PostSelect extends SelectOptions<Post, PostPartial> {
       likes ||
       createdAt ||
       lastUpdatedAt ||
+      deletedAt ||
       userId ||
       (relations?.hasSelections ?? false);
 
@@ -1466,6 +1505,7 @@ class PostSelect extends SelectOptions<Post, PostPartial> {
       likes: likes,
       createdAt: createdAt,
       lastUpdatedAt: lastUpdatedAt,
+      deletedAt: deletedAt,
       userId: userId,
       relations: relations as PostRelations?,
     );
@@ -1528,6 +1568,15 @@ class PostSelect extends SelectOptions<Post, PostPartial> {
         ),
       );
     }
+    if (deletedAt) {
+      out.add(
+        SelectField(
+          'deleted_at',
+          tableAlias: tableAlias,
+          alias: aliasFor('deleted_at'),
+        ),
+      );
+    }
     if (userId) {
       out.add(
         SelectField(
@@ -1575,6 +1624,15 @@ class PostSelect extends SelectOptions<Post, PostPartial> {
                           : readValue(row, 'last_updated_at', path: path)
                                 as DateTime)
                       .millisecondsSinceEpoch
+          : null,
+      deletedAt: deletedAt
+          ? readValue(row, 'deleted_at', path: path) == null
+                ? null
+                : (readValue(row, 'deleted_at', path: path) is String
+                      ? DateTime.parse(
+                          readValue(row, 'deleted_at', path: path) as String,
+                        )
+                      : readValue(row, 'deleted_at', path: path) as DateTime)
           : null,
       userId: userId ? readValue(row, 'user_id', path: path) as int? : null,
       user: userPartial,
@@ -1637,6 +1695,7 @@ class PostPartial extends PartialEntity<Post> {
     this.likes,
     this.createdAt,
     this.lastUpdatedAt,
+    this.deletedAt,
     this.userId,
     this.user,
     this.tags,
@@ -1653,6 +1712,8 @@ class PostPartial extends PartialEntity<Post> {
   final DateTime? createdAt;
 
   final int? lastUpdatedAt;
+
+  final DateTime? deletedAt;
 
   final int? userId;
 
@@ -1681,6 +1742,7 @@ class PostPartial extends PartialEntity<Post> {
       likes: likes ?? 0,
       createdAt: createdAt,
       lastUpdatedAt: lastUpdatedAt,
+      deletedAt: deletedAt,
       userId: userId,
       tags: tags?.map((p) => p.toInsertDto()).toList(),
     );
@@ -1694,6 +1756,7 @@ class PostPartial extends PartialEntity<Post> {
       likes: likes,
       createdAt: createdAt,
       lastUpdatedAt: lastUpdatedAt,
+      deletedAt: deletedAt,
       userId: userId,
     );
   }
@@ -1717,6 +1780,7 @@ class PostPartial extends PartialEntity<Post> {
       likes: likes!,
       createdAt: createdAt,
       lastUpdatedAt: lastUpdatedAt,
+      deletedAt: deletedAt,
       user: user?.toEntity(),
       tags: tags?.map((p) => p.toEntity()).toList() ?? const <Tag>[],
     );
@@ -1731,6 +1795,7 @@ class PostPartial extends PartialEntity<Post> {
       if (likes != null) 'likes': likes,
       if (createdAt != null) 'createdAt': createdAt?.toIso8601String(),
       if (lastUpdatedAt != null) 'lastUpdatedAt': lastUpdatedAt,
+      if (deletedAt != null) 'deletedAt': deletedAt?.toIso8601String(),
       if (user != null) 'user': user?.toJson(),
       if (tags != null) 'tags': tags?.map((e) => e.toJson()).toList(),
       if (userId != null) 'userId': userId,
@@ -1745,6 +1810,7 @@ class PostInsertDto implements InsertDto<Post> {
     this.likes = 0,
     this.createdAt,
     this.lastUpdatedAt,
+    this.deletedAt,
     this.userId,
     this.tags,
   });
@@ -1758,6 +1824,8 @@ class PostInsertDto implements InsertDto<Post> {
   final DateTime? createdAt;
 
   final int? lastUpdatedAt;
+
+  final DateTime? deletedAt;
 
   final int? userId;
 
@@ -1773,6 +1841,9 @@ class PostInsertDto implements InsertDto<Post> {
       'last_updated_at': DateTime.fromMillisecondsSinceEpoch(
         DateTime.now().millisecondsSinceEpoch,
       ).toIso8601String(),
+      'deleted_at': deletedAt is DateTime
+          ? (deletedAt as DateTime).toIso8601String()
+          : deletedAt?.toString(),
       if (userId != null) 'user_id': userId,
     };
   }
@@ -1787,6 +1858,7 @@ class PostInsertDto implements InsertDto<Post> {
     int? likes,
     DateTime? createdAt,
     int? lastUpdatedAt,
+    DateTime? deletedAt,
     int? userId,
     List<TagInsertDto>? tags,
   }) {
@@ -1796,6 +1868,7 @@ class PostInsertDto implements InsertDto<Post> {
       likes: likes ?? this.likes,
       createdAt: createdAt ?? this.createdAt,
       lastUpdatedAt: lastUpdatedAt ?? this.lastUpdatedAt,
+      deletedAt: deletedAt ?? this.deletedAt,
       userId: userId ?? this.userId,
       tags: tags ?? this.tags,
     );
@@ -1809,6 +1882,7 @@ class PostUpdateDto implements UpdateDto<Post> {
     this.likes,
     this.createdAt,
     this.lastUpdatedAt,
+    this.deletedAt,
     this.userId,
   });
 
@@ -1821,6 +1895,8 @@ class PostUpdateDto implements UpdateDto<Post> {
   final DateTime? createdAt;
 
   final int? lastUpdatedAt;
+
+  final DateTime? deletedAt;
 
   final int? userId;
 
@@ -1837,6 +1913,10 @@ class PostUpdateDto implements UpdateDto<Post> {
       'last_updated_at': DateTime.fromMillisecondsSinceEpoch(
         DateTime.now().millisecondsSinceEpoch,
       ).toIso8601String(),
+      if (deletedAt != null)
+        'deleted_at': deletedAt is DateTime
+            ? (deletedAt as DateTime).toIso8601String()
+            : deletedAt?.toString(),
       if (userId != null) 'user_id': userId,
     };
   }
@@ -1858,11 +1938,11 @@ extension PostJson on Post {
       'title': title,
       'content': content,
       'likes': likes,
-      if (createdAt?.toIso8601String() != null)
-        'createdAt': createdAt?.toIso8601String(),
+      if (createdAt != null) 'createdAt': createdAt?.toIso8601String(),
       if (lastUpdatedAt != null) 'lastUpdatedAt': lastUpdatedAt,
-      if (user?.toJson() != null) 'user': user?.toJson(),
-      'tags': tags.map((e) => e.toJson()).toList(),
+      if (deletedAt != null) 'deletedAt': deletedAt?.toIso8601String(),
+      if (user != null) 'user': user?.toJson(),
+      if (tags != null) 'tags': tags?.map((e) => e.toJson()).toList(),
     };
   }
 }
@@ -1912,6 +1992,7 @@ final EntityDescriptor<Tag, TagPartial> $TagEntityDescriptor = () {
         isPrimaryKey: true,
         autoIncrement: true,
         uuid: false,
+        isDeletedAt: false,
       ),
       ColumnDescriptor(
         name: 'name',
@@ -1922,6 +2003,7 @@ final EntityDescriptor<Tag, TagPartial> $TagEntityDescriptor = () {
         isPrimaryKey: false,
         autoIncrement: false,
         uuid: false,
+        isDeletedAt: false,
       ),
     ],
     relations: const [
@@ -2228,7 +2310,7 @@ extension TagJson on Tag {
     return {
       'id': id,
       'name': name,
-      'posts': posts.map((e) => e.toJson()).toList(),
+      if (posts != null) 'posts': posts?.map((e) => e.toJson()).toList(),
     };
   }
 }
@@ -2279,6 +2361,7 @@ $SubscriptionEntityDescriptor = () {
         isPrimaryKey: true,
         autoIncrement: false,
         uuid: true,
+        isDeletedAt: false,
       ),
       ColumnDescriptor(
         name: 'plan',
@@ -2289,6 +2372,7 @@ $SubscriptionEntityDescriptor = () {
         isPrimaryKey: false,
         autoIncrement: false,
         uuid: false,
+        isDeletedAt: false,
       ),
       ColumnDescriptor(
         name: 'status',
@@ -2299,6 +2383,7 @@ $SubscriptionEntityDescriptor = () {
         isPrimaryKey: false,
         autoIncrement: false,
         uuid: false,
+        isDeletedAt: false,
       ),
       ColumnDescriptor(
         name: 'current_period_end',
@@ -2309,6 +2394,7 @@ $SubscriptionEntityDescriptor = () {
         isPrimaryKey: false,
         autoIncrement: false,
         uuid: false,
+        isDeletedAt: false,
       ),
       ColumnDescriptor(
         name: 'created_at',
@@ -2319,6 +2405,7 @@ $SubscriptionEntityDescriptor = () {
         isPrimaryKey: false,
         autoIncrement: false,
         uuid: false,
+        isDeletedAt: false,
       ),
       ColumnDescriptor(
         name: 'updated_at',
@@ -2329,6 +2416,7 @@ $SubscriptionEntityDescriptor = () {
         isPrimaryKey: false,
         autoIncrement: false,
         uuid: false,
+        isDeletedAt: false,
       ),
     ],
     relations: const [],
@@ -2802,10 +2890,8 @@ extension SubscriptionJson on Subscription {
       'plan': plan.name,
       'status': status.name,
       'currentPeriodEnd': currentPeriodEnd.toIso8601String(),
-      if (createdAt?.toIso8601String() != null)
-        'createdAt': createdAt?.toIso8601String(),
-      if (updatedAt?.toIso8601String() != null)
-        'updatedAt': updatedAt?.toIso8601String(),
+      if (createdAt != null) 'createdAt': createdAt?.toIso8601String(),
+      if (updatedAt != null) 'updatedAt': updatedAt?.toIso8601String(),
     };
   }
 }
@@ -2857,6 +2943,7 @@ final EntityDescriptor<Movie, MoviePartial> $MovieEntityDescriptor = () {
         isPrimaryKey: true,
         autoIncrement: false,
         uuid: true,
+        isDeletedAt: false,
       ),
       ColumnDescriptor(
         name: 'title',
@@ -2867,6 +2954,7 @@ final EntityDescriptor<Movie, MoviePartial> $MovieEntityDescriptor = () {
         isPrimaryKey: false,
         autoIncrement: false,
         uuid: false,
+        isDeletedAt: false,
       ),
       ColumnDescriptor(
         name: 'overview',
@@ -2877,6 +2965,7 @@ final EntityDescriptor<Movie, MoviePartial> $MovieEntityDescriptor = () {
         isPrimaryKey: false,
         autoIncrement: false,
         uuid: false,
+        isDeletedAt: false,
       ),
       ColumnDescriptor(
         name: 'release_year',
@@ -2887,6 +2976,7 @@ final EntityDescriptor<Movie, MoviePartial> $MovieEntityDescriptor = () {
         isPrimaryKey: false,
         autoIncrement: false,
         uuid: false,
+        isDeletedAt: false,
       ),
       ColumnDescriptor(
         name: 'genres',
@@ -2897,6 +2987,7 @@ final EntityDescriptor<Movie, MoviePartial> $MovieEntityDescriptor = () {
         isPrimaryKey: false,
         autoIncrement: false,
         uuid: false,
+        isDeletedAt: false,
       ),
       ColumnDescriptor(
         name: 'runtime',
@@ -2907,6 +2998,7 @@ final EntityDescriptor<Movie, MoviePartial> $MovieEntityDescriptor = () {
         isPrimaryKey: false,
         autoIncrement: false,
         uuid: false,
+        isDeletedAt: false,
       ),
       ColumnDescriptor(
         name: 'poster_url',
@@ -2917,6 +3009,7 @@ final EntityDescriptor<Movie, MoviePartial> $MovieEntityDescriptor = () {
         isPrimaryKey: false,
         autoIncrement: false,
         uuid: false,
+        isDeletedAt: false,
       ),
       ColumnDescriptor(
         name: 'created_at',
@@ -2927,6 +3020,7 @@ final EntityDescriptor<Movie, MoviePartial> $MovieEntityDescriptor = () {
         isPrimaryKey: false,
         autoIncrement: false,
         uuid: false,
+        isDeletedAt: false,
       ),
       ColumnDescriptor(
         name: 'updated_at',
@@ -2937,6 +3031,7 @@ final EntityDescriptor<Movie, MoviePartial> $MovieEntityDescriptor = () {
         isPrimaryKey: false,
         autoIncrement: false,
         uuid: false,
+        isDeletedAt: false,
       ),
     ],
     relations: const [],
@@ -3501,10 +3596,8 @@ extension MovieJson on Movie {
       'genres': genres,
       if (runtime != null) 'runtime': runtime,
       if (posterUrl != null) 'posterUrl': posterUrl,
-      if (createdAt?.toIso8601String() != null)
-        'createdAt': createdAt?.toIso8601String(),
-      if (updatedAt?.toIso8601String() != null)
-        'updatedAt': updatedAt?.toIso8601String(),
+      if (createdAt != null) 'createdAt': createdAt?.toIso8601String(),
+      if (updatedAt != null) 'updatedAt': updatedAt?.toIso8601String(),
     };
   }
 }
@@ -3555,6 +3648,7 @@ $WatchlistItemEntityDescriptor = () {
         isPrimaryKey: true,
         autoIncrement: true,
         uuid: false,
+        isDeletedAt: false,
       ),
       ColumnDescriptor(
         name: 'notes',
@@ -3565,6 +3659,7 @@ $WatchlistItemEntityDescriptor = () {
         isPrimaryKey: false,
         autoIncrement: false,
         uuid: false,
+        isDeletedAt: false,
       ),
       ColumnDescriptor(
         name: 'created_at',
@@ -3575,6 +3670,7 @@ $WatchlistItemEntityDescriptor = () {
         isPrimaryKey: false,
         autoIncrement: false,
         uuid: false,
+        isDeletedAt: false,
       ),
     ],
     relations: const [
@@ -4076,10 +4172,9 @@ extension WatchlistItemJson on WatchlistItem {
     return {
       'id': id,
       if (notes != null) 'notes': notes,
-      if (createdAt?.toIso8601String() != null)
-        'createdAt': createdAt?.toIso8601String(),
-      if (user?.toJson() != null) 'user': user?.toJson(),
-      if (movie?.toJson() != null) 'movie': movie?.toJson(),
+      if (createdAt != null) 'createdAt': createdAt?.toIso8601String(),
+      if (user != null) 'user': user?.toJson(),
+      if (movie != null) 'movie': movie?.toJson(),
     };
   }
 }

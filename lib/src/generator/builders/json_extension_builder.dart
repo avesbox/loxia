@@ -23,7 +23,8 @@ class JsonExtensionBuilder {
     // Columns
     for (final c in context.columns) {
       final key = "'${c.prop}'";
-      var value = c.prop;
+      final source = c.prop;
+      var value = source;
       if (c.isEnum) {
         if (c.type == ColumnType.text) {
           value = c.nullable ? '$value?.name' : '$value.name';
@@ -41,21 +42,22 @@ class JsonExtensionBuilder {
       if (!c.nullable || !context.omitNullJsonFields) {
         entries.add('$key: $value');
       } else {
-        entries.add('if ($value != null) $key: $value');
+        entries.add('if ($source != null) $key: $value');
       }
     }
 
     // Relations
     for (final r in context.allSelectableRelations) {
       final key = "'${r.fieldName}'";
-      var value = r.fieldName;
+      final source = r.fieldName;
+      var value = source;
       if (r.isCollection) {
-        value = '$value.map((e) => e.toJson()).toList()';
+        value = '$value?.map((e) => e.toJson()).toList()';
       } else {
         value = '$value?.toJson()';
       }
-      if (context.omitNullJsonFields && !r.isCollection) {
-        entries.add('if ($value != null) $key: $value');
+      if (context.omitNullJsonFields) {
+        entries.add('if ($source != null) $key: $value');
       } else {
         entries.add('$key: $value');
       }

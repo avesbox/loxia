@@ -51,7 +51,7 @@ class InsertDtoBuilder {
     final params = <Parameter>[];
 
     for (final c in columns) {
-      final isTimestampManaged = c.isCreatedAt || c.isUpdatedAt;
+      final isTimestampManaged = c.isCreatedAt || c.isUpdatedAt || c.isDeletedAt;
       params.add(
         Parameter(
           (p) => p
@@ -104,7 +104,7 @@ class InsertDtoBuilder {
           ..name = c.prop
           ..modifier = FieldModifier.final$
           ..type = refer(
-            (c.nullable || c.isCreatedAt || c.isUpdatedAt)
+            (c.nullable || c.isCreatedAt || c.isUpdatedAt || c.isDeletedAt)
                 ? _nullableType(c.dartTypeCode)
                 : c.dartTypeCode,
           ),
@@ -151,10 +151,14 @@ class InsertDtoBuilder {
       for (final f in context.updatedAtFields) f.fieldName: f.valueExpression,
     };
 
+    final deletedAtExpr = {
+      for (final f in context.deletedAtFields) f.fieldName: f.valueExpression,
+    };
+
     final entries = <String>[];
 
     for (final c in columns) {
-      final timestampExpr = createdAtExpr[c.prop] ?? updatedAtExpr[c.prop];
+      final timestampExpr = createdAtExpr[c.prop] ?? updatedAtExpr[c.prop] ?? deletedAtExpr[c.prop];
       var valueExpr = timestampExpr != null
           ? _timestampLiteralToDateTime(c, timestampExpr)
           : _timestampPropToDateTime(c, c.prop);
@@ -397,10 +401,14 @@ class UpdateDtoBuilder {
       for (final f in context.updatedAtFields) f.fieldName: f.valueExpression,
     };
 
+    final deletedAtExpr = {
+      for (final f in context.deletedAtFields) f.fieldName: f.valueExpression,
+    };
+
     final entries = <String>[];
 
     for (final c in columns) {
-      final timestampExpr = updatedAtExpr[c.prop];
+      final timestampExpr = updatedAtExpr[c.prop] ?? deletedAtExpr[c.prop];
       if (timestampExpr != null) {
         var valueExpr = _enumToStorage(
           c,
@@ -411,8 +419,9 @@ class UpdateDtoBuilder {
       }
       var valueExpr = _enumToStorage(
         c,
-        _timestampPropToDateTime(c, c.prop, true),
+        _timestampPropToDateTime(c, c.prop, true, c.isDeletedAt),
         true,
+        c.isDeletedAt,
       );
       entries.add("if(${c.prop} != null) '${c.name}': $valueExpr");
     }
@@ -478,9 +487,10 @@ String _timestampPropToDateTime(
   GenColumn c,
   String prop, [
   bool toUpdateDto = false,
+  bool toDeletedAt = false,
 ]) {
-  final isNullable = c.nullable || toUpdateDto;
-  if (!c.isCreatedAt && !c.isUpdatedAt) {
+  final isNullable = c.nullable || toUpdateDto || toDeletedAt;
+  if (!c.isCreatedAt && !c.isUpdatedAt && !c.isDeletedAt) {
     final base = c.dartTypeCode.replaceAll('?', '');
     if (base == 'DateTime') {
       return isNullable
@@ -507,13 +517,13 @@ String _timestampPropToDateTime(
   }
 }
 
-String _enumToStorage(GenColumn c, String expr, [bool toUpdateDto = false]) {
+String _enumToStorage(GenColumn c, String expr, [bool toUpdateDto = false, bool toDeletedAt = false]) {
   if (!c.isEnum) return expr;
   switch (c.type) {
     case ColumnType.text:
-      return c.nullable || toUpdateDto ? '$expr?.name' : '$expr.name';
+      return c.nullable || toUpdateDto || toDeletedAt ? '$expr?.name' : '$expr.name';
     case ColumnType.integer:
-      return c.nullable || toUpdateDto ? '$expr?.index' : '$expr.index';
+      return c.nullable || toUpdateDto || toDeletedAt ? '$expr?.index' : '$expr.index';
     default:
       return expr;
   }

@@ -6,6 +6,7 @@ import 'package:loxia/src/repository/dtos.dart';
 
 import '../annotations/column.dart';
 import '../entity.dart';
+import '../metadata/column_descriptor.dart';
 import '../metadata/entity_descriptor.dart';
 import '../metadata/relation_descriptor.dart';
 import '../datasource/engine_adapter.dart';
@@ -46,6 +47,7 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     List<OrderBy>? orderBy,
     int? limit,
     int? offset,
+    bool includeDeleted = false,
   }) async {
     final alias = 't';
     final runtime = QueryRuntimeContext(rootAlias: alias);
@@ -60,7 +62,13 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     final projection = effectiveSelect.compile(boundContext);
     final cols = projection.sql;
     final params = <Object?>[];
-    final whereSql = where?.toSql(boundContext, params);
+    final whereSql = _buildSelectWhereSql(
+      alias: alias,
+      where: where,
+      boundContext: boundContext,
+      params: params,
+      includeDeleted: includeDeleted,
+    );
     final limitSql = limit != null ? ' LIMIT $limit' : '';
     final offsetSql = offset != null ? ' OFFSET $offset' : '';
     final orderBySql = orderBy == null || orderBy.isEmpty
@@ -89,6 +97,7 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     QueryBuilder<T>? where,
     List<OrderBy>? orderBy,
     int? offset,
+    bool includeDeleted = false,
   }) async {
     final results = await find(
       select: select,
@@ -96,6 +105,7 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
       orderBy: orderBy,
       limit: 1,
       offset: offset,
+      includeDeleted: includeDeleted,
     );
     return results.firstOrNull;
   }
@@ -135,6 +145,7 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     required int page,
     required int pageSize,
     int? maxPageSize,
+    bool includeDeleted = false,
   }) async {
     if (page < 1) {
       throw RangeError.range(page, 1, null, 'page');
@@ -149,13 +160,18 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
         ? _defaultOrderBy()
         : orderBy;
     final offset = (page - 1) * pageSize;
-    final total = await count(select: select, where: where);
+    final total = await count(
+      select: select,
+      where: where,
+      includeDeleted: includeDeleted,
+    );
     final items = await find(
       select: select,
       where: where,
       orderBy: resolvedOrderBy,
       limit: pageSize,
       offset: offset,
+      includeDeleted: includeDeleted,
     );
     final pageCount = total == 0 ? 0 : ((total + pageSize - 1) ~/ pageSize);
     return PaginatedResult<P>(
@@ -181,6 +197,7 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     int? offset,
     int? limit,
     RelationsOptions<T, P>? relations,
+    bool includeDeleted = false,
   }) async {
     if (relations != null) {
       final defaultSelectFactory = _descriptor.defaultSelect;
@@ -199,6 +216,7 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
         orderBy: orderBy,
         limit: limit,
         offset: offset,
+        includeDeleted: includeDeleted,
       );
       final items = partialItems.map((partial) => partial.toEntity()).toList();
       _applyPostLoad(items);
@@ -212,7 +230,13 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
         .map((c) => '"$alias"."${c.name}"')
         .join(', ');
     final params = <Object?>[];
-    final whereSql = where?.toSql(boundContext, params);
+    final whereSql = _buildSelectWhereSql(
+      alias: alias,
+      where: where,
+      boundContext: boundContext,
+      params: params,
+      includeDeleted: includeDeleted,
+    );
     final limitSql = limit != null ? ' LIMIT $limit' : '';
     final offsetSql = offset != null ? ' OFFSET $offset' : '';
     final orderBySql = orderBy == null || orderBy.isEmpty
@@ -236,6 +260,7 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     List<OrderBy>? orderBy,
     int? offset,
     RelationsOptions<T, P>? relations,
+    bool includeDeleted = false,
   }) async {
     final results = await findBy(
       where: where,
@@ -243,6 +268,7 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
       limit: 1,
       offset: offset,
       relations: relations,
+      includeDeleted: includeDeleted,
     );
     return results.firstOrNull;
   }
@@ -323,6 +349,7 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
   Future<int> count({
     SelectOptions<T, P>? select,
     QueryBuilder<T>? where,
+    bool includeDeleted = false,
   }) async {
     final alias = 't';
     final runtime = QueryRuntimeContext(rootAlias: alias);
@@ -332,7 +359,13 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
       select.collect(boundContext, fields, path: null);
     }
     final params = <Object?>[];
-    final whereSql = where?.toSql(boundContext, params);
+    final whereSql = _buildSelectWhereSql(
+      alias: alias,
+      where: where,
+      boundContext: boundContext,
+      params: params,
+      includeDeleted: includeDeleted,
+    );
     final joinsSql = runtime.joins.map(_renderJoinClause).join(' ');
     final countTarget = _buildCountTarget(select, alias, fields);
     final sql =
@@ -751,6 +784,155 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     });
   }
 
+  Future<int> softDelete(QueryBuilder<T> where) async {
+    return _engine.transaction((txEngine) async {
+      final txRepo = _descriptor.repositoryFactory(txEngine);
+      return txRepo._softDeleteWithCascade(where, txEngine);
+    });
+  }
+
+  Future<void> softDeleteEntities(Iterable<T> entities) async {
+    await _engine.transaction((txEngine) async {
+      final txRepo = _descriptor.repositoryFactory(txEngine);
+      for (final entity in entities) {
+        await txRepo._softDeleteEntityWithEngine(entity, txEngine);
+      }
+    });
+  }
+
+  Future<int> _softDeleteWithCascade(
+    QueryBuilder<T> where,
+    EngineAdapter engine,
+  ) async {
+    final deletedAtColumn = _deletedAtColumnOrThrow();
+    final deletedAtValue = _nowForDeletedAt();
+
+    final params = <Object?>[];
+    final runtime = QueryRuntimeContext(rootAlias: 't');
+    final boundContext = _fieldsContext.bind(runtime, 't');
+    final whereSql = where.toSql(boundContext, params);
+    if (runtime.joins.isNotEmpty) {
+      throw UnsupportedError(
+        'Relation filters are not yet supported for soft delete queries.',
+      );
+    }
+
+    // Cascade soft delete: inverse-side relations first (children before parent)
+    for (final relation in _descriptor.relations) {
+      if (!relation.shouldCascadeRemove) continue;
+      if (relation.type == RelationType.manyToMany) continue;
+      if (relation.isOwningSide) continue;
+
+      final targetDescriptor = EntityDescriptor.lookup(relation.target);
+      if (targetDescriptor == null) continue;
+
+      final targetDeletedAtColumn = _deletedAtColumnFor(targetDescriptor);
+      if (targetDeletedAtColumn == null) continue;
+
+      final mappedBy = relation.mappedBy;
+      if (mappedBy == null || mappedBy.isEmpty) continue;
+
+      final owningRelation = targetDescriptor.relations.firstWhere(
+        (r) => r.fieldName == mappedBy,
+        orElse: () => throw StateError(
+          'Owning relation $mappedBy not found on ${targetDescriptor.tableName}',
+        ),
+      );
+      final joinColumn = owningRelation.joinColumn;
+      if (joinColumn == null) continue;
+
+      final pk = _descriptor.primaryKey;
+      if (pk == null) {
+        throw StateError(
+          'Cannot cascade soft delete without primary key on ${_descriptor.tableName}',
+        );
+      }
+
+      final selectAlias = 't';
+      final selectRuntime = QueryRuntimeContext(rootAlias: selectAlias);
+      final selectBoundContext = _fieldsContext.bind(selectRuntime, selectAlias);
+      final selectParams = <Object?>[];
+      final selectWhereSql = where.toSql(selectBoundContext, selectParams);
+      final selectSql =
+          'SELECT "$selectAlias"."${pk.name}" FROM ${_renderTableReference(_descriptor.qualifiedTableName)} AS "$selectAlias" WHERE $selectWhereSql';
+      final parentRows = await engine.query(selectSql, selectParams);
+      final parentIds = parentRows
+          .map((r) => r[pk.name])
+          .where((id) => id != null)
+          .toList();
+      if (parentIds.isEmpty) continue;
+
+      final placeholders = List.filled(parentIds.length, '?').join(', ');
+      final targetTable = _renderTableReference(
+        targetDescriptor.qualifiedTableName,
+      );
+      final childUpdateSql =
+          'UPDATE $targetTable SET "${targetDeletedAtColumn.name}" = ? WHERE "${joinColumn.name}" IN ($placeholders)';
+      await engine.execute(childUpdateSql, [deletedAtValue, ...parentIds]);
+    }
+
+    // Collect FK values for owning-side cascade soft deletes BEFORE parent update
+    final owningCascadeTargets = <RelationDescriptor, List<Object>>{};
+    for (final relation in _descriptor.relations) {
+      if (!relation.shouldCascadeRemove) continue;
+      if (!relation.isOwningSide) continue;
+      if (relation.type == RelationType.manyToMany) continue;
+
+      final targetDescriptor = EntityDescriptor.lookup(relation.target);
+      if (targetDescriptor == null) continue;
+      final targetDeletedAtColumn = _deletedAtColumnFor(targetDescriptor);
+      if (targetDeletedAtColumn == null) continue;
+
+      final joinColumn = relation.joinColumn;
+      if (joinColumn == null) continue;
+
+      final alias = 't';
+      final selectRuntime = QueryRuntimeContext(rootAlias: alias);
+      final selectBoundContext = _fieldsContext.bind(selectRuntime, alias);
+      final selectParams = <Object?>[];
+      final selectWhereSql = where.toSql(selectBoundContext, selectParams);
+      final selectSql =
+          'SELECT DISTINCT "$alias"."${joinColumn.name}" FROM ${_renderTableReference(_descriptor.qualifiedTableName)} AS "$alias" WHERE $selectWhereSql';
+      final rows = await engine.query(selectSql, selectParams);
+
+      final fkValues = rows
+          .map((r) => r[joinColumn.name])
+          .where((v) => v != null)
+          .cast<Object>()
+          .toList();
+      if (fkValues.isNotEmpty) {
+        owningCascadeTargets[relation] = fkValues;
+      }
+    }
+
+    final sql =
+        'UPDATE ${_descriptor.tableName} AS "t" SET "${deletedAtColumn.name}" = ? WHERE $whereSql';
+    final deleted = await engine.execute(sql, [deletedAtValue, ...params]);
+
+    // Cascade soft delete: owning-side relations after parent update
+    for (final entry in owningCascadeTargets.entries) {
+      final relation = entry.key;
+      final fkValues = entry.value;
+
+      final targetDescriptor = EntityDescriptor.lookup(relation.target);
+      if (targetDescriptor == null) continue;
+      final targetPk = targetDescriptor.primaryKey;
+      if (targetPk == null) continue;
+      final targetDeletedAtColumn = _deletedAtColumnFor(targetDescriptor);
+      if (targetDeletedAtColumn == null) continue;
+
+      final placeholders = List.filled(fkValues.length, '?').join(', ');
+      final targetTable = _renderTableReference(
+        targetDescriptor.qualifiedTableName,
+      );
+      final updateSql =
+          'UPDATE $targetTable SET "${targetDeletedAtColumn.name}" = ? WHERE "${targetPk.name}" IN ($placeholders)';
+      await engine.execute(updateSql, [deletedAtValue, ...fkValues]);
+    }
+
+    return deleted;
+  }
+
   Future<int> _deleteWithCascade(
     QueryBuilder<T> where,
     EngineAdapter engine,
@@ -1035,6 +1217,113 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
 
       _descriptor.hooks?.postRemove?.call(entity);
     });
+  }
+
+  Future<void> softDeleteEntity(T entity) async {
+    await _engine.transaction((txEngine) async {
+      final txRepo = _descriptor.repositoryFactory(txEngine);
+      await txRepo._softDeleteEntityWithEngine(entity, txEngine);
+    });
+  }
+
+  Future<void> _softDeleteEntityWithEngine(
+    T entity,
+    EngineAdapter engine,
+  ) async {
+    final deletedAtColumn = _deletedAtColumnOrThrow();
+    final deletedAtValue = _nowForDeletedAt();
+
+    _descriptor.hooks?.preRemove?.call(entity);
+    final pk = _descriptor.primaryKey;
+    if (pk == null) {
+      throw StateError(
+        'Cannot soft delete without a primary key on ${_descriptor.tableName}',
+      );
+    }
+    final map = _descriptor.toRow(entity);
+    final pkValue = map[pk.name];
+    if (pkValue == null) {
+      throw StateError(
+        'Cannot soft delete without primary key value for ${_descriptor.tableName}',
+      );
+    }
+
+    // Cascade soft delete: inverse-side relations first (children before parent)
+    await _cascadeSoftDeleteEntityInverseRelations(entity, pkValue, engine);
+
+    // Collect FK values for owning-side cascade BEFORE updating the parent
+    final owningCascadeTargets = _collectOwningCascadeTargets(entity);
+
+    // Soft delete the parent entity
+    final sql =
+        'UPDATE ${_descriptor.tableName} SET "${deletedAtColumn.name}" = ? WHERE "${pk.name}" = ?';
+    await engine.execute(sql, [deletedAtValue, pkValue]);
+
+    // Cascade soft delete: owning-side relations AFTER parent is updated
+    await _cascadeSoftDeleteEntityOwningRelations(owningCascadeTargets, engine);
+
+    _descriptor.hooks?.postRemove?.call(entity);
+  }
+
+  Future<void> _cascadeSoftDeleteEntityInverseRelations(
+    T entity,
+    Object pkValue,
+    EngineAdapter engine,
+  ) async {
+    for (final relation in _descriptor.relations) {
+      if (!relation.shouldCascadeRemove) continue;
+      if (relation.type == RelationType.manyToMany) continue;
+      if (relation.isOwningSide) continue;
+
+      final targetDescriptor = EntityDescriptor.lookup(relation.target);
+      if (targetDescriptor == null) continue;
+      final targetDeletedAtColumn = _deletedAtColumnFor(targetDescriptor);
+      if (targetDeletedAtColumn == null) continue;
+
+      final mappedBy = relation.mappedBy;
+      if (mappedBy == null || mappedBy.isEmpty) continue;
+
+      final owningRelation = targetDescriptor.relations.firstWhere(
+        (r) => r.fieldName == mappedBy,
+        orElse: () => throw StateError(
+          'Owning relation $mappedBy not found on ${targetDescriptor.tableName}',
+        ),
+      );
+      final joinColumn = owningRelation.joinColumn;
+      if (joinColumn == null) continue;
+
+      final targetTable = _renderTableReference(
+        targetDescriptor.qualifiedTableName,
+      );
+      final updateChildrenSql =
+          'UPDATE $targetTable SET "${targetDeletedAtColumn.name}" = ? WHERE "${joinColumn.name}" = ?';
+      await engine.execute(updateChildrenSql, [_nowForDeletedAt(), pkValue]);
+    }
+  }
+
+  Future<void> _cascadeSoftDeleteEntityOwningRelations(
+    Map<RelationDescriptor, Object> targets,
+    EngineAdapter engine,
+  ) async {
+    for (final entry in targets.entries) {
+      final relation = entry.key;
+      final fkValue = entry.value;
+
+      final targetDescriptor = EntityDescriptor.lookup(relation.target);
+      if (targetDescriptor == null) continue;
+      final targetDeletedAtColumn = _deletedAtColumnFor(targetDescriptor);
+      if (targetDeletedAtColumn == null) continue;
+
+      final targetPk = targetDescriptor.primaryKey;
+      if (targetPk == null) continue;
+
+      final targetTable = _renderTableReference(
+        targetDescriptor.qualifiedTableName,
+      );
+      final updateSql =
+          'UPDATE $targetTable SET "${targetDeletedAtColumn.name}" = ? WHERE "${targetPk.name}" = ?';
+      await engine.execute(updateSql, [_nowForDeletedAt(), fkValue]);
+    }
   }
 
   Map<RelationDescriptor, Object> _collectOwningCascadeTargets(T entity) {
@@ -1645,8 +1934,60 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     return [OrderBy(primaryKey)];
   }
 
+  ColumnDescriptor _deletedAtColumnOrThrow() {
+    final deletedAtColumn = _deletedAtColumnFor(_descriptor);
+    if (deletedAtColumn == null) {
+      throw StateError(
+        'Cannot soft delete ${_descriptor.tableName}: no @DeletedAt column found.',
+      );
+    }
+    return deletedAtColumn;
+  }
+
+  ColumnDescriptor? _deletedAtColumnFor(EntityDescriptor descriptor) {
+    return descriptor.columns.where((column) => column.isDeletedAt).firstOrNull;
+  }
+
+  Object _nowForDeletedAt() => DateTime.now().toUtc().toIso8601String();
+
   String _renderTableReference(String name) =>
       name.split('.').map((part) => '"$part"').join('.');
+
+  String? _buildSelectWhereSql({
+    required String alias,
+    required QueryBuilder<T>? where,
+    required QueryFieldsContext<T> boundContext,
+    required List<Object?> params,
+    required bool includeDeleted,
+  }) {
+    final baseWhere = where?.toSql(boundContext, params);
+    return _appendNotDeletedSql(
+      alias: alias,
+      whereSql: baseWhere,
+      includeDeleted: includeDeleted,
+    );
+  }
+
+  String? _appendNotDeletedSql({
+    required String alias,
+    required String? whereSql,
+    required bool includeDeleted,
+  }) {
+    if (includeDeleted) {
+      return whereSql;
+    }
+    final deletedColumn = _descriptor.columns
+        .where((column) => column.isDeletedAt)
+        .firstOrNull;
+    if (deletedColumn == null) {
+      return whereSql;
+    }
+    final deletedCondition = '"$alias"."${deletedColumn.name}" IS NULL';
+    if (whereSql == null || whereSql.isEmpty) {
+      return deletedCondition;
+    }
+    return '($whereSql) AND ($deletedCondition)';
+  }
 }
 
 class _InjectedInsertDto implements InsertDto {

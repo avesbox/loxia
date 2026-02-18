@@ -123,6 +123,9 @@ class Post extends Entity {
   @UpdatedAt()
   int? lastUpdatedAt;
 
+  @DeletedAt()
+  DateTime? deletedAt;
+
   @ManyToOne(on: User)
   final User? user;
 
@@ -144,6 +147,7 @@ class Post extends Entity {
     required this.title,
     this.createdAt,
     this.lastUpdatedAt,
+    this.deletedAt,
     required this.content,
     required this.likes,
     this.user,
@@ -376,11 +380,13 @@ Future<void> main() async {
       userId: partial?.id,
     ),
   );
+  await posts.softDeleteEntity(newPost);
   final post = await posts.findOne(
     where: PostQuery(
       (q) => q.id.equals(newPost.id).and(q.userId.equals(partial?.id ?? 0)),
     ),
     select: PostSelect(relations: PostRelations(user: UserSelect())),
+    includeDeleted: true
   );
   final partialPost = post as PostPartial?;
   print(

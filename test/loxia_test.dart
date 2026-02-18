@@ -234,10 +234,165 @@ void main() {
       expect(engine.lastSql, isNot(contains('LEFT JOIN merchants')));
     });
   });
+
+  group('EntityRepository soft delete filtering', () {
+    test('find adds deleted_at IS NULL by default', () async {
+      final engine = _RepoFakeEngine(
+        rows: [
+          {'id': 1, 'name': 'Visible', 'merchant_id': null},
+        ],
+      );
+      final descriptor = _buildStoreDescriptorWithDeletedAt();
+      final repository = EntityRepository<_StoreEntity, _StorePartial>(
+        descriptor,
+        engine,
+        const _StoreFields(),
+      );
+
+      final stores = await repository.find();
+
+      expect(stores, hasLength(1));
+      expect(engine.lastSql, contains('"t"."deleted_at" IS NULL'));
+    });
+
+    test('findOne includeDeleted bypasses deleted_at filter', () async {
+      final engine = _RepoFakeEngine(
+        rows: [
+          {'id': 2, 'name': 'Deleted', 'merchant_id': null},
+        ],
+      );
+      final descriptor = _buildStoreDescriptorWithDeletedAt();
+      final repository = EntityRepository<_StoreEntity, _StorePartial>(
+        descriptor,
+        engine,
+        const _StoreFields(),
+      );
+
+      final store = await repository.findOne(includeDeleted: true);
+
+      expect(store != null, isTrue);
+      expect(engine.lastSql, isNot(contains('"t"."deleted_at" IS NULL')));
+    });
+
+    test('findBy/findOneBy add filter by default and support includeDeleted',
+        () async {
+      final engine = _RepoFakeEngine(
+        rows: [
+          {'id': 3, 'name': 'Filtered', 'merchant_id': null},
+        ],
+      );
+      final descriptor = _buildStoreDescriptorWithDeletedAt();
+      final repository = EntityRepository<_StoreEntity, _StorePartial>(
+        descriptor,
+        engine,
+        const _StoreFields(),
+      );
+
+      await repository.findBy();
+      expect(engine.lastSql, contains('"t"."deleted_at" IS NULL'));
+
+      await repository.findOneBy(includeDeleted: true);
+      expect(engine.lastSql, isNot(contains('"t"."deleted_at" IS NULL')));
+    });
+
+    test('paginate applies includeDeleted to count and page queries', () async {
+      final engine = _RepoFakeEngine(
+        rows: const [],
+        queryResponses: [
+          [
+            {'c': 1},
+          ],
+          [
+            {'id': 4, 'name': 'Row', 'merchant_id': null},
+          ],
+          [
+            {'c': 1},
+          ],
+          [
+            {'id': 4, 'name': 'Row', 'merchant_id': null},
+          ],
+        ],
+      );
+      final descriptor = _buildStoreDescriptorWithDeletedAt();
+      final repository = EntityRepository<_StoreEntity, _StorePartial>(
+        descriptor,
+        engine,
+        const _StoreFields(),
+      );
+
+      final result = await repository.paginate(page: 1, pageSize: 10);
+
+      expect(result.total, 1);
+      expect(engine.queryHistory, hasLength(2));
+      expect(engine.queryHistory.first, contains('"t"."deleted_at" IS NULL'));
+      expect(engine.queryHistory.last, contains('"t"."deleted_at" IS NULL'));
+
+      await repository.paginate(page: 1, pageSize: 10, includeDeleted: true);
+      expect(engine.queryHistory, hasLength(4));
+      expect(
+        engine.queryHistory[2],
+        isNot(contains('"t"."deleted_at" IS NULL')),
+      );
+      expect(
+        engine.queryHistory[3],
+        isNot(contains('"t"."deleted_at" IS NULL')),
+      );
+    });
+
+    test('softDelete updates DeletedAt column for matching rows', () async {
+      final engine = _RepoFakeEngine(
+        rows: const [],
+        executeResult: 2,
+      );
+      final descriptor = _buildStoreDescriptorWithDeletedAt();
+      final repository = EntityRepository<_StoreEntity, _StorePartial>(
+        descriptor,
+        engine,
+        const _StoreFields(),
+      );
+
+      final deleted = await repository.softDelete(
+        QueryBuilder<_StoreEntity>.from((q) => q.field<int>('id').equals(1)),
+      );
+
+      expect(deleted, 2);
+      expect(engine.executeHistory, isNotEmpty);
+      expect(
+        engine.executeHistory.first,
+        contains('UPDATE stores AS "t" SET "deleted_at" = ? WHERE "t"."id" = ?'),
+      );
+      expect(engine.executeParamsHistory.first.length, 2);
+      expect(engine.executeParamsHistory.first[1], 1);
+    });
+
+    test('softDeleteEntities soft deletes each entity', () async {
+      final engine = _RepoFakeEngine(rows: const []);
+      final descriptor = _buildStoreDescriptorWithDeletedAt();
+      final repository = EntityRepository<_StoreEntity, _StorePartial>(
+        descriptor,
+        engine,
+        const _StoreFields(),
+      );
+
+      await repository.softDeleteEntities([
+        _StoreEntity(id: 10, name: 'A', merchant: null),
+        _StoreEntity(id: 11, name: 'B', merchant: null),
+      ]);
+
+      expect(engine.executeHistory.length, 2);
+      expect(
+        engine.executeHistory[0],
+        contains('UPDATE stores SET "deleted_at" = ? WHERE "id" = ?'),
+      );
+      expect(engine.executeParamsHistory[0][1], 10);
+      expect(engine.executeParamsHistory[1][1], 11);
+    });
+  });
 }
 
 EntityDescriptor<_StoreEntity, _StorePartial> _buildStoreDescriptor() {
-  return EntityDescriptor<_StoreEntity, _StorePartial>(
+  late final EntityDescriptor<_StoreEntity, _StorePartial> descriptor;
+  descriptor = EntityDescriptor<_StoreEntity, _StorePartial>(
     entityType: _StoreEntity,
     tableName: 'stores',
     columns: [
@@ -282,9 +437,80 @@ EntityDescriptor<_StoreEntity, _StorePartial> _buildStoreDescriptor() {
       'merchant_id': entity.merchant?.id,
     },
     fieldsContext: const _StoreFields(),
-    repositoryFactory: (engine) => throw UnimplementedError(),
+    repositoryFactory: (engine) => EntityRepository<_StoreEntity, _StorePartial>(
+      descriptor,
+      engine,
+      const _StoreFields(),
+    ),
     defaultSelect: () => const _StoreSelect(id: true, name: true),
   );
+  return descriptor;
+}
+
+EntityDescriptor<_StoreEntity, _StorePartial>
+_buildStoreDescriptorWithDeletedAt() {
+  late final EntityDescriptor<_StoreEntity, _StorePartial> descriptor;
+  descriptor = EntityDescriptor<_StoreEntity, _StorePartial>(
+    entityType: _StoreEntity,
+    tableName: 'stores',
+    columns: [
+      ColumnDescriptor(
+        name: 'id',
+        propertyName: 'id',
+        type: ColumnType.integer,
+        isPrimaryKey: true,
+      ),
+      ColumnDescriptor(
+        name: 'name',
+        propertyName: 'name',
+        type: ColumnType.text,
+      ),
+      ColumnDescriptor(
+        name: 'merchant_id',
+        propertyName: 'merchant',
+        type: ColumnType.integer,
+        nullable: true,
+      ),
+      ColumnDescriptor(
+        name: 'deleted_at',
+        propertyName: 'deletedAt',
+        type: ColumnType.dateTime,
+        nullable: true,
+        isDeletedAt: true,
+      ),
+    ],
+    relations: const [
+      RelationDescriptor(
+        fieldName: 'merchant',
+        type: RelationType.manyToOne,
+        target: _MerchantEntity,
+        isOwningSide: true,
+        joinColumn: JoinColumnDescriptor(
+          name: 'merchant_id',
+          referencedColumnName: 'id',
+        ),
+      ),
+    ],
+    fromRow: (row) => _StoreEntity(
+      id: row['id'] as int,
+      name: row['name'] as String,
+      merchant: null,
+    ),
+    toRow: (entity) => {
+      'id': entity.id,
+      'name': entity.name,
+      'merchant_id': entity.merchant?.id,
+      'deleted_at': null,
+    },
+    fieldsContext: const _StoreFields(),
+    repositoryFactory: (engine) => EntityRepository<_StoreEntity, _StorePartial>(
+      descriptor,
+      engine,
+      const _StoreFields(),
+    ),
+    defaultSelect: () => const _StoreSelect(id: true, name: true),
+  );
+  return descriptor;
 }
 
 class _FakeEntity extends Entity {}
@@ -694,11 +920,21 @@ class _MerchantSelect extends SelectOptions<_StoreEntity, _MerchantPartial> {
 }
 
 class _RepoFakeEngine implements EngineAdapter {
-  _RepoFakeEngine({required this.rows});
+  _RepoFakeEngine({
+    required this.rows,
+    this.queryResponses,
+    this.executeResult = 0,
+  });
 
   final List<Map<String, dynamic>> rows;
+  final List<List<Map<String, dynamic>>>? queryResponses;
+  final int executeResult;
   String? lastSql;
   List<Object?> lastParams = const [];
+  final List<String> queryHistory = [];
+  final List<String> executeHistory = [];
+  final List<List<Object?>> executeParamsHistory = [];
+  int _queryIndex = 0;
 
   @override
   bool get supportsAlterTableAddConstraint => true;
@@ -722,11 +958,23 @@ class _RepoFakeEngine implements EngineAdapter {
   ]) async {
     lastSql = sql;
     lastParams = params;
+    queryHistory.add(sql);
+    if (queryResponses != null && _queryIndex < queryResponses!.length) {
+      final response = queryResponses![_queryIndex];
+      _queryIndex += 1;
+      return response;
+    }
     return rows;
   }
 
   @override
-  Future<int> execute(String sql, [List<Object?> params = const []]) async => 0;
+  Future<int> execute(String sql, [List<Object?> params = const []]) async {
+    lastSql = sql;
+    lastParams = params;
+    executeHistory.add(sql);
+    executeParamsHistory.add(params);
+    return executeResult;
+  }
 
   @override
   Future<T> transaction<T>(Future<T> Function(EngineAdapter txEngine) action) {
