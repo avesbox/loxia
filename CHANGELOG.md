@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.17
+
+- Improved performances by reducing several redundant transactions in the repository methods. Instead of wrapping each individual operation in a transaction, the methods now execute directly on the main engine, which should result in faster execution and reduced overhead.
+- Removed constant creation of Regex objects in the generated code, which should improve performance by avoiding unnecessary object creation and allowing for better reuse of the same Regex instances when needed.
+
 ## 0.0.16
 
 - Added support for soft delete functionality in the repository, allowing you to mark entities as deleted without actually removing them from the database. This is achieved by adding a `deletedAt` field to the entities and updating the repository methods to handle soft deletion and querying of soft-deleted entities. You can now use the `softDeleteEntity` method to mark an entity as deleted and the `includeDeleted` option in query methods to include or exclude soft-deleted entities from the results.
