@@ -49,6 +49,7 @@ class MigrationPlanner {
                 columnName: jc.name,
                 referencesTable: jc.referencesTable,
                 referencesColumn: jc.referencesColumn,
+                onDeleteCascade: jc.onDeleteCascade,
               ),
             );
           }
@@ -76,6 +77,7 @@ class MigrationPlanner {
                   columnName: jc.name,
                   referencesTable: jc.referencesTable,
                   referencesColumn: jc.referencesColumn,
+                  onDeleteCascade: jc.onDeleteCascade,
                 ),
               );
             }
@@ -116,6 +118,7 @@ class MigrationPlanner {
                 columnName: col.name,
                 referencesTable: col.referencesTable,
                 referencesColumn: col.referencesColumn,
+                onDeleteCascade: col.onDeleteCascade,
               ),
             );
           }
@@ -133,6 +136,7 @@ class MigrationPlanner {
                   columnName: col.name,
                   referencesTable: col.referencesTable,
                   referencesColumn: col.referencesColumn,
+                  onDeleteCascade: col.onDeleteCascade,
                 ),
               );
             }
@@ -200,6 +204,7 @@ class MigrationPlanner {
     final parts = <String>[
       _joinColumnDDLWithoutFK(spec),
       'REFERENCES ${_quoteQualified(spec.referencesTable)}("${spec.referencesColumn}")',
+      if (spec.onDeleteCascade) 'ON DELETE CASCADE',
     ];
     return parts.join(' ');
   }
@@ -210,7 +215,8 @@ class MigrationPlanner {
     return 'ALTER TABLE ${_quoteQualified(fk.tableName)} '
         'ADD CONSTRAINT "$constraintName" '
         'FOREIGN KEY ("${fk.columnName}") '
-        'REFERENCES ${_quoteQualified(fk.referencesTable)}("${fk.referencesColumn}")';
+      'REFERENCES ${_quoteQualified(fk.referencesTable)}("${fk.referencesColumn}")'
+      '${fk.onDeleteCascade ? ' ON DELETE CASCADE' : ''}';
   }
 
   String _typeToSql(ColumnType t) {
@@ -253,7 +259,13 @@ class MigrationPlanner {
       final joinColumn = relation.joinColumn;
       if (!relation.isOwningSide || joinColumn == null) continue;
       final target = _descriptorForType(relation.target, entityByType);
-      specs.add(_joinColumnSpecFromDescriptor(joinColumn, target));
+      specs.add(
+        _joinColumnSpecFromDescriptor(
+          joinColumn,
+          target,
+          onDeleteCascade: relation.shouldCascadeRemove,
+        ),
+      );
     }
     return specs;
   }
@@ -266,11 +278,23 @@ class MigrationPlanner {
     final descriptor = relation.joinTable!;
     final columns = <_JoinColumnSpec>[];
     for (final col in descriptor.joinColumns) {
-      columns.add(_joinColumnSpecFromDescriptor(col, owner));
+      columns.add(
+        _joinColumnSpecFromDescriptor(
+          col,
+          owner,
+          onDeleteCascade: true,
+        ),
+      );
     }
     final inverseDescriptor = _descriptorForType(relation.target, entityByType);
     for (final col in descriptor.inverseJoinColumns) {
-      columns.add(_joinColumnSpecFromDescriptor(col, inverseDescriptor));
+      columns.add(
+        _joinColumnSpecFromDescriptor(
+          col,
+          inverseDescriptor,
+          onDeleteCascade: true,
+        ),
+      );
     }
     return _JoinTableSpec(name: descriptor.name, columns: columns);
   }
@@ -278,6 +302,9 @@ class MigrationPlanner {
   _JoinColumnSpec _joinColumnSpecFromDescriptor(
     JoinColumnDescriptor descriptor,
     EntityDescriptor referenced,
+    {
+      required bool onDeleteCascade,
+    }
   ) {
     ColumnDescriptor? referencedColumn;
     for (final column in referenced.columns) {
@@ -299,6 +326,7 @@ class MigrationPlanner {
       unique: descriptor.unique,
       referencesTable: referenced.qualifiedTableName,
       referencesColumn: referencedColumn.name,
+      onDeleteCascade: onDeleteCascade,
     );
   }
 
@@ -423,6 +451,7 @@ class _JoinColumnSpec {
     required this.unique,
     required this.referencesTable,
     required this.referencesColumn,
+    required this.onDeleteCascade,
   });
 
   final String name;
@@ -431,6 +460,7 @@ class _JoinColumnSpec {
   final bool unique;
   final String referencesTable;
   final String referencesColumn;
+  final bool onDeleteCascade;
 }
 
 class _JoinTableSpec {
@@ -447,10 +477,12 @@ class _DeferredForeignKey {
     required this.columnName,
     required this.referencesTable,
     required this.referencesColumn,
+    required this.onDeleteCascade,
   });
 
   final String tableName;
   final String columnName;
   final String referencesTable;
   final String referencesColumn;
+  final bool onDeleteCascade;
 }

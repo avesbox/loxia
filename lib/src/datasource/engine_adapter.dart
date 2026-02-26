@@ -8,6 +8,11 @@ abstract class EngineAdapter {
   /// SQLite does not support this syntax.
   bool get supportsAlterTableAddConstraint => true;
 
+  /// Returns the placeholder token for the 1-based [index].
+  ///
+  /// SQLite-style engines use `?`, while PostgreSQL uses `$1`, `$2`, ...
+  String placeholderFor(int index) => '?';
+
   Future<void> open();
   Future<void> close();
 

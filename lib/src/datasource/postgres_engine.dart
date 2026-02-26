@@ -240,7 +240,7 @@ class PostgresEngine implements EngineAdapter {
   @override
   Future<int> execute(String sql, [List<Object?> params = const []]) async {
     final db = _ensureSessionExecutor();
-    final prepared = params.isEmpty ? sql : _convertPlaceholders(sql);
+    final prepared = params.isEmpty ? sql : _normalizePlaceholders(sql);
     final result = await db.run(
       (session) => session.execute(prepared, parameters: params),
     );
@@ -253,7 +253,7 @@ class PostgresEngine implements EngineAdapter {
     List<Object?> params = const [],
   ]) async {
     final db = _ensureSessionExecutor();
-    final prepared = params.isEmpty ? sql : _convertPlaceholders(sql);
+    final prepared = params.isEmpty ? sql : _normalizePlaceholders(sql);
     final result = await db.run(
       (session) => session.execute(prepared, parameters: params),
     );
@@ -333,41 +333,10 @@ class PostgresEngine implements EngineAdapter {
     return adapted;
   }
 
-  static String _convertPlaceholders(String sql) {
+  static String _normalizePlaceholders(String sql) {
+    if (!sql.contains('?')) return sql;
     var index = 0;
-    var inSingle = false;
-    var inDouble = false;
-    final out = StringBuffer();
-    for (var i = 0; i < sql.length; i++) {
-      final ch = sql[i];
-      if (ch == "'" && !inDouble) {
-        if (inSingle && i + 1 < sql.length && sql[i + 1] == "'") {
-          out.write("''");
-          i++;
-          continue;
-        }
-        inSingle = !inSingle;
-        out.write(ch);
-        continue;
-      }
-      if (ch == '"' && !inSingle) {
-        if (inDouble && i + 1 < sql.length && sql[i + 1] == '"') {
-          out.write('""');
-          i++;
-          continue;
-        }
-        inDouble = !inDouble;
-        out.write(ch);
-        continue;
-      }
-      if (ch == '?' && !inSingle && !inDouble) {
-        index += 1;
-        out.write('\$$index');
-        continue;
-      }
-      out.write(ch);
-    }
-    return out.toString();
+    return sql.replaceAllMapped(RegExp(r'\?'), (_) => '\$${++index}');
   }
 
   static ColumnType _mapType(String? dataType, String? udtName) {
@@ -406,6 +375,9 @@ class PostgresEngine implements EngineAdapter {
 
   @override
   bool get supportsAlterTableAddConstraint => true;
+
+  @override
+  String placeholderFor(int index) => '\$$index';
 }
 
 class _PostgresSessionEngine implements EngineAdapter {
@@ -435,7 +407,7 @@ class _PostgresSessionEngine implements EngineAdapter {
   Future<int> execute(String sql, [List<Object?> params = const []]) async {
     final prepared = params.isEmpty
         ? sql
-        : PostgresEngine._convertPlaceholders(sql);
+        : PostgresEngine._normalizePlaceholders(sql);
     final result = await _session.execute(prepared, parameters: params);
     return result.affectedRows;
   }
@@ -447,7 +419,7 @@ class _PostgresSessionEngine implements EngineAdapter {
   ]) async {
     final prepared = params.isEmpty
         ? sql
-        : PostgresEngine._convertPlaceholders(sql);
+      : PostgresEngine._normalizePlaceholders(sql);
     final result = await _session.execute(prepared, parameters: params);
     return result
         .map((row) => row.toColumnMap().cast<String, dynamic>())
@@ -491,4 +463,7 @@ class _PostgresSessionEngine implements EngineAdapter {
 
   @override
   bool get supportsAlterTableAddConstraint => true;
+
+  @override
+  String placeholderFor(int index) => '\$$index';
 }

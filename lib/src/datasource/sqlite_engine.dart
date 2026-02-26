@@ -30,6 +30,9 @@ class SqliteEngine implements EngineAdapter {
   @override
   bool get supportsAlterTableAddConstraint => false;
 
+  @override
+  String placeholderFor(int index) => '?';
+
   final sq.Database Function() _open;
   sq.Database? _db;
   bool _inTransaction = false;

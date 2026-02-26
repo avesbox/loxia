@@ -8,7 +8,11 @@ class OrderBy {
 /// Base interface for any WHERE fragment.
 abstract class WhereExpression {
   /// Returns the SQL fragment or `null` if no conditions were provided.
-  String? toSql(String alias, List<Object?> params);
+  String? toSql(
+    String alias,
+    List<Object?> params, {
+    String Function(int index)? placeholderForIndex,
+  });
 }
 
 class RelationJoinSpec {
@@ -134,8 +138,15 @@ abstract class QueryBuilder<E> {
 
   WhereExpression call(QueryFieldsContext<E> context) => build(context);
 
-  String? toSql(QueryFieldsContext<E> context, List<Object?> params) =>
-      build(context).toSql(context.currentAlias, params);
+  String? toSql(
+    QueryFieldsContext<E> context,
+    List<Object?> params, {
+    String Function(int index)? placeholderForIndex,
+  }) => build(context).toSql(
+    context.currentAlias,
+    params,
+    placeholderForIndex: placeholderForIndex,
+  );
 }
 
 class _LambdaQueryBuilder<E> extends QueryBuilder<E> {
@@ -189,10 +200,18 @@ class _CompositeWhere implements WhereExpression {
   }
 
   @override
-  String? toSql(String alias, List<Object?> params) {
+  String? toSql(
+    String alias,
+    List<Object?> params, {
+    String Function(int index)? placeholderForIndex,
+  }) {
     final clauses = <String>[];
     for (final expr in _expressions) {
-      final sql = expr.toSql(alias, params);
+      final sql = expr.toSql(
+        alias,
+        params,
+        placeholderForIndex: placeholderForIndex,
+      );
       if (sql != null && sql.isNotEmpty) {
         clauses.add(sql);
       }
@@ -210,8 +229,16 @@ class _NotWhere implements WhereExpression {
   final WhereExpression _inner;
 
   @override
-  String? toSql(String alias, List<Object?> params) {
-    final sql = _inner.toSql(alias, params);
+  String? toSql(
+    String alias,
+    List<Object?> params, {
+    String Function(int index)? placeholderForIndex,
+  }) {
+    final sql = _inner.toSql(
+      alias,
+      params,
+      placeholderForIndex: placeholderForIndex,
+    );
     if (sql == null || sql.isEmpty) return null;
     return 'NOT ($sql)';
   }
@@ -343,8 +370,17 @@ class ColumnPredicate<T> implements WhereExpression {
   final WhereCondition<T> _condition;
 
   @override
-  String? toSql(String alias, List<Object?> params) {
-    return _condition.toSql(_alias, _column, params);
+  String? toSql(
+    String alias,
+    List<Object?> params, {
+    String Function(int index)? placeholderForIndex,
+  }) {
+    return _condition.toSql(
+      _alias,
+      _column,
+      params,
+      placeholderForIndex: placeholderForIndex,
+    );
   }
 }
 
@@ -356,32 +392,37 @@ class WhereCondition<T> {
   final T? value;
   final List<T?>? values;
 
-  String toSql(String alias, String column, List<Object?> params) {
+  String toSql(
+    String alias,
+    String column,
+    List<Object?> params, {
+    String Function(int index)? placeholderForIndex,
+  }) {
     final colRef = '"$alias"."$column"';
+    final placeholder = placeholderForIndex ?? (_) => '?';
+
+    String bindValue(Object? value) {
+      params.add(value);
+      return placeholder(params.length);
+    }
+
     switch (_kind) {
       case _WhereConditionKind.equals:
         if (value == null) return '$colRef IS NULL';
-        params.add(value);
-        return '$colRef = ?';
+        return '$colRef = ${bindValue(value)}';
       case _WhereConditionKind.notEquals:
         if (value == null) return '$colRef IS NOT NULL';
-        params.add(value);
-        return '$colRef <> ?';
+        return '$colRef <> ${bindValue(value)}';
       case _WhereConditionKind.greaterThan:
-        params.add(value);
-        return '$colRef > ?';
+        return '$colRef > ${bindValue(value)}';
       case _WhereConditionKind.greaterOrEqual:
-        params.add(value);
-        return '$colRef >= ?';
+        return '$colRef >= ${bindValue(value)}';
       case _WhereConditionKind.lessThan:
-        params.add(value);
-        return '$colRef < ?';
+        return '$colRef < ${bindValue(value)}';
       case _WhereConditionKind.lessOrEqual:
-        params.add(value);
-        return '$colRef <= ?';
+        return '$colRef <= ${bindValue(value)}';
       case _WhereConditionKind.like:
-        params.add(value);
-        return '$colRef LIKE ?';
+        return '$colRef LIKE ${bindValue(value)}';
       case _WhereConditionKind.isNull:
         return '$colRef IS NULL';
       case _WhereConditionKind.isNotNull:
@@ -391,8 +432,7 @@ class WhereCondition<T> {
         if (items.isEmpty) {
           return '1 = 0';
         }
-        params.addAll(items);
-        final placeholders = List.filled(items.length, '?').join(', ');
+        final placeholders = items.map(bindValue).join(', ');
         return '$colRef IN ($placeholders)';
     }
   }
@@ -414,7 +454,11 @@ class _ColumnComparisonPredicate implements WhereExpression {
   final String _operator;
 
   @override
-  String? toSql(String alias, List<Object?> params) {
+  String? toSql(
+    String alias,
+    List<Object?> params, {
+    String Function(int index)? placeholderForIndex,
+  }) {
     final left = '"$_leftAlias"."$_leftColumn"';
     final right = '"$_rightAlias"."$_rightColumn"';
     return '$left $_operator $right';
@@ -473,7 +517,11 @@ class RawWhere implements WhereExpression {
   final List<Object?> parameters;
 
   @override
-  String? toSql(String alias, List<Object?> params) {
+  String? toSql(
+    String alias,
+    List<Object?> params, {
+    String Function(int index)? placeholderForIndex,
+  }) {
     params.addAll(parameters);
     return sql;
   }

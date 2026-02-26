@@ -943,6 +943,9 @@ class _RepoFakeEngine implements EngineAdapter {
   bool get supportsAlterTableAddConstraint => true;
 
   @override
+  String placeholderFor(int index) => '?';
+
+  @override
   Future<void> open() async {}
 
   @override

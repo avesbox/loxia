@@ -24,9 +24,15 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
   final QueryFieldsContext<T> _fieldsContext;
   final List<String> _jsonColumnNames;
   static final Uuid _uuidGenerator = Uuid();
+  static final Expando<Map<String, dynamic>> _entitySnapshots =
+    Expando<Map<String, dynamic>>('loxia_entity_snapshots');
+  static final Expando<Map<String, dynamic>> _partialSnapshots =
+    Expando<Map<String, dynamic>>('loxia_partial_snapshots');
 
   EntityDescriptor<T, P> get descriptor => _descriptor;
   EngineAdapter get engine => _engine;
+
+  late final String _qualifiedTableName = _renderTableReference(_descriptor.qualifiedTableName);
 
   void _encodeJsonColumns(Map<String, dynamic> map) {
     for (final key in _jsonColumnNames) {
@@ -89,18 +95,27 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
         ? ''
         : ' ORDER BY ${orderBy.map((o) => '"$alias"."${o.field}" ${o.ascending ? 'ASC' : 'DESC'}').join(', ')}';
     final joinsSql = runtime.joins.map(_renderJoinClause).join(' ');
-    final sql =
-        'SELECT $cols FROM ${_renderTableReference(_descriptor.qualifiedTableName)} AS "$alias"'
-        '${joinsSql.isEmpty ? '' : ' $joinsSql'}'
-        '${whereSql != null ? ' WHERE $whereSql' : ''}'
-        '$orderBySql$limitSql$offsetSql';
-    final rows = await _engine.query(sql, params);
+    final sql = StringBuffer();
+    sql.write(
+      'SELECT $cols FROM $_qualifiedTableName AS "$alias"'
+    );
+    if (joinsSql.isNotEmpty) {
+      sql.write(' $joinsSql');
+    }
+    if (whereSql != null) {
+      sql.write(' WHERE $whereSql');
+    }
+    sql.write(orderBySql);
+    sql.write(limitSql);
+    sql.write(offsetSql);
+    final rows = await _engine.query(sql.toString(), params);
     // Use aggregator if available (for collection relations), otherwise map each row
     final aggregator = projection.aggregator;
     if (aggregator != null) {
       return aggregator(rows);
     }
     final items = rows.map(projection.mapper).toList();
+    _trackPartialSnapshots(items, rows);
     _applyPostLoad(items);
     return items;
   }
@@ -134,30 +149,32 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     final pkValue = entity.primaryKeyValue;
     if (pkValue == null) {
       final insertDto = entity.toInsertDto();
-      return _engine.transaction((txEngine) async {
-        final txRepo = _descriptor.repositoryFactory(txEngine);
-        final insertedRow = await txRepo._insertRowWithEngine(
-          insertDto,
-          txEngine,
-        );
-        final insertedEntity = _descriptor.fromRow(insertedRow);
-        _applyPostLoad([insertedEntity]);
-        return insertedEntity;
-      });
+      final insertedRow = await _insertRowWithEngine(
+        insertDto,
+        engine,
+      );
+      final insertedEntity = _descriptor.fromRow(insertedRow);
+      _trackEntitySnapshot(insertedEntity);
+      _applyPostLoad([insertedEntity]);
+      return insertedEntity;
     } else {
       final updateDto = entity.toUpdateDto();
-      return _engine.transaction((txEngine) async {
-        final txRepo = _descriptor.repositoryFactory(txEngine);
-        final updatedRow = await txRepo._updateRowByPkWithEngine(
-          updateDto,
-          pk.name,
-          pkValue,
-          txEngine,
-        );
-        final updatedEntity = _descriptor.fromRow(updatedRow);
-        _applyPostLoad([updatedEntity]);
-        return updatedEntity;
-      });
+      final updateMap = Map<String, dynamic>.from(updateDto.toMap());
+      _encodeJsonColumns(updateMap);
+      final dirtyMap = _dirtyPartialMap(entity, updateMap);
+      if (dirtyMap.isEmpty) {
+        return _resolveSavedEntity(entity, pk.name, pkValue);
+      }
+      final updatedRow = await _updateRowByPkWithEngine(
+        _DirtyUpdateDto<T>(dirtyMap),
+        pk.name,
+        pkValue,
+        engine,
+      );
+      final updatedEntity = _descriptor.fromRow(updatedRow);
+      _trackEntitySnapshot(updatedEntity);
+      _applyPostLoad([updatedEntity]);
+      return updatedEntity;
     }
   }
 
@@ -187,19 +204,23 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
         ? _defaultOrderBy()
         : orderBy;
     final offset = (page - 1) * pageSize;
-    final total = await count(
-      select: select,
-      where: where,
-      includeDeleted: includeDeleted,
-    );
-    final items = await find(
-      select: select,
-      where: where,
-      orderBy: resolvedOrderBy,
-      limit: pageSize,
-      offset: offset,
-      includeDeleted: includeDeleted,
-    );
+    final results = await Future.wait<dynamic>([
+      count(
+        select: select,
+        where: where,
+        includeDeleted: includeDeleted,
+      ),
+      find(
+        select: select,
+        where: where,
+        orderBy: resolvedOrderBy,
+        limit: pageSize,
+        offset: offset,
+        includeDeleted: includeDeleted,
+      ),
+    ]);
+    final total = results[0] as int;
+    final items = results[1] as List<P>;
     final pageCount = total == 0 ? 0 : ((total + pageSize - 1) ~/ pageSize);
     return PaginatedResult<P>(
       items: items,
@@ -270,13 +291,22 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
         ? ''
         : ' ORDER BY ${orderBy.map((o) => '"$alias"."${o.field}" ${o.ascending ? 'ASC' : 'DESC'}').join(', ')}';
     final joinsSql = runtime.joins.map(_renderJoinClause).join(' ');
-    final sql =
-        'SELECT $cols FROM ${_renderTableReference(_descriptor.qualifiedTableName)} AS "$alias"'
-        '${joinsSql.isEmpty ? '' : ' $joinsSql'}'
-        '${whereSql != null ? ' WHERE $whereSql' : ''}'
-        '$orderBySql$limitSql$offsetSql';
-    final rows = await _engine.query(sql, params);
+    final sql = StringBuffer();
+    sql.write(
+      'SELECT $cols FROM $_qualifiedTableName AS "$alias"'
+    );
+    if (joinsSql.isNotEmpty) {
+      sql.write(' $joinsSql');
+    }
+    if (whereSql != null) {
+      sql.write(' WHERE $whereSql');
+    }
+    sql.write(orderBySql);
+    sql.write(limitSql);
+    sql.write(offsetSql);
+    final rows = await _engine.query(sql.toString(), params);
     final items = rows.map(_descriptor.fromRow).toList();
+    _trackEntitySnapshots(items);
     _applyPostLoad(items);
     return items;
   }
@@ -301,82 +331,89 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
   }
 
   Future<Object?> insert(InsertDto<T> values) async {
-    return _engine.transaction((txEngine) async {
-      final txRepo = _descriptor.repositoryFactory(txEngine);
-      return txRepo._insertWithEngine(values, txEngine);
-    });
+    return _insertWithEngine(values, _engine);
   }
 
   Future<T> insertEntity(T entity) async {
-    return _engine.transaction((txEngine) async {
-      _descriptor.hooks?.prePersist?.call(entity);
-      final map = Map<String, dynamic>.from(_descriptor.toRow(entity));
-      final pk = _descriptor.primaryKey;
-      if (pk == null) {
-        throw StateError(
-          'Cannot insert without a primary key on ${_descriptor.tableName}',
-        );
-      }
-      final pkValue = map[pk.name];
-      if (pkValue == null) {
-        map.remove(pk.name);
-      }
-      _encodeJsonColumns(map);
-      final cols = map.keys.map((k) => '"$k"').join(', ');
-      final placeholders = List.filled(map.length, '?').join(', ');
-      final sql =
-          'INSERT INTO ${_descriptor.tableName} ($cols) VALUES ($placeholders) RETURNING *';
-      final result = await txEngine.query(sql, map.values.toList());
-      if (result.isEmpty) {
-        throw StateError(
-          'Insert did not return a row for ${_descriptor.tableName}',
-        );
-      }
-      final inserted = _descriptor.fromRow(result.first);
-      if (pkValue == null) {
-        final newId = result.first[pk.name];
-        _trySetPrimaryKey(entity, pk.propertyName, newId);
-      }
-      _descriptor.hooks?.postPersist?.call(inserted);
-      return inserted;
-    });
+    _descriptor.hooks?.prePersist?.call(entity);
+    final map = Map<String, dynamic>.from(_descriptor.toRow(entity));
+    final pk = _descriptor.primaryKey;
+    if (pk == null) {
+      throw StateError(
+        'Cannot insert without a primary key on ${_descriptor.tableName}',
+      );
+    }
+    final pkValue = map[pk.name];
+    if (pkValue == null) {
+      map.remove(pk.name);
+    }
+    _encodeJsonColumns(map);
+    final cols = map.keys.map((k) => '"$k"').join(', ');
+    final params = map.values.toList(growable: false);
+    final placeholders = _placeholderList(
+      engine,
+      startAt: 1,
+      count: params.length,
+    );
+    final sql =
+        'INSERT INTO ${_descriptor.tableName} ($cols) VALUES ($placeholders) RETURNING *';
+    final result = await engine.query(sql, params);
+    if (result.isEmpty) {
+      throw StateError(
+        'Insert did not return a row for ${_descriptor.tableName}',
+      );
+    }
+    final inserted = _descriptor.fromRow(result.first);
+    _trackEntitySnapshot(inserted);
+    if (pkValue == null) {
+      final newId = result.first[pk.name];
+      _trySetPrimaryKey(entity, pk.propertyName, newId);
+    }
+    _descriptor.hooks?.postPersist?.call(inserted);
+    return inserted;
   }
 
   Future<T> updateEntity(T entity) async {
-    return _engine.transaction((txEngine) async {
-      _descriptor.hooks?.preUpdate?.call(entity);
-      final map = Map<String, dynamic>.from(_descriptor.toRow(entity));
-      final pk = _descriptor.primaryKey;
-      if (pk == null) {
-        throw StateError(
-          'Cannot update without a primary key on ${_descriptor.tableName}',
-        );
-      }
-      final pkValue = map[pk.name];
-      if (pkValue == null) {
-        throw StateError(
-          'Cannot update without primary key value for ${_descriptor.tableName}',
-        );
-      }
-      map.remove(pk.name);
-      _encodeJsonColumns(map);
-      final sets = <String>[];
-      final params = <Object?>[];
-      for (final entry in map.entries) {
-        sets.add('"${entry.key}" = ?');
-        params.add(entry.value);
-      }
-      params.add(pkValue);
-      final sql =
-          'UPDATE ${_descriptor.tableName} SET ${sets.join(', ')} WHERE "${pk.name}" = ?';
-      await txEngine.execute(sql, params);
-
-      // Cascade merge: update related entities if they are present
-      await _cascadeMergeEntityRelations(entity, pkValue, txEngine);
-
+    _descriptor.hooks?.preUpdate?.call(entity);
+    final map = Map<String, dynamic>.from(_descriptor.toRow(entity));
+    final pk = _descriptor.primaryKey;
+    if (pk == null) {
+      throw StateError(
+        'Cannot update without a primary key on ${_descriptor.tableName}',
+      );
+    }
+    final pkValue = map[pk.name];
+    if (pkValue == null) {
+      throw StateError(
+        'Cannot update without primary key value for ${_descriptor.tableName}',
+      );
+    }
+    map.remove(pk.name);
+    _encodeJsonColumns(map);
+    final dirtyMap = _dirtyEntityMap(entity, map);
+    if (dirtyMap.isEmpty) {
+      await _cascadeMergeEntityRelations(entity, pkValue, engine);
       _descriptor.hooks?.postUpdate?.call(entity);
       return entity;
-    });
+    }
+    final sets = <String>[];
+    final params = <Object?>[];
+    for (final entry in dirtyMap.entries) {
+      params.add(entry.value);
+      sets.add(
+        '"${entry.key}" = ${engine.placeholderFor(params.length)}',
+      );
+    }
+    params.add(pkValue);
+    final pkPlaceholder = engine.placeholderFor(params.length);
+    final sql =
+        'UPDATE ${_descriptor.tableName} SET ${sets.join(', ')} WHERE "${pk.name}" = $pkPlaceholder';
+    await engine.execute(sql, params);
+    // Cascade merge: update related entities if they are present
+    await _cascadeMergeEntityRelations(entity, pkValue, engine);
+    _trackEntitySnapshot(entity);
+    _descriptor.hooks?.postUpdate?.call(entity);
+    return entity;
   }
 
   Future<int> count({
@@ -401,11 +438,15 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     );
     final joinsSql = runtime.joins.map(_renderJoinClause).join(' ');
     final countTarget = _buildCountTarget(select, alias, fields);
-    final sql =
-        'SELECT $countTarget AS c FROM ${_renderTableReference(_descriptor.qualifiedTableName)} AS "$alias"'
-        '${joinsSql.isEmpty ? '' : ' $joinsSql'}'
-        '${whereSql != null ? ' WHERE $whereSql' : ''}';
-    final rows = await _engine.query(sql, params);
+    final sql = StringBuffer();
+    sql.write('SELECT $countTarget AS c FROM $_qualifiedTableName AS "$alias"');
+    if (joinsSql.isNotEmpty) {
+      sql.write(' $joinsSql');
+    }
+    if (whereSql != null) {
+      sql.write(' WHERE $whereSql');
+    }
+    final rows = await _engine.query(sql.toString(), params);
     return (rows.first['c'] as int?) ?? 0;
   }
 
@@ -413,10 +454,7 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     UpdateDto<T> values, {
     required QueryBuilder<T> where,
   }) async {
-    return _engine.transaction((txEngine) async {
-      final txRepo = _descriptor.repositoryFactory(txEngine);
-      return txRepo._updateWithCascade(values, where, txEngine);
-    });
+    return _updateWithCascade(values, where, _engine);
   }
 
   Future<int> _updateWithCascade(
@@ -429,22 +467,28 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     final map = values.toMap();
     _encodeJsonColumns(map);
     for (final entry in map.entries) {
-      sets.add('"${entry.key}" = ?');
       params.add(entry.value);
+      sets.add('"${entry.key}" = ${engine.placeholderFor(params.length)}');
     }
     final runtime = QueryRuntimeContext(rootAlias: 't');
     final boundContext = _fieldsContext.bind(runtime, 't');
-    final whereSql = where.toSql(boundContext, params);
+    final whereSql = where.toSql(
+      boundContext,
+      params,
+      placeholderForIndex: engine.placeholderFor,
+    );
     if (runtime.joins.isNotEmpty) {
       throw UnsupportedError(
         'Relation filters are not yet supported for update queries.',
       );
     }
 
-    // Execute main update
-    final sql =
-        'UPDATE ${_descriptor.tableName} AS "t" SET ${sets.join(', ')} WHERE $whereSql';
-    final updated = await engine.execute(sql, params);
+    var updated = 0;
+    if (sets.isNotEmpty) {
+      final sql =
+          'UPDATE ${_descriptor.tableName} AS "t" SET ${sets.join(', ')} WHERE $whereSql';
+      updated = await engine.execute(sql, params);
+    }
 
     // Handle cascade updates
     final cascades = _readUpdateCascades(values);
@@ -812,25 +856,32 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
 
   Future<int> delete(QueryBuilder<T> where) async {
     return _engine.transaction((txEngine) async {
-      final txRepo = _descriptor.repositoryFactory(txEngine);
-      return txRepo._deleteWithCascade(where, txEngine);
+      final params = <Object?>[];
+      final runtime = QueryRuntimeContext(rootAlias: 't');
+      final boundContext = _fieldsContext.bind(runtime, 't');
+      final whereSql = where.toSql(
+        boundContext,
+        params,
+        placeholderForIndex: txEngine.placeholderFor,
+      );
+      if (runtime.joins.isNotEmpty) {
+        throw UnsupportedError(
+          'Relation filters are not yet supported for delete queries.',
+        );
+      }
+      final sql = 'DELETE FROM ${_descriptor.tableName} AS "t" WHERE $whereSql';
+      return txEngine.execute(sql, params);
     });
   }
 
   Future<int> softDelete(QueryBuilder<T> where) async {
-    return _engine.transaction((txEngine) async {
-      final txRepo = _descriptor.repositoryFactory(txEngine);
-      return txRepo._softDeleteWithCascade(where, txEngine);
-    });
+    return _softDeleteWithCascade(where, _engine);
   }
 
   Future<void> softDeleteEntities(Iterable<T> entities) async {
-    await _engine.transaction((txEngine) async {
-      final txRepo = _descriptor.repositoryFactory(txEngine);
-      for (final entity in entities) {
-        await txRepo._softDeleteEntityWithEngine(entity, txEngine);
-      }
-    });
+    for (final entity in entities) {
+      await _softDeleteEntityWithEngine(entity, _engine);
+    }
   }
 
   Future<int> _softDeleteWithCascade(
@@ -969,257 +1020,6 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     return deleted;
   }
 
-  Future<int> _deleteWithCascade(
-    QueryBuilder<T> where,
-    EngineAdapter engine,
-  ) async {
-    final params = <Object?>[];
-    final runtime = QueryRuntimeContext(rootAlias: 't');
-    final boundContext = _fieldsContext.bind(runtime, 't');
-    final whereSql = where.toSql(boundContext, params);
-    if (runtime.joins.isNotEmpty) {
-      throw UnsupportedError(
-        'Relation filters are not yet supported for delete queries.',
-      );
-    }
-
-    // Cascade delete: handle inverse-side relations (one-to-many, one-to-one mappedBy)
-    // For these, the foreign key is on the child table, so we need to delete children first
-    for (final relation in _descriptor.relations) {
-      if (!relation.shouldCascadeRemove) continue;
-
-      if (relation.type == RelationType.manyToMany) {
-        // ManyToMany: delete join table entries (and optionally target entities)
-        await _cascadeDeleteManyToMany(relation, where, engine);
-        continue;
-      }
-
-      if (!relation.isOwningSide) {
-        // Inverse side: one-to-many or one-to-one with mappedBy
-        // We need to find the children and delete them
-        await _cascadeDeleteInverse(relation, where, engine);
-      }
-    }
-
-    // Collect FK values for owning-side cascade deletes BEFORE deleting the parent
-    final owningCascadeTargets = <RelationDescriptor, List<Object>>{};
-    for (final relation in _descriptor.relations) {
-      if (!relation.shouldCascadeRemove) continue;
-      if (!relation.isOwningSide) continue;
-      if (relation.type == RelationType.manyToMany) continue;
-
-      final joinColumn = relation.joinColumn;
-      if (joinColumn == null) continue;
-
-      // Get the FK values from parents matching the where clause
-      final alias = 't';
-      final selectRuntime = QueryRuntimeContext(rootAlias: alias);
-      final selectBoundContext = _fieldsContext.bind(selectRuntime, alias);
-      final selectParams = <Object?>[];
-      final selectWhereSql = where.toSql(selectBoundContext, selectParams);
-      final selectSql =
-          'SELECT DISTINCT "$alias"."${joinColumn.name}" FROM ${_renderTableReference(_descriptor.qualifiedTableName)} AS "$alias" WHERE $selectWhereSql';
-      final rows = await engine.query(selectSql, selectParams);
-
-      final fkValues = rows
-          .map((r) => r[joinColumn.name])
-          .where((v) => v != null)
-          .cast<Object>()
-          .toList();
-      if (fkValues.isNotEmpty) {
-        owningCascadeTargets[relation] = fkValues;
-      }
-    }
-
-    // Main delete
-    final sql = 'DELETE FROM ${_descriptor.tableName} AS "t" WHERE $whereSql';
-    final deleted = await engine.execute(sql, params);
-
-    // Cascade delete: handle owning-side relations (many-to-one, one-to-one owning)
-    // Delete the referenced entities after the parent is deleted
-    for (final entry in owningCascadeTargets.entries) {
-      final relation = entry.key;
-      final fkValues = entry.value;
-      await _cascadeDeleteOwning(relation, fkValues, engine);
-    }
-
-    return deleted;
-  }
-
-  Future<void> _cascadeDeleteOwning(
-    RelationDescriptor relation,
-    List<Object> fkValues,
-    EngineAdapter engine,
-  ) async {
-    if (fkValues.isEmpty) return;
-
-    final targetDescriptor = EntityDescriptor.lookup(relation.target);
-    if (targetDescriptor == null) {
-      throw StateError('Missing EntityDescriptor for ${relation.target}');
-    }
-    final targetPk = targetDescriptor.primaryKey;
-    if (targetPk == null) {
-      throw StateError('Target entity ${relation.target} has no primary key');
-    }
-
-    final placeholders = List.filled(fkValues.length, '?').join(', ');
-    final targetTable = _renderTableReference(
-      targetDescriptor.qualifiedTableName,
-    );
-    final deleteSql =
-        'DELETE FROM $targetTable WHERE "${targetPk.name}" IN ($placeholders)';
-    await engine.execute(deleteSql, fkValues);
-  }
-
-  Future<void> _cascadeDeleteInverse(
-    RelationDescriptor relation,
-    QueryBuilder<T> parentWhere,
-    EngineAdapter engine,
-  ) async {
-    final targetDescriptor = EntityDescriptor.lookup(relation.target);
-    if (targetDescriptor == null) {
-      throw StateError('Missing EntityDescriptor for ${relation.target}');
-    }
-    final mappedBy = relation.mappedBy;
-    if (mappedBy == null || mappedBy.isEmpty) {
-      throw StateError(
-        'Inverse relation ${relation.fieldName} must define mappedBy.',
-      );
-    }
-
-    // Find the owning relation on the target entity
-    final owningRelation = targetDescriptor.relations.firstWhere(
-      (r) => r.fieldName == mappedBy,
-      orElse: () => throw StateError(
-        'Owning relation $mappedBy not found on ${targetDescriptor.tableName}',
-      ),
-    );
-    final joinColumn = owningRelation.joinColumn;
-    if (joinColumn == null) {
-      throw StateError(
-        'Owning relation $mappedBy is missing joinColumn metadata.',
-      );
-    }
-
-    // Get the primary key of this entity
-    final pk = _descriptor.primaryKey;
-    if (pk == null) {
-      throw StateError(
-        'Cannot cascade delete without primary key on ${_descriptor.tableName}',
-      );
-    }
-
-    // Select the parent IDs that match the where clause
-    final alias = 't';
-    final runtime = QueryRuntimeContext(rootAlias: alias);
-    final boundContext = _fieldsContext.bind(runtime, alias);
-    final params = <Object?>[];
-    final whereSql = parentWhere.toSql(boundContext, params);
-    final selectSql =
-        'SELECT "$alias"."${pk.name}" FROM ${_renderTableReference(_descriptor.qualifiedTableName)} AS "$alias" WHERE $whereSql';
-    final parentRows = await engine.query(selectSql, params);
-
-    if (parentRows.isEmpty) return;
-
-    final parentIds = parentRows
-        .map((r) => r[pk.name])
-        .where((id) => id != null)
-        .toList();
-    if (parentIds.isEmpty) return;
-
-    // Delete children where the foreign key is in parentIds
-    final placeholders = List.filled(parentIds.length, '?').join(', ');
-    final targetTable = _renderTableReference(
-      targetDescriptor.qualifiedTableName,
-    );
-    final childDeleteSql =
-        'DELETE FROM $targetTable WHERE "${joinColumn.name}" IN ($placeholders)';
-    await engine.execute(childDeleteSql, parentIds);
-  }
-
-  /// Cascade delete for ManyToMany relations.
-  ///
-  /// This deletes the join table entries linking the parent entities to the target entities.
-  /// If the cascade is configured, it also deletes the target entities themselves (those that
-  /// become orphaned).
-  Future<void> _cascadeDeleteManyToMany(
-    RelationDescriptor relation,
-    QueryBuilder<T> parentWhere,
-    EngineAdapter engine,
-  ) async {
-    final joinTable = relation.joinTable;
-    if (joinTable == null) {
-      throw StateError(
-        'ManyToMany relation ${relation.fieldName} is missing joinTable metadata.',
-      );
-    }
-    if (joinTable.joinColumns.isEmpty) {
-      throw StateError(
-        'ManyToMany relation ${relation.fieldName} has no joinColumns defined.',
-      );
-    }
-
-    final pk = _descriptor.primaryKey;
-    if (pk == null) {
-      throw StateError(
-        'Cannot cascade delete without primary key on ${_descriptor.tableName}',
-      );
-    }
-
-    // Get the join column that references the owner (this entity)
-    final ownerJoinColumn = joinTable.joinColumns.first;
-
-    // Select the parent IDs that match the where clause
-    final alias = 't';
-    final runtime = QueryRuntimeContext(rootAlias: alias);
-    final boundContext = _fieldsContext.bind(runtime, alias);
-    final params = <Object?>[];
-    final whereSql = parentWhere.toSql(boundContext, params);
-    final selectSql =
-        'SELECT "$alias"."${pk.name}" FROM ${_renderTableReference(_descriptor.qualifiedTableName)} AS "$alias" WHERE $whereSql';
-    final parentRows = await engine.query(selectSql, params);
-
-    if (parentRows.isEmpty) return;
-
-    final parentIds = parentRows
-        .map((r) => r[pk.name])
-        .where((id) => id != null)
-        .toList();
-    if (parentIds.isEmpty) return;
-
-    // Delete from the join table where the owner FK matches
-    final placeholders = List.filled(parentIds.length, '?').join(', ');
-    final deleteJoinSql =
-        'DELETE FROM ${joinTable.name} WHERE "${ownerJoinColumn.name}" IN ($placeholders)';
-    await engine.execute(deleteJoinSql, parentIds);
-  }
-
-  /// Cascade delete for ManyToMany relations (entity-based).
-  Future<void> _cascadeDeleteEntityManyToMany(
-    RelationDescriptor relation,
-    Object pkValue,
-    EngineAdapter engine,
-  ) async {
-    final joinTable = relation.joinTable;
-    if (joinTable == null) {
-      throw StateError(
-        'ManyToMany relation ${relation.fieldName} is missing joinTable metadata.',
-      );
-    }
-    if (joinTable.joinColumns.isEmpty) {
-      throw StateError(
-        'ManyToMany relation ${relation.fieldName} has no joinColumns defined.',
-      );
-    }
-
-    // Get the join column that references the owner (this entity)
-    final ownerJoinColumn = joinTable.joinColumns.first;
-
-    // Delete from the join table where the owner FK matches this entity's PK
-    final deleteJoinSql =
-        'DELETE FROM ${joinTable.name} WHERE "${ownerJoinColumn.name}" = ?';
-    await engine.execute(deleteJoinSql, [pkValue]);
-  }
 
   Future<void> deleteEntity(T entity) async {
     await _engine.transaction((txEngine) async {
@@ -1238,28 +1038,16 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
         );
       }
 
-      // Cascade delete: inverse-side relations first (children before parent)
-      await _cascadeDeleteEntityInverseRelations(entity, pkValue, txEngine);
-
-      // Collect FK values for owning-side cascade BEFORE deleting the parent
-      final owningCascadeTargets = _collectOwningCascadeTargets(entity);
-
-      // Delete the parent entity
-      final sql = 'DELETE FROM ${_descriptor.tableName} WHERE "${pk.name}" = ?';
+      final sql =
+          'DELETE FROM ${_descriptor.tableName} WHERE "${pk.name}" = ${txEngine.placeholderFor(1)}';
       await txEngine.execute(sql, [pkValue]);
-
-      // Cascade delete: owning-side relations AFTER parent is deleted
-      await _cascadeDeleteEntityOwningRelations(owningCascadeTargets, txEngine);
 
       _descriptor.hooks?.postRemove?.call(entity);
     });
   }
 
   Future<void> softDeleteEntity(T entity) async {
-    await _engine.transaction((txEngine) async {
-      final txRepo = _descriptor.repositoryFactory(txEngine);
-      await txRepo._softDeleteEntityWithEngine(entity, txEngine);
-    });
+    _softDeleteEntityWithEngine(entity, engine);
   }
 
   Future<void> _softDeleteEntityWithEngine(
@@ -1292,7 +1080,7 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
 
     // Soft delete the parent entity
     final sql =
-        'UPDATE ${_descriptor.tableName} SET "${deletedAtColumn.name}" = ? WHERE "${pk.name}" = ?';
+      'UPDATE ${_descriptor.tableName} SET "${deletedAtColumn.name}" = ${engine.placeholderFor(1)} WHERE "${pk.name}" = ${engine.placeholderFor(2)}';
     await engine.execute(sql, [deletedAtValue, pkValue]);
 
     // Cascade soft delete: owning-side relations AFTER parent is updated
@@ -1380,79 +1168,6 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
       }
     }
     return targets;
-  }
-
-  Future<void> _cascadeDeleteEntityInverseRelations(
-    T entity,
-    Object pkValue,
-    EngineAdapter engine,
-  ) async {
-    final batchStatements = <String>[];
-
-    for (final relation in _descriptor.relations) {
-      if (!relation.shouldCascadeRemove) continue;
-
-      if (relation.type == RelationType.manyToMany) {
-        // ManyToMany: delete join table entries
-        if (batchStatements.isNotEmpty) {
-          await engine.executeBatch(batchStatements);
-          batchStatements.clear();
-        }
-        await _cascadeDeleteEntityManyToMany(relation, pkValue, engine);
-        continue;
-      }
-
-      if (!relation.isOwningSide) {
-        // Inverse side: delete children where FK = this entity's PK
-        final targetDescriptor = EntityDescriptor.lookup(relation.target);
-        if (targetDescriptor == null) continue;
-
-        final mappedBy = relation.mappedBy;
-        if (mappedBy == null || mappedBy.isEmpty) continue;
-
-        final owningRelation = targetDescriptor.relations.firstWhere(
-          (r) => r.fieldName == mappedBy,
-          orElse: () => throw StateError(
-            'Owning relation $mappedBy not found on ${targetDescriptor.tableName}',
-          ),
-        );
-        final joinColumn = owningRelation.joinColumn;
-        if (joinColumn == null) continue;
-
-        final targetTable = _renderTableReference(
-          targetDescriptor.qualifiedTableName,
-        );
-        batchStatements.add(
-          'DELETE FROM $targetTable WHERE "${joinColumn.name}" = ${_toSqlLiteral(pkValue)}',
-        );
-      }
-    }
-
-    if (batchStatements.isNotEmpty) {
-      await engine.executeBatch(batchStatements);
-    }
-  }
-
-  Future<void> _cascadeDeleteEntityOwningRelations(
-    Map<RelationDescriptor, Object> targets,
-    EngineAdapter engine,
-  ) async {
-    for (final entry in targets.entries) {
-      final relation = entry.key;
-      final fkValue = entry.value;
-
-      final targetDescriptor = EntityDescriptor.lookup(relation.target);
-      if (targetDescriptor == null) continue;
-
-      final targetPk = targetDescriptor.primaryKey;
-      if (targetPk == null) continue;
-
-      final targetTable = _renderTableReference(
-        targetDescriptor.qualifiedTableName,
-      );
-      final deleteSql = 'DELETE FROM $targetTable WHERE "${targetPk.name}" = ?';
-      await engine.execute(deleteSql, [fkValue]);
-    }
   }
 
   Future<void> _cascadeMergeEntityRelations(
@@ -1761,10 +1476,15 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     }
     _encodeJsonColumns(map);
     final cols = map.keys.map((k) => '"$k"').join(', ');
-    final placeholders = List.filled(map.length, '?').join(', ');
+    final params = map.values.toList(growable: false);
+    final placeholders = _placeholderList(
+      engine,
+      startAt: 1,
+      count: params.length,
+    );
     final sql =
         'INSERT INTO ${_descriptor.tableName} ($cols) VALUES ($placeholders) RETURNING *';
-    final result = await engine.query(sql, map.values.toList());
+    final result = await engine.query(sql, params);
     if (result.isEmpty || !result.first.containsKey(primaryKey)) {
       throw StateError(
         'Insert did not return a primary key for ${_descriptor.tableName}',
@@ -1854,19 +1574,39 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
   ) async {
     final map = Map<String, dynamic>.from(values.toMap());
     _encodeJsonColumns(map);
+    if (map.isEmpty) {
+      return _findRowByPkWithEngine(pkColumnName, pkValue, engine);
+    }
     final sets = <String>[];
     final params = <Object?>[];
     for (final entry in map.entries) {
-      sets.add('"${entry.key}" = ?');
       params.add(entry.value);
+      sets.add('"${entry.key}" = ${engine.placeholderFor(params.length)}');
     }
     params.add(pkValue);
+    final pkPlaceholder = engine.placeholderFor(params.length);
 
     final sql =
-        'UPDATE ${_descriptor.tableName} SET ${sets.join(', ')} WHERE "${pkColumnName}" = ? RETURNING *';
+      'UPDATE ${_descriptor.tableName} SET ${sets.join(', ')} WHERE "$pkColumnName" = $pkPlaceholder RETURNING *';
     final rows = await engine.query(sql, params);
     if (rows.isEmpty) {
       throw StateError('Unable to update ${_descriptor.tableName}.');
+    }
+    final updated = rows.first;
+    _trackEntitySnapshot(_descriptor.fromRow(updated));
+    return updated;
+  }
+
+  Future<Map<String, dynamic>> _findRowByPkWithEngine(
+    String pkColumnName,
+    Object? pkValue,
+    EngineAdapter engine,
+  ) async {
+    final sql =
+      'SELECT * FROM ${_descriptor.tableName} WHERE "$pkColumnName" = ${engine.placeholderFor(1)} LIMIT 1';
+    final rows = await engine.query(sql, [pkValue]);
+    if (rows.isEmpty) {
+      throw StateError('Unable to load ${_descriptor.tableName}.');
     }
     return rows.first;
   }
@@ -2056,12 +1796,100 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     required List<Object?> params,
     required bool includeDeleted,
   }) {
-    final baseWhere = where?.toSql(boundContext, params);
+    final baseWhere = where?.toSql(
+      boundContext,
+      params,
+      placeholderForIndex: _engine.placeholderFor,
+    );
     return _appendNotDeletedSql(
       alias: alias,
       whereSql: baseWhere,
       includeDeleted: includeDeleted,
     );
+  }
+
+  void _trackEntitySnapshot(T entity) {
+    _entitySnapshots[entity] = Map<String, dynamic>.from(_descriptor.toRow(entity));
+  }
+
+  void _trackEntitySnapshots(Iterable<T> entities) {
+    for (final entity in entities) {
+      _trackEntitySnapshot(entity);
+    }
+  }
+
+  void _trackPartialSnapshots(List<P> items, List<Map<String, dynamic>> rows) {
+    final len = items.length < rows.length ? items.length : rows.length;
+    for (var i = 0; i < len; i++) {
+      final snapshot = <String, dynamic>{};
+      final row = rows[i];
+      for (final column in _descriptor.columns) {
+        if (row.containsKey(column.name)) {
+          snapshot[column.name] = row[column.name];
+        }
+      }
+      if (snapshot.isNotEmpty) {
+        _partialSnapshots[items[i]] = snapshot;
+      }
+    }
+  }
+
+  Map<String, dynamic> _dirtyEntityMap(T entity, Map<String, dynamic> current) {
+    final baseline = _entitySnapshots[entity];
+    if (baseline == null) return current;
+    final dirty = <String, dynamic>{};
+    for (final entry in current.entries) {
+      if (!baseline.containsKey(entry.key) || baseline[entry.key] != entry.value) {
+        dirty[entry.key] = entry.value;
+      }
+    }
+    return dirty;
+  }
+
+  Map<String, dynamic> _dirtyPartialMap(P entity, Map<String, dynamic> current) {
+    final baseline = _partialSnapshots[entity];
+    if (baseline == null) return current;
+    final dirty = <String, dynamic>{};
+    for (final entry in current.entries) {
+      if (!baseline.containsKey(entry.key) || baseline[entry.key] != entry.value) {
+        dirty[entry.key] = entry.value;
+      }
+    }
+    return dirty;
+  }
+
+  String _placeholderList(
+    EngineAdapter engine, {
+    required int startAt,
+    required int count,
+  }) {
+    return List<String>.generate(
+      count,
+      (index) => engine.placeholderFor(startAt + index),
+      growable: false,
+    ).join(', ');
+  }
+
+  Future<T> _resolveSavedEntity(
+    P entity,
+    String pkColumnName,
+    Object? pkValue,
+  ) async {
+    try {
+      return entity.toEntity();
+    } on StateError {
+      if (pkValue == null) {
+        rethrow;
+      }
+    }
+    final where = QueryBuilder<T>.from(
+      (context) => context.field<Object?>(pkColumnName).equals(pkValue),
+    );
+    final items = await findBy(where: where, limit: 1);
+    if (items.isEmpty) {
+      throw StateError('Unable to reload ${_descriptor.tableName} after save.');
+    }
+    return items.first;
   }
 
   String? _appendNotDeletedSql({
@@ -2109,4 +1937,17 @@ class _InjectedInsertDto implements InsertDto {
     } catch (_) {}
     return const <String, dynamic>{};
   }
+}
+
+class _DirtyUpdateDto<T extends Entity> implements UpdateDto<T> {
+  _DirtyUpdateDto(this._map, [Map<String, dynamic>? cascades])
+    : _cascades = cascades ?? const <String, dynamic>{};
+
+  final Map<String, dynamic> _map;
+  final Map<String, dynamic> _cascades;
+
+  @override
+  Map<String, dynamic> toMap() => Map<String, dynamic>.from(_map);
+
+  Map<String, dynamic> get cascades => _cascades;
 }
