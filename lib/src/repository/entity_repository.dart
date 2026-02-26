@@ -13,23 +13,39 @@ import '../datasource/engine_adapter.dart';
 import 'query.dart';
 
 class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
-  EntityRepository(this._descriptor, this._engine, this._fieldsContext);
+  EntityRepository(this._descriptor, this._engine, this._fieldsContext)
+    : _jsonColumnNames = _descriptor.columns
+          .where((column) => column.type == ColumnType.json)
+          .map((column) => column.name)
+          .toList(growable: false);
 
   final EntityDescriptor<T, P> _descriptor;
   final EngineAdapter _engine;
   final QueryFieldsContext<T> _fieldsContext;
+  final List<String> _jsonColumnNames;
+  static final Uuid _uuidGenerator = Uuid();
 
   EntityDescriptor<T, P> get descriptor => _descriptor;
   EngineAdapter get engine => _engine;
 
   void _encodeJsonColumns(Map<String, dynamic> map) {
-    for (final column in _descriptor.columns) {
-      if (column.type != ColumnType.json) continue;
-      final key = column.name;
+    for (final key in _jsonColumnNames) {
       final value = map[key];
       if (value == null) continue;
       if (value is String) continue;
       map[key] = jsonEncode(value);
+    }
+  }
+
+  void _encodeJsonColumnsForDescriptor(
+    EntityDescriptor descriptor,
+    Map<String, dynamic> map,
+  ) {
+    for (final column in descriptor.columns) {
+      if (column.type != ColumnType.json) continue;
+      final value = map[column.name];
+      if (value == null || value is String) continue;
+      map[column.name] = jsonEncode(value);
     }
   }
 
@@ -130,11 +146,18 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
       });
     } else {
       final updateDto = entity.toUpdateDto();
-      final where = QueryBuilder<T>.from(
-        (context) => context.field<Object?>(pk.name).equals(pkValue),
-      );
-      await update(updateDto, where: where);
-      return _resolveSavedEntity(entity, pk.name, pkValue);
+      return _engine.transaction((txEngine) async {
+        final txRepo = _descriptor.repositoryFactory(txEngine);
+        final updatedRow = await txRepo._updateRowByPkWithEngine(
+          updateDto,
+          pk.name,
+          pkValue,
+          txEngine,
+        );
+        final updatedEntity = _descriptor.fromRow(updatedRow);
+        _applyPostLoad([updatedEntity]);
+        return updatedEntity;
+      });
     }
   }
 
@@ -1364,11 +1387,17 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     Object pkValue,
     EngineAdapter engine,
   ) async {
+    final batchStatements = <String>[];
+
     for (final relation in _descriptor.relations) {
       if (!relation.shouldCascadeRemove) continue;
 
       if (relation.type == RelationType.manyToMany) {
         // ManyToMany: delete join table entries
+        if (batchStatements.isNotEmpty) {
+          await engine.executeBatch(batchStatements);
+          batchStatements.clear();
+        }
         await _cascadeDeleteEntityManyToMany(relation, pkValue, engine);
         continue;
       }
@@ -1393,10 +1422,14 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
         final targetTable = _renderTableReference(
           targetDescriptor.qualifiedTableName,
         );
-        final deleteChildrenSql =
-            'DELETE FROM $targetTable WHERE "${joinColumn.name}" = ?';
-        await engine.execute(deleteChildrenSql, [pkValue]);
+        batchStatements.add(
+          'DELETE FROM $targetTable WHERE "${joinColumn.name}" = ${_toSqlLiteral(pkValue)}',
+        );
       }
+    }
+
+    if (batchStatements.isNotEmpty) {
+      await engine.executeBatch(batchStatements);
     }
   }
 
@@ -1427,11 +1460,17 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     Object pkValue,
     EngineAdapter engine,
   ) async {
+    final batchStatements = <String>[];
+
     for (final relation in _descriptor.relations) {
       if (!relation.shouldCascadeMerge) continue;
 
       if (relation.type == RelationType.manyToMany) {
         // ManyToMany: sync the join table with the current collection
+        if (batchStatements.isNotEmpty) {
+          await engine.executeBatch(batchStatements);
+          batchStatements.clear();
+        }
         await _cascadeMergeEntityManyToMany(entity, pkValue, relation, engine);
         continue;
       }
@@ -1452,12 +1491,14 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
           final relatedRow = targetDescriptor.toRow(relatedValue);
           final relatedPkValue = relatedRow[targetPk.name];
           if (relatedPkValue != null) {
-            await _updateRelatedEntity(
+            final statement = _buildRelatedUpdateStatement(
               targetDescriptor,
               relatedValue,
               relatedPkValue,
-              engine,
             );
+            if (statement != null) {
+              batchStatements.add(statement);
+            }
           }
         }
       } else {
@@ -1468,15 +1509,21 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
           final childRow = targetDescriptor.toRow(child);
           final childPkValue = childRow[targetPk.name];
           if (childPkValue != null) {
-            await _updateRelatedEntity(
+            final statement = _buildRelatedUpdateStatement(
               targetDescriptor,
               child,
               childPkValue,
-              engine,
             );
+            if (statement != null) {
+              batchStatements.add(statement);
+            }
           }
         }
       }
+    }
+
+    if (batchStatements.isNotEmpty) {
+      await engine.executeBatch(batchStatements);
     }
   }
 
@@ -1524,6 +1571,7 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
 
     // Extract target IDs from the new collection
     final newTargetIds = <int>{};
+    final updateStatements = <String>[];
     for (final item in newCollection) {
       if (item is Entity) {
         final row = targetDescriptor.toRow(item);
@@ -1531,9 +1579,19 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
         if (targetId is int) {
           newTargetIds.add(targetId);
           // Also update the target entity if cascade merge is enabled
-          await _updateRelatedEntity(targetDescriptor, item, targetId, engine);
+          final statement = _buildRelatedUpdateStatement(
+            targetDescriptor,
+            item,
+            targetId,
+          );
+          if (statement != null) {
+            updateStatements.add(statement);
+          }
         }
       }
+    }
+    if (updateStatements.isNotEmpty) {
+      await engine.executeBatch(updateStatements);
     }
 
     // Get current join table entries
@@ -1566,55 +1624,58 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
   }
 
   Object? _getRelationValue(T entity, String fieldName) {
-    try {
-      final dyn = entity as dynamic;
-      return (dyn as Map<String, dynamic>?)?[fieldName] ??
-          _getFieldByReflection(dyn, fieldName);
-    } catch (_) {
+    final asMap = _entityToMap(entity);
+    if (asMap == null) {
       return null;
     }
+    return asMap[fieldName];
   }
 
-  Object? _getFieldByReflection(dynamic entity, String fieldName) {
-    try {
-      switch (fieldName) {
-        default:
-          // Try to access the field dynamically
-          final getter = entity as dynamic;
-          return Function.apply(getter, [fieldName]);
+  Map<String, dynamic>? _entityToMap(dynamic entity) {
+    if (entity is Map<String, dynamic>) {
+      return entity;
+    }
+    if (entity is Entity) {
+      try {
+        return entity.toJson();
+      } on UnsupportedError {
+        return null;
       }
-    } catch (_) {
+    }
+    try {
+      final dynamicEntity = entity as dynamic;
+      final map = dynamicEntity.toMap();
+      if (map is Map) {
+        return Map<String, dynamic>.from(map);
+      }
+    } on NoSuchMethodError {
       return null;
     }
+    return null;
   }
 
-  Future<void> _updateRelatedEntity(
+  String? _buildRelatedUpdateStatement(
     EntityDescriptor targetDescriptor,
     Entity entity,
     Object pkValue,
-    EngineAdapter engine,
-  ) async {
+  ) {
     final map = Map<String, dynamic>.from(targetDescriptor.toRow(entity));
     final pk = targetDescriptor.primaryKey;
-    if (pk == null) return;
+    if (pk == null) return null;
 
     map.remove(pk.name);
-    if (map.isEmpty) return;
+    _encodeJsonColumnsForDescriptor(targetDescriptor, map);
+    if (map.isEmpty) return null;
 
     final sets = <String>[];
-    final params = <Object?>[];
     for (final entry in map.entries) {
-      sets.add('"${entry.key}" = ?');
-      params.add(entry.value);
+      sets.add('"${entry.key}" = ${_toSqlLiteral(entry.value)}');
     }
-    params.add(pkValue);
 
     final targetTable = _renderTableReference(
       targetDescriptor.qualifiedTableName,
     );
-    final sql =
-        'UPDATE $targetTable SET ${sets.join(', ')} WHERE "${pk.name}" = ?';
-    await engine.execute(sql, params);
+    return 'UPDATE $targetTable SET ${sets.join(', ')} WHERE "${pk.name}" = ${_toSqlLiteral(pkValue)}';
   }
 
   /// Executes the provided action within a transactional context.
@@ -1696,7 +1757,7 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
       );
     }
     if (primaryKeyDescriptor.uuid && !map.containsKey(primaryKey)) {
-      map[primaryKey] = Uuid().v4();
+      map[primaryKey] = _generateUuid();
     }
     _encodeJsonColumns(map);
     final cols = map.keys.map((k) => '"$k"').join(', ');
@@ -1781,6 +1842,33 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     }
 
     return insertedRow;
+  }
+
+  String _generateUuid() => _uuidGenerator.v4();
+
+  Future<Map<String, dynamic>> _updateRowByPkWithEngine(
+    UpdateDto<T> values,
+    String pkColumnName,
+    Object? pkValue,
+    EngineAdapter engine,
+  ) async {
+    final map = Map<String, dynamic>.from(values.toMap());
+    _encodeJsonColumns(map);
+    final sets = <String>[];
+    final params = <Object?>[];
+    for (final entry in map.entries) {
+      sets.add('"${entry.key}" = ?');
+      params.add(entry.value);
+    }
+    params.add(pkValue);
+
+    final sql =
+        'UPDATE ${_descriptor.tableName} SET ${sets.join(', ')} WHERE "${pkColumnName}" = ? RETURNING *';
+    final rows = await engine.query(sql, params);
+    if (rows.isEmpty) {
+      throw StateError('Unable to update ${_descriptor.tableName}.');
+    }
+    return rows.first;
   }
 
   /// Cascade persist for ManyToMany relations.
@@ -1883,26 +1971,15 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     }
   }
 
-  Future<T> _resolveSavedEntity(
-    P entity,
-    String pkColumnName,
-    Object? pkValue,
-  ) async {
-    try {
-      return entity.toEntity();
-    } on StateError {
-      if (pkValue == null) {
-        rethrow;
-      }
-    }
-    final where = QueryBuilder<T>.from(
-      (context) => context.field<Object?>(pkColumnName).equals(pkValue),
-    );
-    final items = await findBy(where: where, limit: 1);
-    if (items.isEmpty) {
-      throw StateError('Unable to reload ${_descriptor.tableName} after save.');
-    }
-    return items.first;
+  String _toSqlLiteral(Object? value) {
+    if (value == null) return 'NULL';
+    if (value is bool) return value ? 'TRUE' : 'FALSE';
+    if (value is num) return value.toString();
+    final raw = value is DateTime
+        ? value.toUtc().toIso8601String()
+        : value.toString();
+    final escaped = raw.replaceAll("'", "''");
+    return "'$escaped'";
   }
 
   void _trySetPrimaryKey(Object entity, String propertyName, Object? value) {

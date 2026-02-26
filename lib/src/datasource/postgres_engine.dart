@@ -62,13 +62,36 @@ final class PostgresDataSourceOptions extends DataSourceOptions {
 class PostgresEngine implements EngineAdapter {
   PostgresEngine._(this._open);
 
-  final Future<Object> Function() _open;
-  Object? _db;
+  final Future<SessionExecutor> Function() _open;
+  SessionExecutor? _db;
 
   static PostgresEngine connect(
     Endpoint endpoint, {
     ConnectionSettings? settings,
-  }) => PostgresEngine._(() => Connection.open(endpoint, settings: settings));
+    PoolSettings? poolSettings,
+  }) => PostgresEngine._(() async {
+    final effectivePoolSettings =
+        poolSettings ??
+        (settings == null
+            ? null
+            : PoolSettings(
+                applicationName: settings.applicationName,
+                connectTimeout: settings.connectTimeout,
+                encoding: settings.encoding,
+                queryMode: settings.queryMode,
+                queryTimeout: settings.queryTimeout,
+                sslMode: settings.sslMode,
+                securityContext: settings.securityContext,
+                replicationMode: settings.replicationMode,
+                transformer: settings.transformer,
+                timeZone: settings.timeZone,
+                ignoreSuperfluousParameters:
+                    settings.ignoreSuperfluousParameters,
+                onOpen: settings.onOpen,
+                typeRegistry: settings.typeRegistry,
+              ));
+    return Pool.withEndpoints([endpoint], settings: effectivePoolSettings);
+  });
 
   static PostgresEngine pool(
     List<Endpoint> endpoints, {
@@ -197,26 +220,30 @@ class PostgresEngine implements EngineAdapter {
   Future<void> close() async {
     final db = _db;
     if (db != null) {
-      await (db as SessionExecutor).close();
+      await db.close();
     }
     _db = null;
   }
 
   @override
   Future<void> executeBatch(List<String> statements) async {
-    final db = _ensureSession();
-    for (final s in statements) {
-      final sql = _adaptSql(s);
-      await db.execute(sql);
-    }
+    final db = _ensureSessionExecutor();
+    await db.run((session) async {
+      for (final s in statements) {
+        final sql = _adaptSql(s);
+        await session.execute(sql);
+      }
+      return null;
+    });
   }
 
   @override
   Future<int> execute(String sql, [List<Object?> params = const []]) async {
-    final db = _ensureSession();
-    final adapted = _adaptSql(sql);
-    final prepared = params.isEmpty ? adapted : _convertPlaceholders(adapted);
-    final result = await db.execute(prepared, parameters: params);
+    final db = _ensureSessionExecutor();
+    final prepared = params.isEmpty ? sql : _convertPlaceholders(sql);
+    final result = await db.run(
+      (session) => session.execute(prepared, parameters: params),
+    );
     return result.affectedRows;
   }
 
@@ -225,9 +252,11 @@ class PostgresEngine implements EngineAdapter {
     String sql, [
     List<Object?> params = const [],
   ]) async {
-    final db = _ensureSession();
+    final db = _ensureSessionExecutor();
     final prepared = params.isEmpty ? sql : _convertPlaceholders(sql);
-    final result = await db.execute(prepared, parameters: params);
+    final result = await db.run(
+      (session) => session.execute(prepared, parameters: params),
+    );
     return result
         .map((row) => row.toColumnMap().cast<String, dynamic>())
         .toList(growable: false);
@@ -235,14 +264,15 @@ class PostgresEngine implements EngineAdapter {
 
   @override
   Future<SchemaState> readSchema() async {
-    return _readSchemaWithSession(_ensureSession());
+    final db = _ensureSessionExecutor();
+    return db.run((session) => _readSchemaWithSession(session));
   }
 
   @override
   Future<T> transaction<T>(
     Future<T> Function(EngineAdapter txEngine) action,
   ) async {
-    final db = _ensureExecutor();
+    final db = _ensureSessionExecutor();
     return db.runTx((session) async {
       final txEngine = _PostgresSessionEngine(session);
       return action(txEngine);
@@ -251,21 +281,27 @@ class PostgresEngine implements EngineAdapter {
 
   @override
   Future<void> ensureHistoryTable() async {
-    final db = _ensureSession();
-    await db.execute(
-      'CREATE TABLE IF NOT EXISTS _loxia_migrations (\n'
-      '  version INTEGER PRIMARY KEY,\n'
-      '  applied_at TIMESTAMP,\n'
-      '  description TEXT\n'
-      ')',
+    final db = _ensureSessionExecutor();
+    await db.run(
+      (session) => session.execute(
+        _adaptSql(
+          'CREATE TABLE IF NOT EXISTS _loxia_migrations (\n'
+          '  version INTEGER PRIMARY KEY,\n'
+          '  applied_at TIMESTAMP,\n'
+          '  description TEXT\n'
+          ')',
+        ),
+      ),
     );
   }
 
   @override
   Future<List<int>> getAppliedVersions() async {
-    final db = _ensureSession();
-    final result = await db.execute(
-      'SELECT version FROM _loxia_migrations ORDER BY version',
+    final db = _ensureSessionExecutor();
+    final result = await db.run(
+      (session) => session.execute(
+        'SELECT version FROM _loxia_migrations ORDER BY version',
+      ),
     );
     return result
         .map((row) => row.toColumnMap()['version'] as int)
@@ -360,20 +396,12 @@ class PostgresEngine implements EngineAdapter {
     return ColumnType.text;
   }
 
-  Session _ensureSession() {
+  SessionExecutor _ensureSessionExecutor() {
     final db = _db;
     if (db == null) {
       throw StateError('PostgresEngine is not open');
     }
-    return db as Session;
-  }
-
-  SessionExecutor _ensureExecutor() {
-    final db = _db;
-    if (db == null) {
-      throw StateError('PostgresEngine is not open');
-    }
-    return db as SessionExecutor;
+    return db;
   }
 
   @override
@@ -405,10 +433,9 @@ class _PostgresSessionEngine implements EngineAdapter {
 
   @override
   Future<int> execute(String sql, [List<Object?> params = const []]) async {
-    final adapted = PostgresEngine._adaptSql(sql);
     final prepared = params.isEmpty
-        ? adapted
-        : PostgresEngine._convertPlaceholders(adapted);
+        ? sql
+        : PostgresEngine._convertPlaceholders(sql);
     final result = await _session.execute(prepared, parameters: params);
     return result.affectedRows;
   }
@@ -442,11 +469,13 @@ class _PostgresSessionEngine implements EngineAdapter {
   @override
   Future<void> ensureHistoryTable() async {
     await _session.execute(
-      'CREATE TABLE IF NOT EXISTS _loxia_migrations (\n'
-      '  version INTEGER PRIMARY KEY,\n'
-      '  applied_at TIMESTAMP,\n'
-      '  description TEXT\n'
-      ')',
+      PostgresEngine._adaptSql(
+        'CREATE TABLE IF NOT EXISTS _loxia_migrations (\n'
+        '  version INTEGER PRIMARY KEY,\n'
+        '  applied_at TIMESTAMP,\n'
+        '  description TEXT\n'
+        ')',
+      ),
     );
   }
 
