@@ -322,22 +322,23 @@ class UniqueConstraintMigration extends Migration {
 
 Future<void> main() async {
   final ds = DataSource(
-    InMemoryDataSourceOptions(
-      entities: [User.entity, Post.entity, Tag.entity],
-      migrations: [],
-    ),
-    // PostgresDataSourceOptions.connect(
-    //   host: 'localhost',
-    //   port: 5432,
-    //   database: 'loxia',
-    //   username: 'loxia',
-    //   password: 'test1234',
+    // InMemoryDataSourceOptions(
     //   entities: [User.entity, Post.entity, Tag.entity],
-    //   settings: ConnectionSettings(sslMode: SslMode.disable),
+    //   migrations: [],
     // ),
+    PostgresDataSourceOptions.connect(
+      host: 'localhost',
+      port: 5432,
+      database: 'loxia',
+      username: 'loxia',
+      password: 'test1234',
+      entities: [User.entity, Post.entity, Tag.entity],
+      settings: ConnectionSettings(sslMode: SslMode.disable),
+    ),
   );
   await ds.init();
   final users = ds.getRepository<User>();
+  final Stopwatch stopwatch = Stopwatch()..start();
   await users.save(
     UserPartial(
       email: 'example@example.com',
@@ -345,22 +346,8 @@ Future<void> main() async {
       tags: ['new', 'test'],
     ),
   );
-  await users.insert(
-    UserInsertDto(
-      email: 'example@example.com',
-      role: Role.guest,
-      tags: ['new', 'test'],
-    ),
-  );
-  final posts = ds.getRepository<Post>();
-  await posts.insert(
-    PostInsertDto(
-      title: 'Hello World',
-      content: 'This is my first post',
-      likes: 0,
-      userId: 1,
-    ),
-  );
+  print('User created in ${stopwatch.elapsedMilliseconds} ms');
+  stopwatch.stop();
   await users.update(
     UserUpdateDto(email: 'new@example.com'),
     where: UserQuery((q) => q.id.equals(1)),
@@ -372,6 +359,7 @@ Future<void> main() async {
   );
   final partial = user as UserPartial?;
   print('User: id=${jsonEncode(user?.toJson())}');
+  final posts = ds.getRepository<Post>();
   final newPost = await posts.save(
     PostPartial(
       title: 'Hello World',

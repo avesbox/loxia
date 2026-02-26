@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:math';
 
 import 'package:loxia/src/repository/dtos.dart';
+import 'package:uuid/uuid.dart';
 
 import '../annotations/column.dart';
 import '../entity.dart';
@@ -21,8 +21,6 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
 
   EntityDescriptor<T, P> get descriptor => _descriptor;
   EngineAdapter get engine => _engine;
-
-  static final Random _uuidRandom = Random.secure();
 
   void _encodeJsonColumns(Map<String, dynamic> map) {
     for (final column in _descriptor.columns) {
@@ -120,10 +118,16 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     final pkValue = entity.primaryKeyValue;
     if (pkValue == null) {
       final insertDto = entity.toInsertDto();
-      final newId = await insert(insertDto);
-      _trySetPrimaryKey(entity, pk.propertyName, newId);
-      final savedPkValue = entity.primaryKeyValue ?? newId;
-      return _resolveSavedEntity(entity, pk.name, savedPkValue);
+      return _engine.transaction((txEngine) async {
+        final txRepo = _descriptor.repositoryFactory(txEngine);
+        final insertedRow = await txRepo._insertRowWithEngine(
+          insertDto,
+          txEngine,
+        );
+        final insertedEntity = _descriptor.fromRow(insertedRow);
+        _applyPostLoad([insertedEntity]);
+        return insertedEntity;
+      });
     } else {
       final updateDto = entity.toUpdateDto();
       final where = QueryBuilder<T>.from(
@@ -298,14 +302,20 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
       final cols = map.keys.map((k) => '"$k"').join(', ');
       final placeholders = List.filled(map.length, '?').join(', ');
       final sql =
-          'INSERT INTO ${_descriptor.tableName} ($cols) VALUES ($placeholders) RETURNING "${pk.name}"';
+          'INSERT INTO ${_descriptor.tableName} ($cols) VALUES ($placeholders) RETURNING *';
       final result = await txEngine.query(sql, map.values.toList());
-      if (pkValue == null && result.isNotEmpty) {
+      if (result.isEmpty) {
+        throw StateError(
+          'Insert did not return a row for ${_descriptor.tableName}',
+        );
+      }
+      final inserted = _descriptor.fromRow(result.first);
+      if (pkValue == null) {
         final newId = result.first[pk.name];
         _trySetPrimaryKey(entity, pk.propertyName, newId);
       }
-      _descriptor.hooks?.postPersist?.call(entity);
-      return entity;
+      _descriptor.hooks?.postPersist?.call(inserted);
+      return inserted;
     });
   }
 
@@ -1621,6 +1631,25 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     InsertDto values,
     EngineAdapter engine,
   ) async {
+    final insertedRow = await _insertRowWithEngine(values, engine);
+    final primaryKey = _descriptor.primaryKey?.name;
+    if (primaryKey == null || primaryKey.isEmpty) {
+      throw StateError(
+        'Cannot insert without a primary key on ${_descriptor.tableName}',
+      );
+    }
+    if (!insertedRow.containsKey(primaryKey)) {
+      throw StateError(
+        'Insert did not return a primary key for ${_descriptor.tableName}',
+      );
+    }
+    return insertedRow[primaryKey];
+  }
+
+  Future<Map<String, dynamic>> _insertRowWithEngine(
+    InsertDto values,
+    EngineAdapter engine,
+  ) async {
     final map = Map<String, dynamic>.from(values.toMap());
     final cascades = _readCascades(values);
 
@@ -1667,20 +1696,21 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
       );
     }
     if (primaryKeyDescriptor.uuid && !map.containsKey(primaryKey)) {
-      map[primaryKey] = _generateUuid();
+      map[primaryKey] = Uuid().v4();
     }
     _encodeJsonColumns(map);
     final cols = map.keys.map((k) => '"$k"').join(', ');
     final placeholders = List.filled(map.length, '?').join(', ');
     final sql =
-        'INSERT INTO ${_descriptor.tableName} ($cols) VALUES ($placeholders) RETURNING "$primaryKey"';
+        'INSERT INTO ${_descriptor.tableName} ($cols) VALUES ($placeholders) RETURNING *';
     final result = await engine.query(sql, map.values.toList());
     if (result.isEmpty || !result.first.containsKey(primaryKey)) {
       throw StateError(
         'Insert did not return a primary key for ${_descriptor.tableName}',
       );
     }
-    final newId = result.first[primaryKey];
+    final insertedRow = result.first;
+    final newId = insertedRow[primaryKey];
 
     // Post-insert: inverse side (one-to-many / one-to-one mappedBy)
     for (final relation in _descriptor.relations) {
@@ -1750,7 +1780,7 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
       await _cascadePersistManyToMany(relation, newId, cascadeDto, engine);
     }
 
-    return newId;
+    return insertedRow;
   }
 
   /// Cascade persist for ManyToMany relations.
@@ -1873,20 +1903,6 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
       throw StateError('Unable to reload ${_descriptor.tableName} after save.');
     }
     return items.first;
-  }
-
-  String _generateUuid() {
-    final bytes = List<int>.generate(16, (_) => _uuidRandom.nextInt(256));
-    bytes[6] = (bytes[6] & 0x0f) | 0x40; // version 4
-    bytes[8] = (bytes[8] & 0x3f) | 0x80; // variant 1
-
-    String hex(int value) => value.toRadixString(16).padLeft(2, '0');
-
-    return '${hex(bytes[0])}${hex(bytes[1])}${hex(bytes[2])}${hex(bytes[3])}-'
-        '${hex(bytes[4])}${hex(bytes[5])}-'
-        '${hex(bytes[6])}${hex(bytes[7])}-'
-        '${hex(bytes[8])}${hex(bytes[9])}-'
-        '${hex(bytes[10])}${hex(bytes[11])}${hex(bytes[12])}${hex(bytes[13])}${hex(bytes[14])}${hex(bytes[15])}';
   }
 
   void _trySetPrimaryKey(Object entity, String propertyName, Object? value) {

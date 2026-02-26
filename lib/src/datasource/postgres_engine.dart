@@ -7,6 +7,12 @@ import '../migrations/schema.dart';
 import 'datasource.dart';
 import 'engine_adapter.dart';
 
+final _autoIncPkExp = RegExp(r'AUTOINCREMENT\s+PRIMARY\s+KEY', caseSensitive: false);
+final _autoIncExp = RegExp(r'\bAUTO_?INCREMENT\b', caseSensitive: false);
+final _blobExp = RegExp(r'\bBLOB\b', caseSensitive: false);
+final _doubleExp = RegExp(r'\bDOUBLE\b', caseSensitive: false);
+final _pkAutoIncExp = RegExp(r'PRIMARY\s+KEY\s+AUTO_?INCREMENT', caseSensitive: false);
+
 final class PostgresDataSourceOptions extends DataSourceOptions {
   /// Creates options for a PostgreSQL DataSource.
   PostgresDataSourceOptions._({
@@ -24,19 +30,26 @@ final class PostgresDataSourceOptions extends DataSourceOptions {
     required String password,
     required List<EntityDescriptor> entities,
     ConnectionSettings? settings,
+    PoolSettings? poolSettings = const PoolSettings(
+      maxConnectionCount: 10,
+      maxConnectionAge: Duration(minutes: 30),
+      queryMode: QueryMode.extended,
+      maxSessionUse: Duration(minutes: 30),
+      sslMode: SslMode.disable,
+    ),
     bool synchronize = true,
     List<Migration> migrations = const [],
   }) {
-    final engine = PostgresEngine.connect(
-      Endpoint(
-        host: host,
-        port: port,
-        database: database,
-        username: username,
-        password: password,
-      ),
-      settings: settings,
+    final endpoint = Endpoint(
+      host: host,
+      port: port,
+      database: database,
+      username: username,
+      password: password,
     );
+    final engine = poolSettings == null
+        ? PostgresEngine.connect(endpoint, settings: settings)
+        : PostgresEngine.pool([endpoint], settings: poolSettings);
     return PostgresDataSourceOptions._(
       engine: engine,
       entities: entities,
@@ -49,13 +62,18 @@ final class PostgresDataSourceOptions extends DataSourceOptions {
 class PostgresEngine implements EngineAdapter {
   PostgresEngine._(this._open);
 
-  final Future<Connection> Function() _open;
-  Connection? _db;
+  final Future<Object> Function() _open;
+  Object? _db;
 
   static PostgresEngine connect(
     Endpoint endpoint, {
     ConnectionSettings? settings,
   }) => PostgresEngine._(() => Connection.open(endpoint, settings: settings));
+
+  static PostgresEngine pool(
+    List<Endpoint> endpoints, {
+    PoolSettings? settings,
+  }) => PostgresEngine._(() async => Pool.withEndpoints(endpoints, settings: settings));
 
   static PostgresEngine fromConnection(Connection connection) =>
       PostgresEngine._(() async => connection);
@@ -179,14 +197,14 @@ class PostgresEngine implements EngineAdapter {
   Future<void> close() async {
     final db = _db;
     if (db != null) {
-      await db.close();
+      await (db as SessionExecutor).close();
     }
     _db = null;
   }
 
   @override
   Future<void> executeBatch(List<String> statements) async {
-    final db = await _ensureConnection();
+    final db = _ensureSession();
     for (final s in statements) {
       final sql = _adaptSql(s);
       await db.execute(sql);
@@ -195,7 +213,7 @@ class PostgresEngine implements EngineAdapter {
 
   @override
   Future<int> execute(String sql, [List<Object?> params = const []]) async {
-    final db = await _ensureConnection();
+    final db = _ensureSession();
     final adapted = _adaptSql(sql);
     final prepared = params.isEmpty ? adapted : _convertPlaceholders(adapted);
     final result = await db.execute(prepared, parameters: params);
@@ -207,7 +225,7 @@ class PostgresEngine implements EngineAdapter {
     String sql, [
     List<Object?> params = const [],
   ]) async {
-    final db = await _ensureConnection();
+    final db = _ensureSession();
     final prepared = params.isEmpty ? sql : _convertPlaceholders(sql);
     final result = await db.execute(prepared, parameters: params);
     return result
@@ -217,15 +235,14 @@ class PostgresEngine implements EngineAdapter {
 
   @override
   Future<SchemaState> readSchema() async {
-    final db = await _ensureConnection();
-    return _readSchemaWithSession(db);
+    return _readSchemaWithSession(_ensureSession());
   }
 
   @override
   Future<T> transaction<T>(
     Future<T> Function(EngineAdapter txEngine) action,
   ) async {
-    final db = await _ensureConnection();
+    final db = _ensureExecutor();
     return db.runTx((session) async {
       final txEngine = _PostgresSessionEngine(session);
       return action(txEngine);
@@ -234,7 +251,7 @@ class PostgresEngine implements EngineAdapter {
 
   @override
   Future<void> ensureHistoryTable() async {
-    final db = await _ensureConnection();
+    final db = _ensureSession();
     await db.execute(
       'CREATE TABLE IF NOT EXISTS _loxia_migrations (\n'
       '  version INTEGER PRIMARY KEY,\n'
@@ -246,7 +263,7 @@ class PostgresEngine implements EngineAdapter {
 
   @override
   Future<List<int>> getAppliedVersions() async {
-    final db = await _ensureConnection();
+    final db = _ensureSession();
     final result = await db.execute(
       'SELECT version FROM _loxia_migrations ORDER BY version',
     );
@@ -258,23 +275,23 @@ class PostgresEngine implements EngineAdapter {
   static String _adaptSql(String sql) {
     var adapted = sql;
     adapted = adapted.replaceAll(
-      RegExp(r'AUTOINCREMENT\s+PRIMARY\s+KEY', caseSensitive: false),
+      _autoIncPkExp,
       'GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY',
     );
     adapted = adapted.replaceAll(
-      RegExp(r'PRIMARY\s+KEY\s+AUTO_?INCREMENT', caseSensitive: false),
+      _pkAutoIncExp,
       'GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY',
     );
     adapted = adapted.replaceAll(
-      RegExp(r'\bAUTO_?INCREMENT\b', caseSensitive: false),
+      _autoIncExp,
       'GENERATED BY DEFAULT AS IDENTITY',
     );
     adapted = adapted.replaceAll(
-      RegExp(r'\bBLOB\b', caseSensitive: false),
+      _blobExp,
       'BYTEA',
     );
     adapted = adapted.replaceAll(
-      RegExp(r'\bDOUBLE\b', caseSensitive: false),
+      _doubleExp,
       'DOUBLE PRECISION',
     );
     return adapted;
@@ -343,13 +360,20 @@ class PostgresEngine implements EngineAdapter {
     return ColumnType.text;
   }
 
-  Future<Connection> _ensureConnection() async {
-    var db = _db;
-    if (db == null || !db.isOpen) {
-      db = await _open();
-      _db = db;
+  Session _ensureSession() {
+    final db = _db;
+    if (db == null) {
+      throw StateError('PostgresEngine is not open');
     }
-    return db;
+    return db as Session;
+  }
+
+  SessionExecutor _ensureExecutor() {
+    final db = _db;
+    if (db == null) {
+      throw StateError('PostgresEngine is not open');
+    }
+    return db as SessionExecutor;
   }
 
   @override
