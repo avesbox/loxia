@@ -215,8 +215,8 @@ class MigrationPlanner {
     return 'ALTER TABLE ${_quoteQualified(fk.tableName)} '
         'ADD CONSTRAINT "$constraintName" '
         'FOREIGN KEY ("${fk.columnName}") '
-      'REFERENCES ${_quoteQualified(fk.referencesTable)}("${fk.referencesColumn}")'
-      '${fk.onDeleteCascade ? ' ON DELETE CASCADE' : ''}';
+        'REFERENCES ${_quoteQualified(fk.referencesTable)}("${fk.referencesColumn}")'
+        '${fk.onDeleteCascade ? ' ON DELETE CASCADE' : ''}';
   }
 
   String _typeToSql(ColumnType t) {
@@ -279,11 +279,7 @@ class MigrationPlanner {
     final columns = <_JoinColumnSpec>[];
     for (final col in descriptor.joinColumns) {
       columns.add(
-        _joinColumnSpecFromDescriptor(
-          col,
-          owner,
-          onDeleteCascade: true,
-        ),
+        _joinColumnSpecFromDescriptor(col, owner, onDeleteCascade: true),
       );
     }
     final inverseDescriptor = _descriptorForType(relation.target, entityByType);
@@ -301,11 +297,9 @@ class MigrationPlanner {
 
   _JoinColumnSpec _joinColumnSpecFromDescriptor(
     JoinColumnDescriptor descriptor,
-    EntityDescriptor referenced,
-    {
-      required bool onDeleteCascade,
-    }
-  ) {
+    EntityDescriptor referenced, {
+    required bool onDeleteCascade,
+  }) {
     ColumnDescriptor? referencedColumn;
     for (final column in referenced.columns) {
       if (column.name == descriptor.referencedColumnName) {

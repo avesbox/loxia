@@ -25,14 +25,16 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
   final List<String> _jsonColumnNames;
   static final Uuid _uuidGenerator = Uuid();
   static final Expando<Map<String, dynamic>> _entitySnapshots =
-    Expando<Map<String, dynamic>>('loxia_entity_snapshots');
+      Expando<Map<String, dynamic>>('loxia_entity_snapshots');
   static final Expando<Map<String, dynamic>> _partialSnapshots =
-    Expando<Map<String, dynamic>>('loxia_partial_snapshots');
+      Expando<Map<String, dynamic>>('loxia_partial_snapshots');
 
   EntityDescriptor<T, P> get descriptor => _descriptor;
   EngineAdapter get engine => _engine;
 
-  late final String _qualifiedTableName = _renderTableReference(_descriptor.qualifiedTableName);
+  late final String _qualifiedTableName = _renderTableReference(
+    _descriptor.qualifiedTableName,
+  );
 
   void _encodeJsonColumns(Map<String, dynamic> map) {
     for (final key in _jsonColumnNames) {
@@ -96,9 +98,7 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
         : ' ORDER BY ${orderBy.map((o) => '"$alias"."${o.field}" ${o.ascending ? 'ASC' : 'DESC'}').join(', ')}';
     final joinsSql = runtime.joins.map(_renderJoinClause).join(' ');
     final sql = StringBuffer();
-    sql.write(
-      'SELECT $cols FROM $_qualifiedTableName AS "$alias"'
-    );
+    sql.write('SELECT $cols FROM $_qualifiedTableName AS "$alias"');
     if (joinsSql.isNotEmpty) {
       sql.write(' $joinsSql');
     }
@@ -149,10 +149,7 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     final pkValue = entity.primaryKeyValue;
     if (pkValue == null) {
       final insertDto = entity.toInsertDto();
-      final insertedRow = await _insertRowWithEngine(
-        insertDto,
-        engine,
-      );
+      final insertedRow = await _insertRowWithEngine(insertDto, engine);
       final insertedEntity = _descriptor.fromRow(insertedRow);
       _trackEntitySnapshot(insertedEntity);
       _applyPostLoad([insertedEntity]);
@@ -205,11 +202,7 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
         : orderBy;
     final offset = (page - 1) * pageSize;
     final results = await Future.wait<dynamic>([
-      count(
-        select: select,
-        where: where,
-        includeDeleted: includeDeleted,
-      ),
+      count(select: select, where: where, includeDeleted: includeDeleted),
       find(
         select: select,
         where: where,
@@ -292,9 +285,7 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
         : ' ORDER BY ${orderBy.map((o) => '"$alias"."${o.field}" ${o.ascending ? 'ASC' : 'DESC'}').join(', ')}';
     final joinsSql = runtime.joins.map(_renderJoinClause).join(' ');
     final sql = StringBuffer();
-    sql.write(
-      'SELECT $cols FROM $_qualifiedTableName AS "$alias"'
-    );
+    sql.write('SELECT $cols FROM $_qualifiedTableName AS "$alias"');
     if (joinsSql.isNotEmpty) {
       sql.write(' $joinsSql');
     }
@@ -400,9 +391,7 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     final params = <Object?>[];
     for (final entry in dirtyMap.entries) {
       params.add(entry.value);
-      sets.add(
-        '"${entry.key}" = ${engine.placeholderFor(params.length)}',
-      );
+      sets.add('"${entry.key}" = ${engine.placeholderFor(params.length)}');
     }
     params.add(pkValue);
     final pkPlaceholder = engine.placeholderFor(params.length);
@@ -1020,7 +1009,6 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     return deleted;
   }
 
-
   Future<void> deleteEntity(T entity) async {
     await _engine.transaction((txEngine) async {
       _descriptor.hooks?.preRemove?.call(entity);
@@ -1080,7 +1068,7 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
 
     // Soft delete the parent entity
     final sql =
-      'UPDATE ${_descriptor.tableName} SET "${deletedAtColumn.name}" = ${engine.placeholderFor(1)} WHERE "${pk.name}" = ${engine.placeholderFor(2)}';
+        'UPDATE ${_descriptor.tableName} SET "${deletedAtColumn.name}" = ${engine.placeholderFor(1)} WHERE "${pk.name}" = ${engine.placeholderFor(2)}';
     await engine.execute(sql, [deletedAtValue, pkValue]);
 
     // Cascade soft delete: owning-side relations AFTER parent is updated
@@ -1587,7 +1575,7 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     final pkPlaceholder = engine.placeholderFor(params.length);
 
     final sql =
-      'UPDATE ${_descriptor.tableName} SET ${sets.join(', ')} WHERE "$pkColumnName" = $pkPlaceholder RETURNING *';
+        'UPDATE ${_descriptor.tableName} SET ${sets.join(', ')} WHERE "$pkColumnName" = $pkPlaceholder RETURNING *';
     final rows = await engine.query(sql, params);
     if (rows.isEmpty) {
       throw StateError('Unable to update ${_descriptor.tableName}.');
@@ -1603,7 +1591,7 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     EngineAdapter engine,
   ) async {
     final sql =
-      'SELECT * FROM ${_descriptor.tableName} WHERE "$pkColumnName" = ${engine.placeholderFor(1)} LIMIT 1';
+        'SELECT * FROM ${_descriptor.tableName} WHERE "$pkColumnName" = ${engine.placeholderFor(1)} LIMIT 1';
     final rows = await engine.query(sql, [pkValue]);
     if (rows.isEmpty) {
       throw StateError('Unable to load ${_descriptor.tableName}.');
@@ -1809,7 +1797,9 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
   }
 
   void _trackEntitySnapshot(T entity) {
-    _entitySnapshots[entity] = Map<String, dynamic>.from(_descriptor.toRow(entity));
+    _entitySnapshots[entity] = Map<String, dynamic>.from(
+      _descriptor.toRow(entity),
+    );
   }
 
   void _trackEntitySnapshots(Iterable<T> entities) {
@@ -1839,19 +1829,24 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     if (baseline == null) return current;
     final dirty = <String, dynamic>{};
     for (final entry in current.entries) {
-      if (!baseline.containsKey(entry.key) || baseline[entry.key] != entry.value) {
+      if (!baseline.containsKey(entry.key) ||
+          baseline[entry.key] != entry.value) {
         dirty[entry.key] = entry.value;
       }
     }
     return dirty;
   }
 
-  Map<String, dynamic> _dirtyPartialMap(P entity, Map<String, dynamic> current) {
+  Map<String, dynamic> _dirtyPartialMap(
+    P entity,
+    Map<String, dynamic> current,
+  ) {
     final baseline = _partialSnapshots[entity];
     if (baseline == null) return current;
     final dirty = <String, dynamic>{};
     for (final entry in current.entries) {
-      if (!baseline.containsKey(entry.key) || baseline[entry.key] != entry.value) {
+      if (!baseline.containsKey(entry.key) ||
+          baseline[entry.key] != entry.value) {
         dirty[entry.key] = entry.value;
       }
     }
