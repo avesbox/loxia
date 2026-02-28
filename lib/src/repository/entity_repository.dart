@@ -998,7 +998,10 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
       final childUpdateSql =
           'UPDATE $targetTable SET "${targetDeletedAtColumn.name}" = ${engine.placeholderFor(1)} WHERE "${joinColumn.name}" IN (${_placeholderList(engine, startAt: 2, count: parentIds.length)})';
       inverseCascadeStatements.add(
-        ParameterizedQuery(childUpdateSql, params: [deletedAtValue, ...parentIds]),
+        ParameterizedQuery(
+          childUpdateSql,
+          params: [deletedAtValue, ...parentIds],
+        ),
       );
     }
     if (inverseCascadeStatements.isNotEmpty) {
@@ -1174,7 +1177,10 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
       final updateChildrenSql =
           'UPDATE $targetTable SET "${targetDeletedAtColumn.name}" = ${engine.placeholderFor(1)} WHERE "${joinColumn.name}" = ${engine.placeholderFor(2)}';
       statements.add(
-        ParameterizedQuery(updateChildrenSql, params: [_nowForDeletedAt(), pkValue]),
+        ParameterizedQuery(
+          updateChildrenSql,
+          params: [_nowForDeletedAt(), pkValue],
+        ),
       );
     }
 

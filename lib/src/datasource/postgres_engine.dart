@@ -402,8 +402,9 @@ class _PostgresSessionEngine implements EngineAdapter {
   @override
   Future<void> executeBatch(List<ParameterizedQuery> statements) async {
     for (final s in statements) {
-      final sql =
-          s.applyDialectAdaptation ? PostgresEngine._adaptSql(s.sql) : s.sql;
+      final sql = s.applyDialectAdaptation
+          ? PostgresEngine._adaptSql(s.sql)
+          : s.sql;
       final prepared = s.params.isEmpty
           ? sql
           : PostgresEngine._normalizePlaceholders(sql);

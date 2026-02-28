@@ -403,11 +403,12 @@ void main() {
           ],
         );
         final descriptor = _buildLegacyBoolDescriptor();
-        final repository = EntityRepository<_LegacyBoolEntity, _LegacyBoolPartial>(
-          descriptor,
-          engine,
-          const _LegacyBoolFields(),
-        );
+        final repository =
+            EntityRepository<_LegacyBoolEntity, _LegacyBoolPartial>(
+              descriptor,
+              engine,
+              const _LegacyBoolFields(),
+            );
 
         final updated = await repository.save(
           const _LegacyBoolPartial(id: 1, isActive: true),
@@ -546,8 +547,7 @@ _buildStoreDescriptorWithDeletedAt() {
 
 EntityDescriptor<_LegacyBoolEntity, _LegacyBoolPartial>
 _buildLegacyBoolDescriptor() {
-  late final EntityDescriptor<_LegacyBoolEntity, _LegacyBoolPartial>
-  descriptor;
+  late final EntityDescriptor<_LegacyBoolEntity, _LegacyBoolPartial> descriptor;
   descriptor = EntityDescriptor<_LegacyBoolEntity, _LegacyBoolPartial>(
     entityType: _LegacyBoolEntity,
     tableName: 'legacy_bool_entities',

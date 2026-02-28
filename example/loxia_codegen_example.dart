@@ -350,7 +350,7 @@ Future<void> main() async {
           content: 'This is the content of my first post',
           likes: 0,
         ),
-      ]
+      ],
     ),
   );
   print('User created in ${stopwatch.elapsedMilliseconds} ms');
