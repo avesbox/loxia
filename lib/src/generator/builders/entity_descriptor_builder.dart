@@ -209,8 +209,12 @@ class EntityDescriptorBuilder {
       return CodeExpression(Code(_decodeJsonColumn(c)));
     }
 
-    if (c.dartTypeCode == 'bool') {
-      return col.equalTo(literalNum(1));
+    if (baseType == 'bool') {
+      final source = "row['${c.name}']";
+      final expr = isNullable
+          ? '$source == null ? null : ($source is bool ? $source : $source == 1)'
+          : '$source is bool ? $source : $source == 1';
+      return CodeExpression(Code(expr));
     }
 
     if (c.isEnum) {

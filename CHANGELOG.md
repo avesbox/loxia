@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.18
+
+- Fixed a bug on boolean values. If using the save method on an entity with a boolean field and you decide to update that field, the returning value would show the old value instead of the new one. This fix ensures that the save method correctly returns the updated boolean value after saving the entity.
+
 ## 0.0.17
 
 - Improved performances by reducing several redundant transactions in the repository methods. Instead of wrapping each individual operation in a transaction, the methods now execute directly on the main engine, which should result in faster execution and reduced overhead.

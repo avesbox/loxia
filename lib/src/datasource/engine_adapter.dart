@@ -1,5 +1,21 @@
 import '../migrations/schema.dart';
 
+class ParameterizedQuery {
+  const ParameterizedQuery(
+    this.sql, {
+    this.params = const [],
+    this.applyDialectAdaptation = false,
+  });
+
+  final String sql;
+  final List<Object?> params;
+  final bool applyDialectAdaptation;
+
+  const ParameterizedQuery.ddl(this.sql)
+    : params = const [],
+      applyDialectAdaptation = true;
+}
+
 /// Basic interface that each SQL engine adapter must implement.
 abstract class EngineAdapter {
   /// Whether the engine supports adding foreign key constraints via
@@ -19,8 +35,8 @@ abstract class EngineAdapter {
   /// Returns the current schema snapshot for the connected database.
   Future<SchemaState> readSchema();
 
-  /// Executes a batch of DDL statements.
-  Future<void> executeBatch(List<String> statements);
+  /// Executes a batch of SQL statements, optionally parameterized.
+  Future<void> executeBatch(List<ParameterizedQuery> statements);
 
   /// Executes a query and returns list of rows.
   Future<List<Map<String, dynamic>>> query(

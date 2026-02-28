@@ -389,6 +389,34 @@ void main() {
       expect(engine.executeParamsHistory[1][1], 11);
     });
   });
+
+  group('EntityRepository.save boolean mapping', () {
+    test(
+      'returns updated boolean value when update RETURNING row contains bool',
+      () async {
+        final engine = _RepoFakeEngine(
+          rows: const [],
+          queryResponses: [
+            [
+              {'id': 1, 'is_active': true},
+            ],
+          ],
+        );
+        final descriptor = _buildLegacyBoolDescriptor();
+        final repository = EntityRepository<_LegacyBoolEntity, _LegacyBoolPartial>(
+          descriptor,
+          engine,
+          const _LegacyBoolFields(),
+        );
+
+        final updated = await repository.save(
+          const _LegacyBoolPartial(id: 1, isActive: true),
+        );
+
+        expect(updated.isActive, isTrue);
+      },
+    );
+  });
 }
 
 EntityDescriptor<_StoreEntity, _StorePartial> _buildStoreDescriptor() {
@@ -512,6 +540,42 @@ _buildStoreDescriptorWithDeletedAt() {
           const _StoreFields(),
         ),
     defaultSelect: () => const _StoreSelect(id: true, name: true),
+  );
+  return descriptor;
+}
+
+EntityDescriptor<_LegacyBoolEntity, _LegacyBoolPartial>
+_buildLegacyBoolDescriptor() {
+  late final EntityDescriptor<_LegacyBoolEntity, _LegacyBoolPartial>
+  descriptor;
+  descriptor = EntityDescriptor<_LegacyBoolEntity, _LegacyBoolPartial>(
+    entityType: _LegacyBoolEntity,
+    tableName: 'legacy_bool_entities',
+    columns: [
+      ColumnDescriptor(
+        name: 'id',
+        propertyName: 'id',
+        type: ColumnType.integer,
+        isPrimaryKey: true,
+      ),
+      ColumnDescriptor(
+        name: 'is_active',
+        propertyName: 'isActive',
+        type: ColumnType.boolean,
+      ),
+    ],
+    fromRow: (row) => _LegacyBoolEntity(
+      id: row['id'] as int,
+      isActive: row['is_active'] == 1,
+    ),
+    toRow: (entity) => {'id': entity.id, 'is_active': entity.isActive},
+    fieldsContext: const _LegacyBoolFields(),
+    repositoryFactory: (engine) =>
+        EntityRepository<_LegacyBoolEntity, _LegacyBoolPartial>(
+          descriptor,
+          engine,
+          const _LegacyBoolFields(),
+        ),
   );
   return descriptor;
 }
@@ -665,6 +729,68 @@ class _MerchantEntity extends Entity {
   final String name;
 }
 
+class _LegacyBoolEntity extends Entity {
+  _LegacyBoolEntity({required this.id, required this.isActive});
+
+  final int id;
+  final bool isActive;
+}
+
+class _LegacyBoolPartial extends PartialEntity<_LegacyBoolEntity> {
+  const _LegacyBoolPartial({this.id, this.isActive});
+
+  final int? id;
+  final bool? isActive;
+
+  @override
+  Object? get primaryKeyValue => id;
+
+  @override
+  _LegacyBoolEntity toEntity() {
+    if (id == null || isActive == null) {
+      throw StateError('Missing required fields for _LegacyBoolEntity');
+    }
+    return _LegacyBoolEntity(id: id!, isActive: isActive!);
+  }
+
+  @override
+  InsertDto<_LegacyBoolEntity> toInsertDto() {
+    if (isActive == null) {
+      throw StateError('Missing required fields for _LegacyBoolInsertDto');
+    }
+    return _LegacyBoolInsertDto(isActive: isActive!);
+  }
+
+  @override
+  UpdateDto<_LegacyBoolEntity> toUpdateDto() {
+    if (isActive == null) {
+      throw StateError('Missing required fields for _LegacyBoolUpdateDto');
+    }
+    return _LegacyBoolUpdateDto(isActive: isActive!);
+  }
+
+  @override
+  Map<String, dynamic> toJson() => {'id': id, 'isActive': isActive};
+}
+
+class _LegacyBoolInsertDto extends InsertDto<_LegacyBoolEntity> {
+  _LegacyBoolInsertDto({required this.isActive});
+
+  final bool isActive;
+
+  @override
+  Map<String, dynamic> toMap() => {'is_active': isActive};
+}
+
+class _LegacyBoolUpdateDto extends UpdateDto<_LegacyBoolEntity> {
+  _LegacyBoolUpdateDto({required this.isActive});
+
+  final bool isActive;
+
+  @override
+  Map<String, dynamic> toMap() => {'is_active': isActive};
+}
+
 class _StorePartial extends PartialEntity<_StoreEntity> {
   const _StorePartial({this.id, this.name, this.merchant});
 
@@ -766,6 +892,18 @@ class _MerchantFields extends QueryFieldsContext<_StoreEntity> {
   QueryField<int> get id => field<int>('id');
 
   QueryField<String> get name => field<String>('name');
+}
+
+class _LegacyBoolFields extends QueryFieldsContext<_LegacyBoolEntity> {
+  const _LegacyBoolFields([super.runtime, super.alias]);
+
+  @override
+  _LegacyBoolFields bind(QueryRuntimeContext runtime, String alias) =>
+      _LegacyBoolFields(runtime, alias);
+
+  QueryField<int> get id => field<int>('id');
+
+  QueryField<bool> get isActive => field<bool>('is_active');
 }
 
 class _StoreSelect extends SelectOptions<_StoreEntity, _StorePartial> {
@@ -955,7 +1093,7 @@ class _RepoFakeEngine implements EngineAdapter {
   Future<SchemaState> readSchema() async => SchemaState.empty();
 
   @override
-  Future<void> executeBatch(List<String> statements) async {}
+  Future<void> executeBatch(List<ParameterizedQuery> statements) async {}
 
   @override
   Future<List<Map<String, dynamic>>> query(

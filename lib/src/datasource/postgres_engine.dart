@@ -18,6 +18,7 @@ final _pkAutoIncExp = RegExp(
   r'PRIMARY\s+KEY\s+AUTO_?INCREMENT',
   caseSensitive: false,
 );
+final _placeholderExp = RegExp(r'\?');
 
 final class PostgresDataSourceOptions extends DataSourceOptions {
   /// Creates options for a PostgreSQL DataSource.
@@ -234,12 +235,13 @@ class PostgresEngine implements EngineAdapter {
   }
 
   @override
-  Future<void> executeBatch(List<String> statements) async {
+  Future<void> executeBatch(List<ParameterizedQuery> statements) async {
     final db = _ensureSessionExecutor();
     await db.run((session) async {
       for (final s in statements) {
-        final sql = _adaptSql(s);
-        await session.execute(sql);
+        final sql = s.applyDialectAdaptation ? _adaptSql(s.sql) : s.sql;
+        final prepared = s.params.isEmpty ? sql : _normalizePlaceholders(sql);
+        await session.execute(prepared, parameters: s.params);
       }
       return null;
     });
@@ -338,7 +340,7 @@ class PostgresEngine implements EngineAdapter {
   static String _normalizePlaceholders(String sql) {
     if (!sql.contains('?')) return sql;
     var index = 0;
-    return sql.replaceAllMapped(RegExp(r'\?'), (_) => '\$${++index}');
+    return sql.replaceAllMapped(_placeholderExp, (_) => '\$${++index}');
   }
 
   static ColumnType _mapType(String? dataType, String? udtName) {
@@ -398,10 +400,14 @@ class _PostgresSessionEngine implements EngineAdapter {
   }
 
   @override
-  Future<void> executeBatch(List<String> statements) async {
+  Future<void> executeBatch(List<ParameterizedQuery> statements) async {
     for (final s in statements) {
-      final sql = PostgresEngine._adaptSql(s);
-      await _session.execute(sql);
+      final sql =
+          s.applyDialectAdaptation ? PostgresEngine._adaptSql(s.sql) : s.sql;
+      final prepared = s.params.isEmpty
+          ? sql
+          : PostgresEngine._normalizePlaceholders(sql);
+      await _session.execute(prepared, parameters: s.params);
     }
   }
 

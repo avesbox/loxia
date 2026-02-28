@@ -55,10 +55,19 @@ class SqliteEngine implements EngineAdapter {
   }
 
   @override
-  Future<void> executeBatch(List<String> statements) async {
+  Future<void> executeBatch(List<ParameterizedQuery> statements) async {
     final db = _ensureDb();
     for (final s in statements) {
-      db.execute(s);
+      if (s.params.isEmpty) {
+        db.execute(s.sql);
+        continue;
+      }
+      final stmt = db.prepare(s.sql);
+      try {
+        stmt.execute(s.params);
+      } finally {
+        stmt.close();
+      }
     }
   }
 

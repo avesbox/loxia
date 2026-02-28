@@ -17,12 +17,19 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     : _jsonColumnNames = _descriptor.columns
           .where((column) => column.type == ColumnType.json)
           .map((column) => column.name)
-          .toList(growable: false);
+          .toList(growable: false),
+      _nonNullableBooleanColumnNames = _descriptor.columns
+          .where(
+            (column) => column.type == ColumnType.boolean && !column.nullable,
+          )
+          .map((column) => column.name)
+          .toSet();
 
   final EntityDescriptor<T, P> _descriptor;
   final EngineAdapter _engine;
   final QueryFieldsContext<T> _fieldsContext;
   final List<String> _jsonColumnNames;
+  final Set<String> _nonNullableBooleanColumnNames;
   static final Uuid _uuidGenerator = Uuid();
   static final Expando<Map<String, dynamic>> _entitySnapshots =
       Expando<Map<String, dynamic>>('loxia_entity_snapshots');
@@ -55,6 +62,23 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
       if (value == null || value is String) continue;
       map[column.name] = jsonEncode(value);
     }
+  }
+
+  Map<String, dynamic> _normalizeRowBooleansForLegacyGeneratedCode(
+    Map<String, dynamic> row,
+  ) {
+    if (_nonNullableBooleanColumnNames.isEmpty) {
+      return row;
+    }
+    Map<String, dynamic>? normalized;
+    for (final columnName in _nonNullableBooleanColumnNames) {
+      final value = row[columnName];
+      if (value is bool) {
+        normalized ??= Map<String, dynamic>.from(row);
+        normalized[columnName] = value ? 1 : 0;
+      }
+    }
+    return normalized ?? row;
   }
 
   /// Executes a query and returns partial entities based on the [select] options.
@@ -150,7 +174,10 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     if (pkValue == null) {
       final insertDto = entity.toInsertDto();
       final insertedRow = await _insertRowWithEngine(insertDto, engine);
-      final insertedEntity = _descriptor.fromRow(insertedRow);
+      final normalizedInsertedRow = _normalizeRowBooleansForLegacyGeneratedCode(
+        insertedRow,
+      );
+      final insertedEntity = _descriptor.fromRow(normalizedInsertedRow);
       _trackEntitySnapshot(insertedEntity);
       _applyPostLoad([insertedEntity]);
       return insertedEntity;
@@ -168,7 +195,10 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
         pkValue,
         engine,
       );
-      final updatedEntity = _descriptor.fromRow(updatedRow);
+      final normalizedUpdatedRow = _normalizeRowBooleansForLegacyGeneratedCode(
+        updatedRow,
+      );
+      final updatedEntity = _descriptor.fromRow(normalizedUpdatedRow);
       _trackEntitySnapshot(updatedEntity);
       _applyPostLoad([updatedEntity]);
       return updatedEntity;
@@ -354,7 +384,10 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
         'Insert did not return a row for ${_descriptor.tableName}',
       );
     }
-    final inserted = _descriptor.fromRow(result.first);
+    final normalizedInsertedRow = _normalizeRowBooleansForLegacyGeneratedCode(
+      result.first,
+    );
+    final inserted = _descriptor.fromRow(normalizedInsertedRow);
     _trackEntitySnapshot(inserted);
     if (pkValue == null) {
       final newId = result.first[pk.name];
@@ -778,19 +811,29 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
 
     // Handle "remove"
     if (update.remove != null && update.remove!.isNotEmpty) {
-      final placeholders = List.filled(update.remove!.length, '?').join(', ');
+      final placeholders = _placeholderList(
+        engine,
+        startAt: 2,
+        count: update.remove!.length,
+      );
       final deleteSql =
-          'DELETE FROM $joinTableName WHERE "$ownerColumn" = ? AND "$targetColumn" IN ($placeholders)';
+          'DELETE FROM $joinTableName WHERE "$ownerColumn" = ${engine.placeholderFor(1)} AND "$targetColumn" IN ($placeholders)';
       await engine.execute(deleteSql, [ownerId, ...update.remove!]);
     }
 
     // Handle "add"
     if (update.add != null && update.add!.isNotEmpty) {
+      final insertStatements = <ParameterizedQuery>[];
       for (final targetId in update.add!) {
         // Use INSERT OR IGNORE to avoid duplicate key errors
         final insertSql =
-            'INSERT INTO $joinTableName ("$ownerColumn", "$targetColumn") VALUES (?, ?) ON CONFLICT DO NOTHING';
-        await engine.execute(insertSql, [ownerId, targetId]);
+            'INSERT INTO $joinTableName ("$ownerColumn", "$targetColumn") VALUES (${engine.placeholderFor(1)}, ${engine.placeholderFor(2)}) ON CONFLICT DO NOTHING';
+        insertStatements.add(
+          ParameterizedQuery(insertSql, params: [ownerId, targetId]),
+        );
+      }
+      if (insertStatements.isNotEmpty) {
+        await engine.executeBatch(insertStatements);
       }
     }
   }
@@ -818,17 +861,27 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
 
     // Delete removed associations
     if (toRemove.isNotEmpty) {
-      final placeholders = List.filled(toRemove.length, '?').join(', ');
+      final placeholders = _placeholderList(
+        engine,
+        startAt: 2,
+        count: toRemove.length,
+      );
       final deleteSql =
-          'DELETE FROM $joinTableName WHERE "$ownerColumn" = ? AND "$targetColumn" IN ($placeholders)';
+          'DELETE FROM $joinTableName WHERE "$ownerColumn" = ${engine.placeholderFor(1)} AND "$targetColumn" IN ($placeholders)';
       await engine.execute(deleteSql, [ownerId, ...toRemove]);
     }
 
     // Insert new associations
-    for (final targetId in toAdd) {
+    if (toAdd.isNotEmpty) {
       final insertSql =
-          'INSERT INTO $joinTableName ("$ownerColumn", "$targetColumn") VALUES (?, ?)';
-      await engine.execute(insertSql, [ownerId, targetId]);
+          'INSERT INTO $joinTableName ("$ownerColumn", "$targetColumn") VALUES (${engine.placeholderFor(1)}, ${engine.placeholderFor(2)})';
+      final statements = toAdd
+          .map(
+            (targetId) =>
+                ParameterizedQuery(insertSql, params: [ownerId, targetId]),
+          )
+          .toList(growable: false);
+      await engine.executeBatch(statements);
     }
   }
 
@@ -891,6 +944,7 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     }
 
     // Cascade soft delete: inverse-side relations first (children before parent)
+    final inverseCascadeStatements = <ParameterizedQuery>[];
     for (final relation in _descriptor.relations) {
       if (!relation.shouldCascadeRemove) continue;
       if (relation.type == RelationType.manyToMany) continue;
@@ -938,13 +992,17 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
           .toList();
       if (parentIds.isEmpty) continue;
 
-      final placeholders = List.filled(parentIds.length, '?').join(', ');
       final targetTable = _renderTableReference(
         targetDescriptor.qualifiedTableName,
       );
       final childUpdateSql =
-          'UPDATE $targetTable SET "${targetDeletedAtColumn.name}" = ? WHERE "${joinColumn.name}" IN ($placeholders)';
-      await engine.execute(childUpdateSql, [deletedAtValue, ...parentIds]);
+          'UPDATE $targetTable SET "${targetDeletedAtColumn.name}" = ${engine.placeholderFor(1)} WHERE "${joinColumn.name}" IN (${_placeholderList(engine, startAt: 2, count: parentIds.length)})';
+      inverseCascadeStatements.add(
+        ParameterizedQuery(childUpdateSql, params: [deletedAtValue, ...parentIds]),
+      );
+    }
+    if (inverseCascadeStatements.isNotEmpty) {
+      await engine.executeBatch(inverseCascadeStatements);
     }
 
     // Collect FK values for owning-side cascade soft deletes BEFORE parent update
@@ -986,6 +1044,7 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     final deleted = await engine.execute(sql, [deletedAtValue, ...params]);
 
     // Cascade soft delete: owning-side relations after parent update
+    final owningCascadeStatements = <ParameterizedQuery>[];
     for (final entry in owningCascadeTargets.entries) {
       final relation = entry.key;
       final fkValues = entry.value;
@@ -997,13 +1056,17 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
       final targetDeletedAtColumn = _deletedAtColumnFor(targetDescriptor);
       if (targetDeletedAtColumn == null) continue;
 
-      final placeholders = List.filled(fkValues.length, '?').join(', ');
       final targetTable = _renderTableReference(
         targetDescriptor.qualifiedTableName,
       );
       final updateSql =
-          'UPDATE $targetTable SET "${targetDeletedAtColumn.name}" = ? WHERE "${targetPk.name}" IN ($placeholders)';
-      await engine.execute(updateSql, [deletedAtValue, ...fkValues]);
+          'UPDATE $targetTable SET "${targetDeletedAtColumn.name}" = ${engine.placeholderFor(1)} WHERE "${targetPk.name}" IN (${_placeholderList(engine, startAt: 2, count: fkValues.length)})';
+      owningCascadeStatements.add(
+        ParameterizedQuery(updateSql, params: [deletedAtValue, ...fkValues]),
+      );
+    }
+    if (owningCascadeStatements.isNotEmpty) {
+      await engine.executeBatch(owningCascadeStatements);
     }
 
     return deleted;
@@ -1082,6 +1145,7 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     Object pkValue,
     EngineAdapter engine,
   ) async {
+    final statements = <ParameterizedQuery>[];
     for (final relation in _descriptor.relations) {
       if (!relation.shouldCascadeRemove) continue;
       if (relation.type == RelationType.manyToMany) continue;
@@ -1108,8 +1172,14 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
         targetDescriptor.qualifiedTableName,
       );
       final updateChildrenSql =
-          'UPDATE $targetTable SET "${targetDeletedAtColumn.name}" = ? WHERE "${joinColumn.name}" = ?';
-      await engine.execute(updateChildrenSql, [_nowForDeletedAt(), pkValue]);
+          'UPDATE $targetTable SET "${targetDeletedAtColumn.name}" = ${engine.placeholderFor(1)} WHERE "${joinColumn.name}" = ${engine.placeholderFor(2)}';
+      statements.add(
+        ParameterizedQuery(updateChildrenSql, params: [_nowForDeletedAt(), pkValue]),
+      );
+    }
+
+    if (statements.isNotEmpty) {
+      await engine.executeBatch(statements);
     }
   }
 
@@ -1117,6 +1187,7 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     Map<RelationDescriptor, Object> targets,
     EngineAdapter engine,
   ) async {
+    final statements = <ParameterizedQuery>[];
     for (final entry in targets.entries) {
       final relation = entry.key;
       final fkValue = entry.value;
@@ -1133,8 +1204,14 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
         targetDescriptor.qualifiedTableName,
       );
       final updateSql =
-          'UPDATE $targetTable SET "${targetDeletedAtColumn.name}" = ? WHERE "${targetPk.name}" = ?';
-      await engine.execute(updateSql, [_nowForDeletedAt(), fkValue]);
+          'UPDATE $targetTable SET "${targetDeletedAtColumn.name}" = ${engine.placeholderFor(1)} WHERE "${targetPk.name}" = ${engine.placeholderFor(2)}';
+      statements.add(
+        ParameterizedQuery(updateSql, params: [_nowForDeletedAt(), fkValue]),
+      );
+    }
+
+    if (statements.isNotEmpty) {
+      await engine.executeBatch(statements);
     }
   }
 
@@ -1163,7 +1240,7 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     Object pkValue,
     EngineAdapter engine,
   ) async {
-    final batchStatements = <String>[];
+    final batchStatements = <ParameterizedQuery>[];
 
     for (final relation in _descriptor.relations) {
       if (!relation.shouldCascadeMerge) continue;
@@ -1194,10 +1271,11 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
           final relatedRow = targetDescriptor.toRow(relatedValue);
           final relatedPkValue = relatedRow[targetPk.name];
           if (relatedPkValue != null) {
-            final statement = _buildRelatedUpdateStatement(
+            final statement = _buildRelatedUpdateQuery(
               targetDescriptor,
               relatedValue,
               relatedPkValue,
+              engine,
             );
             if (statement != null) {
               batchStatements.add(statement);
@@ -1212,10 +1290,11 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
           final childRow = targetDescriptor.toRow(child);
           final childPkValue = childRow[targetPk.name];
           if (childPkValue != null) {
-            final statement = _buildRelatedUpdateStatement(
+            final statement = _buildRelatedUpdateQuery(
               targetDescriptor,
               child,
               childPkValue,
+              engine,
             );
             if (statement != null) {
               batchStatements.add(statement);
@@ -1274,7 +1353,7 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
 
     // Extract target IDs from the new collection
     final newTargetIds = <int>{};
-    final updateStatements = <String>[];
+    final updateStatements = <ParameterizedQuery>[];
     for (final item in newCollection) {
       if (item is Entity) {
         final row = targetDescriptor.toRow(item);
@@ -1282,10 +1361,11 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
         if (targetId is int) {
           newTargetIds.add(targetId);
           // Also update the target entity if cascade merge is enabled
-          final statement = _buildRelatedUpdateStatement(
+          final statement = _buildRelatedUpdateQuery(
             targetDescriptor,
             item,
             targetId,
+            engine,
           );
           if (statement != null) {
             updateStatements.add(statement);
@@ -1312,17 +1392,27 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
 
     // Delete removed associations
     if (toRemove.isNotEmpty) {
-      final placeholders = List.filled(toRemove.length, '?').join(', ');
+      final placeholders = _placeholderList(
+        engine,
+        startAt: 2,
+        count: toRemove.length,
+      );
       final deleteJoinSql =
-          'DELETE FROM ${joinTable.name} WHERE "${ownerJoinColumn.name}" = ? AND "${targetJoinColumn.name}" IN ($placeholders)';
+          'DELETE FROM ${joinTable.name} WHERE "${ownerJoinColumn.name}" = ${engine.placeholderFor(1)} AND "${targetJoinColumn.name}" IN ($placeholders)';
       await engine.execute(deleteJoinSql, [pkValue, ...toRemove]);
     }
 
     // Insert new associations
-    for (final targetId in toAdd) {
+    if (toAdd.isNotEmpty) {
       final insertJoinSql =
-          'INSERT INTO ${joinTable.name} ("${ownerJoinColumn.name}", "${targetJoinColumn.name}") VALUES (?, ?)';
-      await engine.execute(insertJoinSql, [pkValue, targetId]);
+          'INSERT INTO ${joinTable.name} ("${ownerJoinColumn.name}", "${targetJoinColumn.name}") VALUES (${engine.placeholderFor(1)}, ${engine.placeholderFor(2)})';
+      final insertStatements = toAdd
+          .map(
+            (targetId) =>
+                ParameterizedQuery(insertJoinSql, params: [pkValue, targetId]),
+          )
+          .toList(growable: false);
+      await engine.executeBatch(insertStatements);
     }
   }
 
@@ -1357,10 +1447,11 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     return null;
   }
 
-  String? _buildRelatedUpdateStatement(
+  ParameterizedQuery? _buildRelatedUpdateQuery(
     EntityDescriptor targetDescriptor,
     Entity entity,
     Object pkValue,
+    EngineAdapter engine,
   ) {
     final map = Map<String, dynamic>.from(targetDescriptor.toRow(entity));
     final pk = targetDescriptor.primaryKey;
@@ -1371,14 +1462,20 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     if (map.isEmpty) return null;
 
     final sets = <String>[];
+    final params = <Object?>[];
     for (final entry in map.entries) {
-      sets.add('"${entry.key}" = ${_toSqlLiteral(entry.value)}');
+      params.add(entry.value);
+      sets.add('"${entry.key}" = ${engine.placeholderFor(params.length)}');
     }
+    params.add(pkValue);
+    final pkPlaceholder = engine.placeholderFor(params.length);
 
     final targetTable = _renderTableReference(
       targetDescriptor.qualifiedTableName,
     );
-    return 'UPDATE $targetTable SET ${sets.join(', ')} WHERE "${pk.name}" = ${_toSqlLiteral(pkValue)}';
+    final sql =
+        'UPDATE $targetTable SET ${sets.join(', ')} WHERE "${pk.name}" = $pkPlaceholder';
+    return ParameterizedQuery(sql, params: params);
   }
 
   /// Executes the provided action within a transactional context.
@@ -1581,7 +1678,10 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
       throw StateError('Unable to update ${_descriptor.tableName}.');
     }
     final updated = rows.first;
-    _trackEntitySnapshot(_descriptor.fromRow(updated));
+    final normalizedUpdated = _normalizeRowBooleansForLegacyGeneratedCode(
+      updated,
+    );
+    _trackEntitySnapshot(_descriptor.fromRow(normalizedUpdated));
     return updated;
   }
 
@@ -1637,6 +1737,7 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
 
     final items = cascadeData is List ? cascadeData : [cascadeData];
 
+    final joinStatements = <ParameterizedQuery>[];
     for (final item in items) {
       if (item == null) continue;
 
@@ -1665,8 +1766,14 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
 
       // Insert the join table entry
       final joinSql =
-          'INSERT INTO ${joinTable.name} ("${ownerJoinColumn.name}", "${targetJoinColumn.name}") VALUES (?, ?)';
-      await engine.execute(joinSql, [ownerId, targetId]);
+          'INSERT INTO ${joinTable.name} ("${ownerJoinColumn.name}", "${targetJoinColumn.name}") VALUES (${engine.placeholderFor(1)}, ${engine.placeholderFor(2)})';
+      joinStatements.add(
+        ParameterizedQuery(joinSql, params: [ownerId, targetId]),
+      );
+    }
+
+    if (joinStatements.isNotEmpty) {
+      await engine.executeBatch(joinStatements);
     }
   }
 
@@ -1697,17 +1804,6 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
         hook(item);
       }
     }
-  }
-
-  String _toSqlLiteral(Object? value) {
-    if (value == null) return 'NULL';
-    if (value is bool) return value ? 'TRUE' : 'FALSE';
-    if (value is num) return value.toString();
-    final raw = value is DateTime
-        ? value.toUtc().toIso8601String()
-        : value.toString();
-    final escaped = raw.replaceAll("'", "''");
-    return "'$escaped'";
   }
 
   void _trySetPrimaryKey(Object entity, String propertyName, Object? value) {

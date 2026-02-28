@@ -344,6 +344,13 @@ Future<void> main() async {
       email: 'example@example.com',
       role: Role.guest,
       tags: ['new', 'test'],
+      posts: [
+        PostPartial(
+          title: 'My First Post',
+          content: 'This is the content of my first post',
+          likes: 0,
+        ),
+      ]
     ),
   );
   print('User created in ${stopwatch.elapsedMilliseconds} ms');

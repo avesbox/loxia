@@ -83,7 +83,11 @@ class DataSource {
             _engine.supportsAlterTableAddConstraint,
       );
       if (!plan.isEmpty) {
-        await _engine.executeBatch(plan.statements);
+        await _engine.executeBatch(
+          plan.statements
+              .map((statement) => ParameterizedQuery.ddl(statement))
+              .toList(growable: false),
+        );
       }
     }
   }
