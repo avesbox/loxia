@@ -170,10 +170,7 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
   /// Parses indexes from:
   /// - Composite [Index] entries on [EntityMeta].
   /// - Column-level [IndexColumn] annotations on fields.
-  List<GenIndex> _parseIndexes(
-    ConstantReader annotation,
-    ClassElement clazz,
-  ) {
+  List<GenIndex> _parseIndexes(ConstantReader annotation, ClassElement clazz) {
     final indexes = <GenIndex>[];
 
     // 1. Composite indexes from EntityMeta
@@ -182,8 +179,9 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
       for (final obj in indexesReader.listValue) {
         final reader = ConstantReader(obj);
         final columnsReader = reader.peek('columns')?.listValue ?? [];
-        final columns =
-            columnsReader.map((v) => ConstantReader(v).stringValue).toList();
+        final columns = columnsReader
+            .map((v) => ConstantReader(v).stringValue)
+            .toList();
         final name = reader.peek('name')?.stringValue;
         final unique = reader.peek('unique')?.boolValue ?? false;
         if (columns.isEmpty) {
@@ -200,8 +198,8 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
       final indexAnnObj = _firstAnnotation(field, IndexColumn);
       if (indexAnnObj == null) continue;
       final indexAnn = ConstantReader(indexAnnObj);
-      final colName = indexAnn.peek('name')?.stringValue ??
-          _toSnake(field.displayName);
+      final colName =
+          indexAnn.peek('name')?.stringValue ?? _toSnake(field.displayName);
       final unique = indexAnn.peek('unique')?.boolValue ?? false;
       indexes.add(GenIndex(columns: [colName], unique: unique));
     }

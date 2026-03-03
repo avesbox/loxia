@@ -28,7 +28,7 @@ class EntityMeta {
   ///     UniqueConstraint(columns: ['user_id', 'movie_id']),
   ///   ],
   /// )
-  /// ``` 
+  /// ```
   final List<UniqueConstraint> uniqueConstraints;
 
   /// Composite indexes for this entity.
