@@ -147,11 +147,13 @@ class EntityGenerationContext {
     List<GenTimestampField>? updatedAtFields,
     List<GenTimestampField>? deletedAtFields,
     List<GenUniqueConstraint>? uniqueConstraints,
+    List<GenIndex>? indexes,
   }) : hooks = hooks ?? const {},
        createdAtFields = createdAtFields ?? const [],
        updatedAtFields = updatedAtFields ?? const [],
        deletedAtFields = deletedAtFields ?? const [],
-       uniqueConstraints = uniqueConstraints ?? const [];
+       uniqueConstraints = uniqueConstraints ?? const [],
+       indexes = indexes ?? const [];
 
   final String className;
   final String tableName;
@@ -164,6 +166,7 @@ class EntityGenerationContext {
   final List<GenTimestampField> updatedAtFields;
   final List<GenTimestampField> deletedAtFields;
   final List<GenUniqueConstraint> uniqueConstraints;
+  final List<GenIndex> indexes;
   final bool omitNullJsonFields;
 
   /// Entity class name.
@@ -321,4 +324,21 @@ class GenUniqueConstraint {
 
   /// Optional constraint name.
   final String? name;
+}
+
+/// Represents an index for code generation.
+///
+/// Indexes can originate from column-level [IndexColumn] annotations
+/// or from composite [Index] entries on [EntityMeta].
+class GenIndex {
+  GenIndex({required this.columns, this.name, this.unique = false});
+
+  /// The list of column names that form the index.
+  final List<String> columns;
+
+  /// Optional index name. If not provided, one will be auto-generated.
+  final String? name;
+
+  /// Whether the index enforces uniqueness.
+  final bool unique;
 }

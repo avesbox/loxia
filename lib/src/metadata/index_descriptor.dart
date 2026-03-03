@@ -9,4 +9,12 @@ class IndexDescriptor {
   final String name;
   final List<String> columns;
   final bool unique;
+
+  /// Generates a default index name based on the table name.
+  String generateName(String tableName) {
+    final prefix = unique ? 'uidx' : 'idx';
+    return name.isNotEmpty
+        ? name
+        : '${prefix}_${tableName}_${columns.join('_')}';
+  }
 }

@@ -19,6 +19,8 @@ import '../../loxia.dart'
         UpdatedAt,
         DeletedAt,
         EntityMeta,
+        Index,
+        IndexColumn,
         JoinColumn,
         JoinTable,
         ManyToMany,
@@ -123,6 +125,7 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
     final hooks = _parseHooks(clazz);
     final timestamps = _parseTimestampFields(clazz);
     final uniqueConstraints = _parseUniqueConstraints(annotation);
+    final indexes = _parseIndexes(annotation, clazz);
     final omitNullJsonFields =
         annotation.peek('omitNullJsonFields')?.boolValue ?? true;
 
@@ -137,6 +140,7 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
       createdAtFields: timestamps.createdAt,
       updatedAtFields: timestamps.updatedAt,
       uniqueConstraints: uniqueConstraints,
+      indexes: indexes,
       omitNullJsonFields: omitNullJsonFields,
     );
   }
@@ -161,6 +165,48 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
       constraints.add(GenUniqueConstraint(columns: columns, name: name));
     }
     return constraints;
+  }
+
+  /// Parses indexes from:
+  /// - Composite [Index] entries on [EntityMeta].
+  /// - Column-level [IndexColumn] annotations on fields.
+  List<GenIndex> _parseIndexes(
+    ConstantReader annotation,
+    ClassElement clazz,
+  ) {
+    final indexes = <GenIndex>[];
+
+    // 1. Composite indexes from EntityMeta
+    final indexesReader = annotation.peek('indexes');
+    if (indexesReader != null) {
+      for (final obj in indexesReader.listValue) {
+        final reader = ConstantReader(obj);
+        final columnsReader = reader.peek('columns')?.listValue ?? [];
+        final columns =
+            columnsReader.map((v) => ConstantReader(v).stringValue).toList();
+        final name = reader.peek('name')?.stringValue;
+        final unique = reader.peek('unique')?.boolValue ?? false;
+        if (columns.isEmpty) {
+          throw InvalidGenerationSourceError(
+            'Each Index must have at least one column.',
+          );
+        }
+        indexes.add(GenIndex(columns: columns, name: name, unique: unique));
+      }
+    }
+
+    // 2. Column-level indexes from @IndexColumn on fields
+    for (final field in clazz.fields.where((f) => !f.isStatic)) {
+      final indexAnnObj = _firstAnnotation(field, IndexColumn);
+      if (indexAnnObj == null) continue;
+      final indexAnn = ConstantReader(indexAnnObj);
+      final colName = indexAnn.peek('name')?.stringValue ??
+          _toSnake(field.displayName);
+      final unique = indexAnn.peek('unique')?.boolValue ?? false;
+      indexes.add(GenIndex(columns: [colName], unique: unique));
+    }
+
+    return indexes;
   }
 
   List<GenQuery> _parseQueries(ConstantReader annotation) {

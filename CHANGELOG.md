@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.0
+
+- Added support fo Indexes in entities, allowing you to define indexes on your entity fields for improved query performance. You can specify indexes using the `Index` class in your `EntityMeta`, `@IndexColumn` annotations on your columns, and the migration planner will automatically generate the necessary SQL statements to create the indexes in the database schema during synchronization.
+
 ## 0.0.18
 
 - Fixed a bug on boolean values. If using the save method on an entity with a boolean field and you decide to update that field, the returning value would show the old value instead of the new one. This fix ensures that the save method correctly returns the updated boolean value after saving the entity.

@@ -165,6 +165,32 @@ class UserMovie extends Entity {
 
 In this example, we define a unique constraint on the combination of `user_id` and `movie_id` columns in the `user_movies` table. This ensures that each user can only have one entry for each movie, preventing duplicate records in the database. You can define multiple unique constraints on the same entity if needed, allowing you to enforce complex uniqueness rules across your database tables.
 
+## Indexes
+
+Loxia allows you to define indexes on your entity fields for improved query performance. You can specify indexes using the `Index` class in your `EntityMeta`, `@IndexColumn` annotations on your columns, and the migration planner will automatically generate the necessary SQL statements to create the indexes in the database schema during synchronization. For example:
+
+```dart
+@EntityMeta(
+  table: 'users',
+  indexes: [
+    Index(columns: ['email'], unique: true),
+  ]
+)
+class User extends Entity {
+  @PrimaryKey(autoIncrement: true)
+  final int id;
+
+  @Column()
+  final String email;
+
+  User({required this.id, required this.email});
+}
+```
+
+In this example, we define an index on the `email` column of the `users` table. By setting `unique: true`, we also enforce a unique constraint on the email field, ensuring that no two users can have the same email address. You can define multiple indexes on different columns or combinations of columns to optimize query performance based on your application's needs.
+
+The best practice is to use the `@IndexColumn` annotation when you want to create an index on a single column, while the `Index` class in the `@EntityMeta` annotation is more suitable for defining composite indexes that involve multiple columns. Both approaches allow you to improve query performance by creating indexes on your database tables, so you can choose the one that best fits your use case.
+
 ## Omit Null JSON Fields
 
 Loxia provides an option to omit null fields when serializing entities and partial entities to JSON. This can help produce cleaner and more concise JSON output by excluding fields that have null values. This feauture is enabled by default, but you can disable it by setting the `omitNullJsonFields` option to `false` in your `@EntityMeta` annotation. For example:

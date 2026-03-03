@@ -1,5 +1,6 @@
 import '../metadata/entity_descriptor.dart';
 import '../metadata/column_descriptor.dart';
+import '../metadata/index_descriptor.dart';
 import '../metadata/relation_descriptor.dart';
 import '../metadata/unique_constraint_descriptor.dart';
 import '../annotations/column.dart';
@@ -160,6 +161,13 @@ class MigrationPlanner {
       }
     }
 
+    // Process indexes after all tables are created.
+    for (final entity in entities) {
+      for (final index in entity.indexes) {
+        stmts.add(_indexDDL(entity.tableName, index));
+      }
+    }
+
     return MigrationPlan(stmts);
   }
 
@@ -170,6 +178,13 @@ class MigrationPlanner {
     final constraintName = constraint.generateName(tableName);
     final columns = constraint.columns.map((c) => '"$c"').join(', ');
     return 'CREATE UNIQUE INDEX IF NOT EXISTS "$constraintName" ON $tableName ($columns)';
+  }
+
+  String _indexDDL(String tableName, IndexDescriptor index) {
+    final indexName = index.generateName(tableName);
+    final columns = index.columns.map((c) => '"$c"').join(', ');
+    final unique = index.unique ? 'UNIQUE ' : '';
+    return 'CREATE ${unique}INDEX IF NOT EXISTS "$indexName" ON $tableName ($columns)';
   }
 
   String _columnDDL(ColumnDescriptor c) {

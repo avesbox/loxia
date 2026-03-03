@@ -55,6 +55,8 @@ class EntityDescriptorBuilder {
       if (context.schema != null) 'schema': literalString(context.schema!),
       'columns': _columnBuilder.buildList(context.columns),
       'relations': _relationBuilder.buildConstList(context.relations),
+      if (context.indexes.isNotEmpty)
+        'indexes': _buildIndexesList(context.indexes),
       if (context.uniqueConstraints.isNotEmpty)
         'uniqueConstraints': _buildUniqueConstraintsList(
           context.uniqueConstraints,
@@ -94,6 +96,22 @@ class EntityDescriptorBuilder {
                 c.columns.map(literalString).toList(),
               ),
               if (c.name != null) 'name': literalString(c.name!),
+            }),
+          )
+          .toList(),
+    );
+  }
+
+  Expression _buildIndexesList(List<GenIndex> indexes) {
+    return literalConstList(
+      indexes
+          .map(
+            (i) => refer('IndexDescriptor').newInstance([], {
+              'name': literalString(i.name ?? ''),
+              'columns': literalConstList(
+                i.columns.map(literalString).toList(),
+              ),
+              if (i.unique) 'unique': literalTrue,
             }),
           )
           .toList(),

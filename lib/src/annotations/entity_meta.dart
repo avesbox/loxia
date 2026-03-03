@@ -1,3 +1,4 @@
+import 'package:loxia/src/annotations/index.dart';
 import 'package:loxia/src/annotations/lifecycle.dart';
 import 'package:loxia/src/annotations/unique_constraint.dart';
 
@@ -27,8 +28,24 @@ class EntityMeta {
   ///     UniqueConstraint(columns: ['user_id', 'movie_id']),
   ///   ],
   /// )
-  /// ```
+  /// ``` 
   final List<UniqueConstraint> uniqueConstraints;
+
+  /// Composite indexes for this entity.
+  ///
+  /// Use this to define indexes spanning multiple columns.
+  ///
+  /// Example:
+  /// ```dart
+  /// @EntityMeta(
+  ///   table: 'orders',
+  ///   indexes: [
+  ///     Index(columns: ['customer_id', 'created_at']),
+  ///     Index(columns: ['status'], unique: true),
+  ///   ],
+  /// )
+  /// ```
+  final List<Index> indexes;
 
   const EntityMeta({
     this.table,
@@ -36,6 +53,7 @@ class EntityMeta {
     this.omitNullJsonFields = true,
     this.queries = const [],
     this.uniqueConstraints = const [],
+    this.indexes = const [],
   });
 }
 
