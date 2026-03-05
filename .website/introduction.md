@@ -1,6 +1,6 @@
 # Introduction
 
-Loxia is a modern, fast and lightweight Object-Relational Mapping (ORM) library for Dart, designed to simplify database interactions and management of data models. It supports SQLite and PostgreSQL databases, providing a seamless experience for developers working with relational data in their Dart applications.
+Loxia is a modern, fast and lightweight Object-Relational Mapping (ORM) library for Dart, designed to simplify database interactions and management of data models. It supports SQLite, PostgreSQL and MySQL databases, providing a seamless experience for developers working with relational data in their Dart applications.
 
 ## Motivation
 

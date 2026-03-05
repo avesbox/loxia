@@ -5,7 +5,7 @@ import llmstxt from 'vitepress-plugin-llms'
 
 // https://vitepress.dev/reference/site-config
 
-const description = "Loxia is a lightweight ORM for Dart, designed to provide a simple and efficient way to interact with databases. It supports SQLite and PostgreSQL, offering type-safe queries and an elegant API for developers."
+const description = "Loxia is a lightweight ORM for Dart, designed to provide a simple and efficient way to interact with databases. It supports SQLite, PostgreSQL and MySQL, offering type-safe queries and an elegant API for developers."
 export default defineConfig({
   title: "Loxia",
   titleTemplate: ':title - Loxia | The Lightweight Dart ORM',
@@ -15,8 +15,16 @@ export default defineConfig({
         'link',
         {
             rel: 'icon',
-            href: '/loxia-logo.png'
+        type: 'image/x-icon',
+        href: '/ico/loxia-logo.ico'
         }
+    ],
+    [
+      'link',
+      {
+        rel: 'shortcut icon',
+        href: '/ico/loxia-logo.ico'
+      }
     ],
     [
         'meta',

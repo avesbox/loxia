@@ -64,7 +64,7 @@ import CliSequence from './cli_sequence.vue';
                         :transition="{ duration: 0.5, delay: 0.3 }"
                         :inViewOptions="{ once: true }"
                     >
-                        The ORM that brings simplicity and efficiency to Dart developers, supporting SQLite and PostgreSQL databases with ease.
+                        The ORM that brings simplicity and efficiency to Dart developers, supporting SQLite, PostgreSQL and MySQL databases with ease.
                     </motion.div>
                     <motion.div 
                         class="flex md:flex-row flex-col flex-wrap gap-4 mb-12"

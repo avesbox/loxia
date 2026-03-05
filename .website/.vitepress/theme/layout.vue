@@ -28,7 +28,7 @@ import OpenIn from '../../components/open-in.vue';
                                 <span class="text-xl font-display font-bold text-foreground">Loxia</span>
                             </a>
                             <p class="text-muted-foreground mb-6! leading-relaxed">
-                                The ORM that brings simplicity and efficiency to Dart developers, supporting SQLite and PostgreSQL databases with ease.
+                                The ORM that brings simplicity and efficiency to Dart developers, supporting SQLite, PostgreSQL and MySQL databases with ease.
                             </p>
                             <div class="flex items-center gap-2">
                                 <a
