@@ -324,7 +324,7 @@ class SqlAnalyzer {
     String? originalColumnName;
 
     if (alias != null) {
-      columnName = alias;
+      columnName = alias.name;
       if (expression is Reference) {
         originalColumnName = expression.columnName;
       }
