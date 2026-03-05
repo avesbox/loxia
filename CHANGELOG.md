@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.0
+
+- Added support for MySQL databases, allowing you to use Loxia with MySQL in addition to SQLite and PostgreSQL. This includes a new MySqlEngine implementation and the necessary adjustments to the migration planner and generated code to ensure compatibility with MySQL databases.
+
 ## 0.1.0
 
 - Added support fo Indexes in entities, allowing you to define indexes on your entity fields for improved query performance. You can specify indexes using the `Index` class in your `EntityMeta`, `@IndexColumn` annotations on your columns, and the migration planner will automatically generate the necessary SQL statements to create the indexes in the database schema during synchronization.

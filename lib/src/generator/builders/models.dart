@@ -6,8 +6,6 @@ library;
 
 import 'package:loxia/loxia.dart';
 
-import '../../annotations/column.dart' show ColumnType;
-
 /// Represents a parsed column from an entity class.
 class GenColumn {
   GenColumn({
