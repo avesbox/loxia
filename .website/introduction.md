@@ -14,7 +14,7 @@ To get started with Loxia, add it to your `pubspec.yaml` file:
 
 ```yaml
 dependencies:
-  loxia: ^0.0.1
+  loxia: ^0.2.0
 ```
 
 Then, run `dart pub get` to install the package.

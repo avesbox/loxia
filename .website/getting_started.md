@@ -4,7 +4,7 @@ To get started with Loxia, add it to your `pubspec.yaml` file:
 
 ```yaml
 dependencies:
-  loxia: ^0.0.1
+  loxia: ^0.2.0
 ```
 
 Then, run `dart pub get` to install the package.
@@ -22,7 +22,7 @@ For SQLite, add the following dependency to your `pubspec.yaml` file:
 
 ```yaml
 dependencies:
-  loxia: ^0.0.1
+  loxia: ^0.2.0
   sqlite3: ^3.1.4
 ```
 
@@ -30,8 +30,16 @@ For PostgreSQL, add the following dependency to your `pubspec.yaml` file:
 
 ```yaml
 dependencies:
-  loxia: ^0.0.1
+  loxia: ^0.2.0
   postgres: ^3.5.9
+```
+
+For MySQL, add the following dependency to your `pubspec.yaml` file:
+
+```yaml
+dependencies:
+  loxia: ^0.2.0
+  mysql_client: ^0.0.27
 ```
 
 ## Create your Database Connection

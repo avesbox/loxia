@@ -38,7 +38,7 @@ import CliSequence from './cli_sequence.vue';
                         :transition="{ duration: 0.6, delay: 0.1 }"
                         :inViewOptions="{ once: true }"
                     >
-                        v0.1.0
+                        v0.2.0
                     </motion.div>
                     
                     <motion.div
