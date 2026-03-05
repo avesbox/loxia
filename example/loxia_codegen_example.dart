@@ -339,6 +339,43 @@ Future<void> main() async {
   await ds.init();
   final users = ds.getRepository<User>();
   final Stopwatch stopwatch = Stopwatch()..start();
+  ds.transaction((trx) async {
+    final userRepo = trx.getRepository<User>(); 
+  });
+  final (:stock, :product) = await datasource.transaction<({Stock? stock, Product? product})>(
+      (tx) async {
+        final products = tx.getRepository<Product>();
+        final stocks = tx.getRepository<Stock>();
+
+        final product = await products.save(
+          ProductPartial(
+            name: name,
+            description: description,
+            basePrice: basePrice,
+            sellingPrice: sellingPrice,
+            storeId: storeId,
+            categoryId: categoryId,
+            counterId: counterId,
+            imageUrl: imageUrl,
+            sku: sku,
+            isActive: true,
+          ),
+        );
+
+        final stock = await stocks.save(
+          StockPartial(
+            productId: product?.id,
+            storeId: storeId,
+            quantity: 0,
+            lowStockThreshold: 5,
+          ),
+        );
+        return (
+          stock: stock,
+          product: product,
+        );
+      },
+    );
   await users.save(
     UserPartial(
       email: 'example@example.com',
@@ -359,6 +396,12 @@ Future<void> main() async {
     UserUpdateDto(email: 'new@example.com'),
     where: UserQuery((q) => q.id.equals(1)),
   );
+  users.transaction((trx) async {
+    await trx.update(
+      UserUpdateDto(email: 'updated@example.com'),
+      where: UserQuery((q) => q.id.equals(1)),
+    );
+  });
   await users.findByEmail('new@example.com');
   final user = await users.findOne(
     where: UserQuery((q) => q.email.equals('new@example.com')),

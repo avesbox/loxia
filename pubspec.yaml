@@ -10,6 +10,7 @@ topics:
   - orm
   - sqlite
   - postgres
+  - mysql
   - database
 
 environment:
@@ -29,6 +30,7 @@ dependencies:
   build: ^4.0.2
   glob: ^2.1.2
   uuid: ^4.5.3
+  mysql_client: ^0.0.27
 
 dev_dependencies:
   lints: ^6.1.0
