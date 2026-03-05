@@ -19,7 +19,10 @@ final _pkAutoIncExp = RegExp(
 );
 final _autoIncExp = RegExp(r'\bAUTO_?INCREMENT\b', caseSensitive: false);
 final _uuidExp = RegExp(r'\bUUID\b', caseSensitive: false);
-final _onConflictDoNothingExp = RegExp(r'\s+ON\s+CONFLICT\s+DO\s+NOTHING\s*;?\s*$', caseSensitive: false);
+final _onConflictDoNothingExp = RegExp(
+  r'\s+ON\s+CONFLICT\s+DO\s+NOTHING\s*;?\s*$',
+  caseSensitive: false,
+);
 final _insertIntoExp = RegExp(r'^\s*INSERT\s+INTO\b', caseSensitive: false);
 
 final class MySqlDataSourceOptions extends DataSourceOptions {
@@ -96,11 +99,7 @@ final class MySqlDataSourceOptions extends DataSourceOptions {
 }
 
 class MySqlEngine implements EngineAdapter {
-  MySqlEngine._(
-    this._withConnection,
-    this._withTransaction,
-    this._close,
-  );
+  MySqlEngine._(this._withConnection, this._withTransaction, this._close);
 
   final Future<T> Function<T>(Future<T> Function(MySQLConnection conn) action)
   _withConnection;
@@ -202,19 +201,15 @@ class MySqlEngine implements EngineAdapter {
       );
     }
 
-    return MySqlEngine._(
-      withConfiguredConnection,
-      <T>(action) async {
-        return pool.transactional<T>((tx) async {
-          if (configured[tx] != true) {
-            await tx.execute(_ansiQuotesSql);
-            configured[tx] = true;
-          }
-          return action(tx);
-        });
-      },
-      pool.close,
-    );
+    return MySqlEngine._(withConfiguredConnection, <T>(action) async {
+      return pool.transactional<T>((tx) async {
+        if (configured[tx] != true) {
+          await tx.execute(_ansiQuotesSql);
+          configured[tx] = true;
+        }
+        return action(tx);
+      });
+    }, pool.close);
   }
 
   @override
@@ -267,9 +262,7 @@ class MySqlEngine implements EngineAdapter {
   }
 
   @override
-  Future<T> transaction<T>(
-    Future<T> Function(EngineAdapter txEngine) action,
-  ) {
+  Future<T> transaction<T>(Future<T> Function(EngineAdapter txEngine) action) {
     return _withTransaction((txConn) async {
       final txEngine = _MySqlSessionEngine(txConn);
       return action(txEngine);
@@ -367,14 +360,16 @@ class MySqlEngine implements EngineAdapter {
 
       final onDeleteCascade =
           (values['DELETE_RULE'] ?? '').toUpperCase() == 'CASCADE';
-      foreignKeys.putIfAbsent(tableName, () => []).add(
-        SchemaForeignKey(
-          sourceColumn: sourceColumn,
-          targetTable: targetTable,
-          targetColumn: targetColumn,
-          onDeleteCascade: onDeleteCascade,
-        ),
-      );
+      foreignKeys
+          .putIfAbsent(tableName, () => [])
+          .add(
+            SchemaForeignKey(
+              sourceColumn: sourceColumn,
+              targetTable: targetTable,
+              targetColumn: targetColumn,
+              onDeleteCascade: onDeleteCascade,
+            ),
+          );
     }
 
     for (final entry in tableColumns.entries) {
@@ -511,7 +506,8 @@ class _MySqlSessionEngine implements EngineAdapter {
   }
 
   @override
-  Future<SchemaState> readSchema() => MySqlEngine._readSchemaWithConnection(_conn);
+  Future<SchemaState> readSchema() =>
+      MySqlEngine._readSchemaWithConnection(_conn);
 
   @override
   Future<T> transaction<T>(Future<T> Function(EngineAdapter txEngine) action) {

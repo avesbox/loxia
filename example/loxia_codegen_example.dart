@@ -340,10 +340,10 @@ Future<void> main() async {
   final users = ds.getRepository<User>();
   final Stopwatch stopwatch = Stopwatch()..start();
   ds.transaction((trx) async {
-    final userRepo = trx.getRepository<User>(); 
+    final userRepo = trx.getRepository<User>();
   });
-  final (:stock, :product) = await datasource.transaction<({Stock? stock, Product? product})>(
-      (tx) async {
+  final (:stock, :product) = await datasource
+      .transaction<({Stock? stock, Product? product})>((tx) async {
         final products = tx.getRepository<Product>();
         final stocks = tx.getRepository<Stock>();
 
@@ -370,12 +370,8 @@ Future<void> main() async {
             lowStockThreshold: 5,
           ),
         );
-        return (
-          stock: stock,
-          product: product,
-        );
-      },
-    );
+        return (stock: stock, product: product);
+      });
   await users.save(
     UserPartial(
       email: 'example@example.com',
