@@ -229,15 +229,12 @@ class InsertDtoBuilder {
 
     for (final relation in context.owningJoinColumns) {
       final joinType = relation.joinColumnBaseDartType!;
-      final typeWithNull = relation.joinColumnNullable
-          ? '$joinType?'
-          : joinType;
       params.add(
         Parameter(
           (p) => p
             ..name = relation.joinColumnPropertyName!
             ..named = true
-            ..type = refer(typeWithNull),
+            ..type = refer('$joinType?'), // Always nullable for copyWith
         ),
       );
     }
