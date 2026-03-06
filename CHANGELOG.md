@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.1
+
+- fix(#4): Generated copyWith() has invalid Dart code for non-nullable FK fields. [#5](https://github.com/avesbox/loxia/pull/5) by [@iamtoricool](https://github.com/iamtoricool)
+
 ## 0.2.0
 
 - Added support for MySQL databases, allowing you to use Loxia with MySQL in addition to SQLite and PostgreSQL. This includes a new MySqlEngine implementation and the necessary adjustments to the migration planner and generated code to ensure compatibility with MySQL databases.

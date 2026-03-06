@@ -14,9 +14,9 @@ export default defineConfig({
     [
         'link',
         {
-            rel: 'icon',
-        type: 'image/x-icon',
-        href: '/ico/loxia-logo.ico'
+          rel: 'icon',
+          type: 'image/x-icon',
+          href: '/ico/loxia-logo.ico'
         }
     ],
     [
