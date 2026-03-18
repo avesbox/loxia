@@ -1,6 +1,6 @@
 /// Represents an index defined on a table.
 class IndexDescriptor {
-  IndexDescriptor({
+  const IndexDescriptor({
     required this.name,
     required this.columns,
     this.unique = false,

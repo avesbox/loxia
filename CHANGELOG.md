@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.2
+
+- fix: make IndexDescriptor const constructor
+
 ## 0.2.1
 
 - fix(#4): Generated copyWith() has invalid Dart code for non-nullable FK fields. [#5](https://github.com/avesbox/loxia/pull/5) by [@iamtoricool](https://github.com/iamtoricool)
