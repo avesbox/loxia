@@ -16,12 +16,9 @@ Loxia is a lightweight and flexible Object-Relational Mapping (ORM) library for 
 
 To get started with Loxia, add it to your `pubspec.yaml` file:
 
-```yaml
-dependencies:
-  loxia: ^0.0.1
+```bash
+dart pub add loxia
 ```
-
-Then, run `dart pub get` to install the package.
 
 Import Loxia in your Dart code:
 

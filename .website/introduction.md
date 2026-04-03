@@ -10,14 +10,11 @@ Together with the other packages of [Avesbox](https://avesbox.com), Loxia aims t
 
 ## Installation
 
-To get started with Loxia, add it to your `pubspec.yaml` file:
+To get started with Loxia, install it from pub.dev:
 
-```yaml
-dependencies:
-  loxia: ^0.2.0
+```bash
+dart pub add loxia
 ```
-
-Then, run `dart pub get` to install the package.
 
 Import Loxia in your Dart code:
 
