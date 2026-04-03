@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.3
+
+- feat: add support for Postgres Connection through connection string, allowing users to specify their database connection using a single connection string instead of individual parameters. This provides a more convenient and flexible way to configure the database connection, especially for environments where connection strings are commonly used, such as cloud platforms or containerized applications. The connection string can include all necessary information such as host, port, database name, username, and password in a standardized format.
+
 ## 0.2.2
 
 - fix: make IndexDescriptor const constructor

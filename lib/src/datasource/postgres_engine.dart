@@ -64,6 +64,22 @@ final class PostgresDataSourceOptions extends DataSourceOptions {
       synchronize: synchronize,
     );
   }
+
+  factory PostgresDataSourceOptions.fromUrl({
+    required String url,
+    required List<EntityDescriptor> entities,
+    bool synchronize = true,
+    List<Migration> migrations = const [],
+  }) {
+    final connection = Connection.openFromUrl(url);
+    final engine = PostgresEngine.fromConnectionUrl(connection);
+    return PostgresDataSourceOptions._(
+      engine: engine,
+      entities: entities,
+      migrations: migrations,
+      synchronize: synchronize,
+    );
+  }
 }
 
 class PostgresEngine implements EngineAdapter {
@@ -109,6 +125,10 @@ class PostgresEngine implements EngineAdapter {
 
   static PostgresEngine fromConnection(Connection connection) =>
       PostgresEngine._(() async => connection);
+
+  static PostgresEngine fromConnectionUrl(
+    Future<Connection> connectionFuture,
+  ) => PostgresEngine._(() async => connectionFuture);
 
   static Future<SchemaState> _readSchemaWithSession(Session db) async {
     final tables = <String, SchemaTable>{};

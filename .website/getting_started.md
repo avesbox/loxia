@@ -44,9 +44,11 @@ dependencies:
 
 ## Create your Database Connection
 
-To create a database connection, you need to instantiate the appropriate database driver and pass it to the `Loxia` instance. We will use SQLite in this example:
+To create a database connection, you need to instantiate the appropriate database driver and pass it to the `Loxia` instance. You can choose between SQLite, PostgreSQL and MySQL drivers based on your database choice:
 
-```dart
+::: code-group
+
+```dart [SQLite]
 import 'package:loxia/loxia.dart';
 
 void main() async {
@@ -61,7 +63,76 @@ void main() async {
 }
 ```
 
-As you can see, we create a `DataSource` instance by passing an instance of `SqliteDataSourceOptions` with the path to the database file and an empty list of entities for now.
+```dart [In Memory]
+import 'package:loxia/loxia.dart';
+
+void main() async {
+  final ds = DataSource(
+    InMemoryDataSourceOptions(
+      entities: [],
+    ),
+  );
+  await ds.init();
+  // Your code here
+}
+```
+
+```dart [Postgres]
+import 'package:loxia/loxia.dart';
+
+void main() async {
+  final ds = DataSource(
+    PostgresDataSourceOptions.connect(
+      host: 'localhost',
+      port: 5432,
+      database: 'postgres',
+      username: 'postgres',
+      password: 'test123',
+      entities: [],
+    ),
+  );
+  await ds.init();
+  // Your code here
+}
+```
+
+```dart [Postgres Connection URL]
+import 'package:loxia/loxia.dart';
+
+void main() async {
+  final ds = DataSource(
+    PostgresDataSourceOptions.fromUrl(
+      url: 'postgresql://postgres:test123@localhost/postgres',
+      entities: [],
+    ),
+  );
+  await ds.init();
+  // Your code here
+}
+```
+
+```dart [MySQL]
+import 'package:loxia/loxia.dart';
+
+void main() async {
+  final ds = DataSource(
+    MySqlDataSourceOptions.connect(
+      host: 'localhost',
+      port: 3306,
+      database: 'test',
+      username: 'root',
+      password: 'test123',
+      entities: [],
+    ),
+  );
+  await ds.init();
+  // Your code here
+}
+```
+
+:::
+
+As you can see, we create a `DataSource` instance by passing an instance of `DataSourceOptions` with the appropriate configuration and an empty list of entities for now.
 
 You can now use the `ds` instance to interact with the database using Loxia's features.
 

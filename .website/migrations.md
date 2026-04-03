@@ -29,20 +29,26 @@ When your application calls `dataSource.init()`:
 For simple use cases, Loxia can automatically synchronize your database schema without explicit migrations. Just define your entities and call `init()`:
 
 ```dart
-final dataSource = DataSource(
-  AppDataSourceOptions(
-    engine: PostgresAdapter(connectionString),
-    entities: [
-      $UserDescriptor,
-      $PostDescriptor,
-    ],
-  ),
-);
+import 'package:loxia/loxia.dart';
+
+void main() async {
+  final ds = DataSource(
+    InMemoryDataSourceOptions(
+      entities: [
+        User.entity,
+        Post.entity,
+      ],
+    ),
+  );
+  await ds.init();
+  // Your code here
+}
 
 await dataSource.init();  // Schema is automatically synchronized
 ```
 
 Loxia detects:
+
 - New tables (from new entities)
 - New columns (from new fields)
 - Column type changes
@@ -82,17 +88,24 @@ class CreateUsersTable extends Migration {
 Register migrations in your data source options:
 
 ```dart
-final dataSource = DataSource(
-  AppDataSourceOptions(
-    engine: PostgresAdapter(connectionString),
-    entities: [$UserDescriptor, $PostDescriptor],
-    migrations: [
-      CreateUsersTable(),
-      AddUserProfileFields(),
-      CreatePostsTable(),
-    ],
-  ),
-);
+import 'package:loxia/loxia.dart';
+
+void main() async {
+  final ds = DataSource(
+    InMemoryDataSourceOptions(
+      entities: [
+        User.entity,
+        Post.entity,
+      ],
+      migrations: [
+        CreateUsersTable(),
+        // Add more migrations here
+      ],
+    ),
+  );
+  await ds.init();
+  // Your code here
+}
 ```
 
 ### Migration Versioning
