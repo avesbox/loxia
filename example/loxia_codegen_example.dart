@@ -322,59 +322,54 @@ class UniqueConstraintMigration extends Migration {
 
 Future<void> main() async {
   final ds = DataSource(
-    // InMemoryDataSourceOptions(
-    //   entities: [User.entity, Post.entity, Tag.entity],
-    //   migrations: [],
-    // ),
-    PostgresDataSourceOptions.connect(
-      host: 'localhost',
-      port: 5432,
-      database: 'loxia',
-      username: 'loxia',
-      password: 'test1234',
+    InMemoryDataSourceOptions(
       entities: [User.entity, Post.entity, Tag.entity],
-      settings: ConnectionSettings(sslMode: SslMode.disable),
+      migrations: [],
     ),
+    // PostgresDataSourceOptions.connect(
+    //   host: 'localhost',
+    //   port: 5432,
+    //   database: 'loxia',
+    //   username: 'loxia',
+    //   password: 'test1234',
+    //   entities: [User.entity, Post.entity, Tag.entity],
+    //   settings: ConnectionSettings(sslMode: SslMode.disable),
+    // ),
   );
   await ds.init();
   final users = ds.getRepository<User>();
   final Stopwatch stopwatch = Stopwatch()..start();
-  ds.transaction((trx) async {
-    final userRepo = trx.getRepository<User>();
-  });
-  final (:stock, :product) = await datasource
-      .transaction<({Stock? stock, Product? product})>((tx) async {
-        final products = tx.getRepository<Product>();
-        final stocks = tx.getRepository<Stock>();
-
-        final product = await products.save(
-          ProductPartial(
-            name: name,
-            description: description,
-            basePrice: basePrice,
-            sellingPrice: sellingPrice,
-            storeId: storeId,
-            categoryId: categoryId,
-            counterId: counterId,
-            imageUrl: imageUrl,
-            sku: sku,
-            isActive: true,
-          ),
-        );
-
-        final stock = await stocks.save(
-          StockPartial(
-            productId: product?.id,
-            storeId: storeId,
-            quantity: 0,
-            lowStockThreshold: 5,
-          ),
-        );
-        return (stock: stock, product: product);
-      });
   await users.save(
     UserPartial(
       email: 'example@example.com',
+      role: Role.guest,
+      tags: ['new', 'test'],
+      posts: [
+        PostPartial(
+          title: 'My First Post',
+          content: 'This is the content of my first post',
+          likes: 0,
+        ),
+      ],
+    ),
+  );
+  await users.save(
+    UserPartial(
+      email: 'example1@example.com',
+      role: Role.guest,
+      tags: ['new', 'test'],
+      posts: [
+        PostPartial(
+          title: 'My First Post',
+          content: 'This is the content of my first post',
+          likes: 0,
+        ),
+      ],
+    ),
+  );
+  await users.save(
+    UserPartial(
+      email: 'example2@example.com',
       role: Role.guest,
       tags: ['new', 'test'],
       posts: [
@@ -392,12 +387,12 @@ Future<void> main() async {
     UserUpdateDto(email: 'new@example.com'),
     where: UserQuery((q) => q.id.equals(1)),
   );
-  users.transaction((trx) async {
-    await trx.update(
-      UserUpdateDto(email: 'updated@example.com'),
-      where: UserQuery((q) => q.id.equals(1)),
-    );
-  });
+  // users.transaction((trx) async {
+  //   await trx.update(
+  //     UserUpdateDto(email: 'updated@example.com'),
+  //     where: UserQuery((q) => q.id.equals(1)),
+  //   );
+  // });
   await users.findByEmail('new@example.com');
   final user = await users.findOne(
     where: UserQuery((q) => q.email.equals('new@example.com')),

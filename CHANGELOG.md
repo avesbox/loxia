@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.4
+
+- fix: divide execution of find and count queries in paginate method to avoid issues with single connection databases like SQLite where executing multiple queries in the same transaction can cause problems. This change ensures that the find and count queries are executed separately, allowing for proper pagination functionality even in databases that don't support multiple queries in a single transaction.
+
 ## 0.2.3
 
 - feat: add support for Postgres Connection through connection string, allowing users to specify their database connection using a single connection string instead of individual parameters. This provides a more convenient and flexible way to configure the database connection, especially for environments where connection strings are commonly used, such as cloud platforms or containerized applications. The connection string can include all necessary information such as host, port, database name, username, and password in a standardized format.

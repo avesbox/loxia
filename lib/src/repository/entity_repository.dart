@@ -231,19 +231,21 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
         ? _defaultOrderBy()
         : orderBy;
     final offset = (page - 1) * pageSize;
-    final results = await Future.wait<dynamic>([
-      count(select: select, where: where, includeDeleted: includeDeleted),
-      find(
-        select: select,
-        where: where,
-        orderBy: resolvedOrderBy,
-        limit: pageSize,
-        offset: offset,
-        includeDeleted: includeDeleted,
-      ),
-    ]);
-    final total = results[0] as int;
-    final items = results[1] as List<P>;
+    // Run sequentially to avoid concurrent-use issues on engines that expose
+    // a single underlying connection/session.
+    final total = await count(
+      select: select,
+      where: where,
+      includeDeleted: includeDeleted,
+    );
+    final items = await find(
+      select: select,
+      where: where,
+      orderBy: resolvedOrderBy,
+      limit: pageSize,
+      offset: offset,
+      includeDeleted: includeDeleted,
+    );
     final pageCount = total == 0 ? 0 : ((total + pageSize - 1) ~/ pageSize);
     return PaginatedResult<P>(
       items: items,
