@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.5
+
+- fix: add missing check for non-library part in generator.
+
 ## 0.2.4
 
 - fix: divide execution of find and count queries in paginate method to avoid issues with single connection databases like SQLite where executing multiple queries in the same transaction can cause problems. This change ensures that the find and count queries are executed separately, allowing for proper pagination functionality even in databases that don't support multiple queries in a single transaction.

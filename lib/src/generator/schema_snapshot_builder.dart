@@ -101,6 +101,11 @@ class SchemaSnapshotBuilder implements Builder {
         continue;
       }
 
+      if (!await buildStep.resolver.isLibrary(asset)) {
+        // Skip `part` files and any other non-library Dart assets.
+        continue;
+      }
+
       final lib = await buildStep.resolver.libraryFor(
         asset,
         allowSyntaxErrors: true,
