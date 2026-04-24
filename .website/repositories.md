@@ -173,9 +173,9 @@ final paginatedResult = await userRepository.paginate(
 Loxia supports transactions, allowing you to execute multiple database operations as a single unit of work. You can use the `transaction` method on the repository to perform operations within a transaction.
 
 ```dart
-await userRepository.transaction(() async {
-  await userRepository.insert(UserInsertDto(email: 'example@example.com'));
-  await userRepository.update(
+await userRepository.transaction((tx) async {
+  await tx.insert(UserInsertDto(email: 'example@example.com'));
+  await tx.update(
     UserUpdateDto(email: 'new@example.com'), 
     where: UserQuery((q) => q.id.equals(1))
   );
@@ -184,3 +184,16 @@ await userRepository.transaction(() async {
 
 This ensures that either all operations within the transaction succeed, or if any operation fails, all changes are rolled back to maintain data integrity.
 
+If you want you can also perform the transaction at the data source level, which allows you to execute operations across multiple repositories within the same transaction:
+
+```dart
+await ds.transaction((txDs) async {
+  final userRepo = txDs.getRepository<User>();
+  final orderRepo = txDs.getRepository<Order>();
+
+  await userRepo.insert(UserInsertDto(email: 'example@example.com'));
+  await orderRepo.insert(OrderInsertDto(userId: 1, total: 100));
+});
+```
+
+This way, you can ensure that operations across different entities are executed atomically, providing better consistency and reliability in your application.
