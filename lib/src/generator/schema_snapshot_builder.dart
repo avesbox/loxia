@@ -266,6 +266,7 @@ class SchemaSnapshotBuilder implements Builder {
       case ColumnType.integer:
         return 'int';
       case ColumnType.text:
+        return 'text';
       case ColumnType.character:
       case ColumnType.varChar:
         return 'varchar';

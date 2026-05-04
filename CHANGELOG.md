@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.6
+
+- fix: schema json shows text instead of varchar for ColumnType.text.
+
 ## 0.2.5
 
 - fix: add missing check for non-library part in generator.
