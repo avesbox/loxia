@@ -324,7 +324,7 @@ class TodoWithNonNullableOwnerPartial
     return {
       if (id != null) 'id': id,
       if (title != null) 'title': title,
-      if (owner != null) 'owner': owner?.toJson(),
+      if (owner != null) 'owner': owner!.toJson(),
       if (ownerId != null) 'ownerId': ownerId,
     };
   }
@@ -336,6 +336,13 @@ class TodoWithNonNullableOwnerInsertDto
     required this.title,
     required this.ownerId,
   });
+
+  factory TodoWithNonNullableOwnerInsertDto.fromMap(Map<String, dynamic> map) {
+    return TodoWithNonNullableOwnerInsertDto(
+      title: map['title'] as String,
+      ownerId: map['owner_id'] as int,
+    );
+  }
 
   final String title;
 
@@ -361,6 +368,13 @@ class TodoWithNonNullableOwnerInsertDto
 class TodoWithNonNullableOwnerUpdateDto
     implements UpdateDto<TodoWithNonNullableOwner> {
   const TodoWithNonNullableOwnerUpdateDto({this.title, this.ownerId});
+
+  factory TodoWithNonNullableOwnerUpdateDto.fromMap(Map<String, dynamic> map) {
+    return TodoWithNonNullableOwnerUpdateDto(
+      title: map['title'] == null ? null : map['title'] as String,
+      ownerId: map['owner_id'] == null ? null : map['owner_id'] as int,
+    );
+  }
 
   final String? title;
 
@@ -398,7 +412,7 @@ extension TodoWithNonNullableOwnerJson on TodoWithNonNullableOwner {
     return {
       if (id != null) 'id': id,
       'title': title,
-      if (owner != null) 'owner': owner?.toJson(),
+      if (owner != null) 'owner': owner!.toJson(),
     };
   }
 }
@@ -754,7 +768,7 @@ class CommentWithNullablePostPartial
     return {
       if (id != null) 'id': id,
       if (content != null) 'content': content,
-      if (post != null) 'post': post?.toJson(),
+      if (post != null) 'post': post!.toJson(),
       if (postId != null) 'postId': postId,
     };
   }
@@ -763,6 +777,13 @@ class CommentWithNullablePostPartial
 class CommentWithNullablePostInsertDto
     implements InsertDto<CommentWithNullablePost> {
   const CommentWithNullablePostInsertDto({required this.content, this.postId});
+
+  factory CommentWithNullablePostInsertDto.fromMap(Map<String, dynamic> map) {
+    return CommentWithNullablePostInsertDto(
+      content: map['content'] as String,
+      postId: map['post_id'] == null ? null : map['post_id'] as int,
+    );
+  }
 
   final String content;
 
@@ -788,6 +809,13 @@ class CommentWithNullablePostInsertDto
 class CommentWithNullablePostUpdateDto
     implements UpdateDto<CommentWithNullablePost> {
   const CommentWithNullablePostUpdateDto({this.content, this.postId});
+
+  factory CommentWithNullablePostUpdateDto.fromMap(Map<String, dynamic> map) {
+    return CommentWithNullablePostUpdateDto(
+      content: map['content'] == null ? null : map['content'] as String,
+      postId: map['post_id'] == null ? null : map['post_id'] as int,
+    );
+  }
 
   final String? content;
 
@@ -825,7 +853,7 @@ extension CommentWithNullablePostJson on CommentWithNullablePost {
     return {
       if (id != null) 'id': id,
       'content': content,
-      if (post != null) 'post': post?.toJson(),
+      if (post != null) 'post': post!.toJson(),
     };
   }
 }
@@ -1070,6 +1098,10 @@ class UserPartial extends PartialEntity<User> {
 class UserInsertDto implements InsertDto<User> {
   const UserInsertDto({required this.name});
 
+  factory UserInsertDto.fromMap(Map<String, dynamic> map) {
+    return UserInsertDto(name: map['name'] as String);
+  }
+
   final String name;
 
   @override
@@ -1088,6 +1120,12 @@ class UserInsertDto implements InsertDto<User> {
 
 class UserUpdateDto implements UpdateDto<User> {
   const UserUpdateDto({this.name});
+
+  factory UserUpdateDto.fromMap(Map<String, dynamic> map) {
+    return UserUpdateDto(
+      name: map['name'] == null ? null : map['name'] as String,
+    );
+  }
 
   final String? name;
 
@@ -1345,6 +1383,10 @@ class PostPartial extends PartialEntity<Post> {
 class PostInsertDto implements InsertDto<Post> {
   const PostInsertDto({required this.title});
 
+  factory PostInsertDto.fromMap(Map<String, dynamic> map) {
+    return PostInsertDto(title: map['title'] as String);
+  }
+
   final String title;
 
   @override
@@ -1363,6 +1405,12 @@ class PostInsertDto implements InsertDto<Post> {
 
 class PostUpdateDto implements UpdateDto<Post> {
   const PostUpdateDto({this.title});
+
+  factory PostUpdateDto.fromMap(Map<String, dynamic> map) {
+    return PostUpdateDto(
+      title: map['title'] == null ? null : map['title'] as String,
+    );
+  }
 
   final String? title;
 

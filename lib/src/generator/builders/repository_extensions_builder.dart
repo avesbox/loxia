@@ -4,6 +4,8 @@ import 'package:loxia/src/generator/builders/builders.dart';
 class RepositoryExtensionsBuilder {
   const RepositoryExtensionsBuilder();
 
+  static final RegExp _sqlParamPattern = RegExp(r'@(\w+)');
+
   Extension build(EntityGenerationContext context) {
     final extensionName = '${context.entityName}RepositoryExtensions';
 
@@ -30,8 +32,21 @@ class RepositoryExtensionsBuilder {
 
   /// Extracts parameter names from SQL (e.g., @id, @name -> ['id', 'name'])
   List<String> _extractSqlParams(String sql) {
-    final regex = RegExp(r'@(\w+)');
-    return regex.allMatches(sql).map((m) => m.group(1)!).toList();
+    return _sqlParamPattern.allMatches(sql).map((m) => m.group(1)!).toList();
+  }
+
+  /// Extracts unique parameter names preserving their first appearance order.
+  List<String> _extractUniqueSqlParams(String sql) {
+    final ordered = <String>[];
+    final seen = <String>{};
+
+    for (final param in _extractSqlParams(sql)) {
+      if (seen.add(param)) {
+        ordered.add(param);
+      }
+    }
+
+    return ordered;
   }
 
   /// Checks if the hooks indicate an entity is needed for mutations.
@@ -55,6 +70,7 @@ class RepositoryExtensionsBuilder {
 
       final opType = _detectOperationType(query.sql);
       final sqlParams = _extractSqlParams(query.sql);
+      final uniqueSqlParams = _extractUniqueSqlParams(query.sql);
       final hasPostLoad = query.lifecycleHooks.contains('postLoad');
       final requiresEntity = _requiresEntityForMutation(query.lifecycleHooks);
       final analysis = query.analysisResult;
@@ -66,6 +82,7 @@ class RepositoryExtensionsBuilder {
           query,
           context,
           opType,
+          uniqueSqlParams,
           sqlParams,
           requiresEntity,
         );
@@ -84,22 +101,21 @@ class RepositoryExtensionsBuilder {
       m.returns = refer(returnType);
 
       // Add parameters for SQL params
-      for (final param in sqlParams) {
-        final col = _findColumn(context, param);
+      for (final param in uniqueSqlParams) {
         m.requiredParameters.add(
           Parameter(
             (p) => p
               ..name = param
-              ..type = refer(col?.dartTypeCode ?? 'Object?'),
+              ..type = refer(_parameterTypeCode(context, param, analysis)),
           ),
         );
       }
 
       // Build method body based on return type
       final buffer = StringBuffer();
-      final sqlWithPlaceholders = _replaceSqlParams(query.sql, sqlParams);
+      final sqlWithPlaceholders = _replaceSqlParams(query.sql);
       buffer.writeln(
-        "final rows = await engine.query('$sqlWithPlaceholders', [${sqlParams.join(', ')}]);",
+        "final rows = await engine.query('$sqlWithPlaceholders', [${_buildArgumentList(sqlParams)}]);",
       );
 
       if (analysis != null && analysis.matchesEntity) {
@@ -215,6 +231,7 @@ class RepositoryExtensionsBuilder {
     GenQuery query,
     EntityGenerationContext context,
     _SqlOperationType opType,
+    List<String> uniqueSqlParams,
     List<String> sqlParams,
     bool requiresEntity,
   ) {
@@ -233,6 +250,18 @@ class RepositoryExtensionsBuilder {
         ),
       );
 
+      for (final param in uniqueSqlParams) {
+        if (_isEntityBackedParam(context, param)) continue;
+        m.requiredParameters.add(
+          Parameter(
+            (p) => p
+              ..name = param
+              ..type = refer(
+                _parameterTypeCode(context, param, query.analysisResult),
+              ),
+          ),
+        );
+      }
       // Pre-hooks
       if (opType == _SqlOperationType.insert) {
         if (hooks.contains('prePersist')) {
@@ -249,8 +278,12 @@ class RepositoryExtensionsBuilder {
       }
 
       // Build params list from entity properties
-      final paramValues = sqlParams.map((p) => 'entity.$p').join(', ');
-      final sqlWithPlaceholders = _replaceSqlParams(query.sql, sqlParams);
+      final paramValues = sqlParams
+          .map(
+            (p) => _parameterValueExpression(context, p, requiresEntity: true),
+          )
+          .join(', ');
+      final sqlWithPlaceholders = _replaceSqlParams(query.sql);
       buffer.writeln(
         "await engine.query('$sqlWithPlaceholders', [$paramValues]);",
       );
@@ -271,20 +304,21 @@ class RepositoryExtensionsBuilder {
       }
     } else {
       // Accept individual parameters
-      for (final param in sqlParams) {
-        final col = _findColumn(context, param);
+      for (final param in uniqueSqlParams) {
         m.requiredParameters.add(
           Parameter(
             (p) => p
               ..name = param
-              ..type = refer(col?.dartTypeCode ?? 'Object?'),
+              ..type = refer(
+                _parameterTypeCode(context, param, query.analysisResult),
+              ),
           ),
         );
       }
 
-      final sqlWithPlaceholders = _replaceSqlParams(query.sql, sqlParams);
+      final sqlWithPlaceholders = _replaceSqlParams(query.sql);
       buffer.writeln(
-        "await engine.query('$sqlWithPlaceholders', [${sqlParams.join(', ')}]);",
+        "await engine.query('$sqlWithPlaceholders', [${_buildArgumentList(sqlParams)}]);",
       );
     }
 
@@ -292,12 +326,8 @@ class RepositoryExtensionsBuilder {
   }
 
   /// Replaces @param with ? placeholders for prepared statements.
-  String _replaceSqlParams(String sql, List<String> params) {
-    var result = sql;
-    for (final param in params) {
-      result = result.replaceAll('@$param', '?');
-    }
-    return result;
+  String _replaceSqlParams(String sql) {
+    return sql.replaceAllMapped(_sqlParamPattern, (_) => '?');
   }
 
   /// Finds a column by property name.
@@ -307,6 +337,54 @@ class RepositoryExtensionsBuilder {
     }
     return null;
   }
+
+  GenRelation? _findJoinRelation(
+    EntityGenerationContext context,
+    String propName,
+  ) {
+    for (final relation in context.owningJoinColumns) {
+      if (relation.joinColumnPropertyName == propName) return relation;
+    }
+    return null;
+  }
+
+  bool _isEntityBackedParam(EntityGenerationContext context, String paramName) {
+    return _findColumn(context, paramName) != null ||
+        _findJoinRelation(context, paramName) != null;
+  }
+
+  String _parameterTypeCode(
+    EntityGenerationContext context,
+    String paramName,
+    GenQueryAnalysisResult? analysis,
+  ) {
+    final column = _findColumn(context, paramName);
+    if (column != null) return column.dartTypeCode;
+
+    final relation = _findJoinRelation(context, paramName);
+    if (relation?.joinColumnBaseDartType case final baseType?) {
+      final nullable = relation?.joinColumnNullable ?? true;
+      return nullable && !baseType.endsWith('?') ? '$baseType?' : baseType;
+    }
+
+    final inferredType = analysis?.variableTypes[paramName];
+    if (inferredType != null) return inferredType;
+
+    return 'Object?';
+  }
+
+  String _parameterValueExpression(
+    EntityGenerationContext context,
+    String paramName, {
+    required bool requiresEntity,
+  }) {
+    if (requiresEntity && _isEntityBackedParam(context, paramName)) {
+      return 'entity.$paramName';
+    }
+    return paramName;
+  }
+
+  String _buildArgumentList(List<String> sqlParams) => sqlParams.join(', ');
 }
 
 enum _SqlOperationType { select, insert, update, delete }

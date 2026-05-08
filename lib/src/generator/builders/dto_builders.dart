@@ -5,6 +5,7 @@ import 'package:code_builder/code_builder.dart';
 
 import '../../annotations/column.dart';
 import 'models.dart';
+import 'utils.dart';
 
 /// Builds the InsertDto class for an entity.
 class InsertDtoBuilder {
@@ -31,6 +32,13 @@ class InsertDtoBuilder {
         )
         ..constructors.add(
           _buildConstructor(context, insertableColumns, cascadeRelations),
+        )
+        ..constructors.add(
+          _buildFromMapConstructor(
+            context,
+            insertableColumns,
+            cascadeRelations,
+          ),
         )
         ..fields.addAll(_buildColumnFields(insertableColumns))
         ..fields.addAll(_buildJoinColumnFields(context))
@@ -95,6 +103,31 @@ class InsertDtoBuilder {
       (c) => c
         ..constant = true
         ..optionalParameters.addAll(params),
+    );
+  }
+
+  Constructor _buildFromMapConstructor(
+    EntityGenerationContext context,
+    List<GenColumn> columns,
+    List<GenRelation> cascades,
+  ) {
+    return Constructor(
+      (c) => c
+        ..factory = true
+        ..name = 'fromMap'
+        ..requiredParameters.add(
+          Parameter(
+            (p) => p
+              ..name = 'map'
+              ..type = refer('Map<String, dynamic>'),
+          ),
+        )
+        ..body = _buildFromMapBody(
+          context,
+          columns,
+          cascades,
+          isInsertDto: true,
+        ),
     );
   }
 
@@ -301,6 +334,13 @@ class UpdateDtoBuilder {
         ..constructors.add(
           _buildConstructor(context, updateableColumns, cascadeRelations),
         )
+        ..constructors.add(
+          _buildFromMapConstructor(
+            context,
+            updateableColumns,
+            cascadeRelations,
+          ),
+        )
         ..fields.addAll(_buildColumnFields(updateableColumns))
         ..fields.addAll(_buildJoinColumnFields(context))
         ..fields.addAll(_buildCascadeFields(cascadeRelations))
@@ -353,6 +393,31 @@ class UpdateDtoBuilder {
       (c) => c
         ..constant = true
         ..optionalParameters.addAll(params),
+    );
+  }
+
+  Constructor _buildFromMapConstructor(
+    EntityGenerationContext context,
+    List<GenColumn> columns,
+    List<GenRelation> cascades,
+  ) {
+    return Constructor(
+      (c) => c
+        ..factory = true
+        ..name = 'fromMap'
+        ..requiredParameters.add(
+          Parameter(
+            (p) => p
+              ..name = 'map'
+              ..type = refer('Map<String, dynamic>'),
+          ),
+        )
+        ..body = _buildFromMapBody(
+          context,
+          columns,
+          cascades,
+          isInsertDto: false,
+        ),
     );
   }
 
@@ -463,8 +528,230 @@ class UpdateDtoBuilder {
   }
 }
 
+Code _buildFromMapBody(
+  EntityGenerationContext context,
+  List<GenColumn> columns,
+  List<GenRelation> cascades, {
+  required bool isInsertDto,
+}) {
+  final dtoName = isInsertDto ? context.insertDtoName : context.updateDtoName;
+  final buffer = StringBuffer();
+  buffer.writeln('return $dtoName(');
+
+  for (final column in columns) {
+    buffer.writeln(
+      '  ${column.prop}: ${_fromMapColumnValue(column, isInsertDto: isInsertDto)},',
+    );
+  }
+
+  for (final relation in context.owningJoinColumns) {
+    final prop = relation.joinColumnPropertyName!;
+    buffer.writeln(
+      '  $prop: ${_fromMapJoinColumnValue(relation, isInsertDto: isInsertDto)},',
+    );
+  }
+
+  for (final relation in cascades) {
+    buffer.writeln(
+      '  ${relation.fieldName}: ${_fromMapCascadeValue(relation, isInsertDto: isInsertDto)},',
+    );
+  }
+
+  buffer.writeln(');');
+  return Code(buffer.toString());
+}
+
 String _nullableType(String type) {
   return type.endsWith('?') ? type : '$type?';
+}
+
+String _mapValueExpr(String key) {
+  return "map['$key']";
+}
+
+String _mapHasKeyExpr(String key) {
+  return "map.containsKey('$key')";
+}
+
+String _fromMapColumnValue(GenColumn c, {required bool isInsertDto}) {
+  final source = _mapValueExpr(c.name);
+  final hasKey = _mapHasKeyExpr(c.name);
+  final baseType = c.dartTypeCode.replaceAll('?', '');
+  final isNullable =
+      !isInsertDto ||
+      c.dartTypeCode.endsWith('?') ||
+      c.isCreatedAt ||
+      c.isUpdatedAt ||
+      c.isDeletedAt;
+  final defaultLiteral = isInsertDto ? c.defaultLiteral : null;
+
+  if (c.type == ColumnType.dateTime && baseType == 'DateTime') {
+    final parsed =
+        '$source is String ? DateTime.parse($source.toString()) : $source as DateTime';
+    return _wrapFromMapValue(
+      source: source,
+      hasKey: hasKey,
+      parsed: parsed,
+      isNullable: isNullable,
+      defaultLiteral: defaultLiteral,
+    );
+  }
+
+  if (c.type == ColumnType.json) {
+    final parsed = _fromMapJsonValue(c, source);
+    return _wrapFromMapValue(
+      source: source,
+      hasKey: hasKey,
+      parsed: parsed,
+      isNullable: isNullable,
+      defaultLiteral: defaultLiteral,
+    );
+  }
+
+  if (baseType == 'bool') {
+    final expr = '$source is bool ? $source : $source == 1';
+    return _wrapFromMapValue(
+      source: source,
+      hasKey: hasKey,
+      parsed: expr,
+      isNullable: isNullable,
+      defaultLiteral: defaultLiteral,
+    );
+  }
+
+  if (c.isEnum) {
+    final enumType = c.enumTypeName ?? baseType;
+    final expr = enumReadExpression(c, source, enumType: enumType);
+    return _wrapFromMapValue(
+      source: source,
+      hasKey: hasKey,
+      parsed: expr,
+      isNullable: isNullable,
+      defaultLiteral: defaultLiteral,
+    );
+  }
+
+  if (c.isCreatedAt || c.isUpdatedAt || c.isDeletedAt) {
+    final parsed =
+        '($source is String ? DateTime.parse($source.toString()) : $source as DateTime)';
+    String expr;
+    switch (baseType) {
+      case 'int':
+        expr = '$parsed.millisecondsSinceEpoch';
+      case 'double':
+        expr = '$parsed.millisecondsSinceEpoch.toDouble()';
+      case 'String':
+        expr = '$parsed.toIso8601String()';
+      default:
+        expr = parsed;
+    }
+    return _wrapFromMapValue(
+      source: source,
+      hasKey: hasKey,
+      parsed: expr,
+      isNullable: isNullable,
+      defaultLiteral: defaultLiteral,
+    );
+  }
+
+  final parsed = _fromMapScalarValue(source, baseType, false);
+  return _wrapFromMapValue(
+    source: source,
+    hasKey: hasKey,
+    parsed: parsed,
+    isNullable: isNullable,
+    defaultLiteral: defaultLiteral,
+  );
+}
+
+String _fromMapJoinColumnValue(
+  GenRelation relation, {
+  required bool isInsertDto,
+}) {
+  final source = _mapValueExpr(relation.joinColumn!.name);
+  final hasKey = _mapHasKeyExpr(relation.joinColumn!.name);
+  final isNullable = !isInsertDto || relation.joinColumnNullable;
+  final parsed = _fromMapScalarValue(
+    source,
+    relation.joinColumnBaseDartType!,
+    false,
+  );
+  return _wrapFromMapValue(
+    source: source,
+    hasKey: hasKey,
+    parsed: parsed,
+    isNullable: isNullable,
+  );
+}
+
+String _wrapFromMapValue({
+  required String source,
+  required String hasKey,
+  required String parsed,
+  required bool isNullable,
+  String? defaultLiteral,
+}) {
+  final nullableParsed = '$source == null ? null : $parsed';
+  if (defaultLiteral != null) {
+    return '$hasKey ? ${isNullable ? nullableParsed : parsed} : $defaultLiteral';
+  }
+  return isNullable ? nullableParsed : parsed;
+}
+
+String _fromMapScalarValue(String source, String dartType, bool isNullable) {
+  switch (dartType) {
+    case 'double':
+      return isNullable
+          ? '($source as num?)?.toDouble()'
+          : '($source as num).toDouble()';
+    case 'num':
+      return isNullable ? '$source as num?' : '$source as num';
+    default:
+      return isNullable ? '$source as $dartType?' : '$source as $dartType';
+  }
+}
+
+String _fromMapCascadeValue(GenRelation relation, {required bool isInsertDto}) {
+  final source = _mapValueExpr(relation.fieldName);
+  final dtoName =
+      '${relation.targetTypeCode}${isInsertDto ? 'Insert' : 'Update'}Dto';
+
+  if (relation.isCollection) {
+    return "$source == null ? null : ($source as List).map<$dtoName>((entry) => entry is $dtoName ? entry : $dtoName.fromMap((entry as Map).cast<String, dynamic>())).toList()";
+  }
+
+  return "$source == null ? null : ($source is $dtoName ? $source : $dtoName.fromMap(($source as Map).cast<String, dynamic>()))";
+}
+
+String _fromMapJsonValue(GenColumn c, String source) {
+  final baseType = c.dartTypeCode.replaceAll('?', '');
+  final decoded = '$source is String ? decodeJsonColumn($source) : $source';
+  final casted = _castJsonValue(decoded, baseType);
+  return c.nullable ? '$source == null ? null : $casted' : casted;
+}
+
+String _castJsonValue(String decoded, String baseType) {
+  final listMatch = RegExp(r'^List<(.+)>$').firstMatch(baseType);
+  if (listMatch != null) {
+    final elem = listMatch.group(1)!;
+    return '(($decoded) as List).cast<$elem>()';
+  }
+
+  final mapMatch = RegExp(r'^Map<([^,>]+),\s*(.+)>$').firstMatch(baseType);
+  if (mapMatch != null) {
+    final key = mapMatch.group(1)!;
+    final value = mapMatch.group(2)!;
+    return '(($decoded) as Map).cast<$key, $value>()';
+  }
+
+  if (baseType == 'List') {
+    return '(($decoded) as List).cast<dynamic>()';
+  }
+  if (baseType == 'Map') {
+    return '(($decoded) as Map).cast<dynamic, dynamic>()';
+  }
+
+  return '$decoded as $baseType';
 }
 
 String _timestampLiteralToDateTime(GenColumn c, String expr) {
@@ -525,16 +812,9 @@ String _enumToStorage(
   bool toDeletedAt = false,
 ]) {
   if (!c.isEnum) return expr;
-  switch (c.type) {
-    case ColumnType.text:
-      return c.nullable || toUpdateDto || toDeletedAt
-          ? '$expr?.name'
-          : '$expr.name';
-    case ColumnType.integer:
-      return c.nullable || toUpdateDto || toDeletedAt
-          ? '$expr?.index'
-          : '$expr.index';
-    default:
-      return expr;
-  }
+  return enumStoreExpression(
+    c,
+    expr,
+    isNullable: c.nullable || toUpdateDto || toDeletedAt,
+  );
 }

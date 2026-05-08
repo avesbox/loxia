@@ -483,10 +483,10 @@ return grouped.entries.map((entry) {
       final enumType = c.enumTypeName ?? baseType;
       switch (c.type) {
         case ColumnType.text:
-          final expr = '$enumType.values.byName($readExpr as String)';
+          final expr = enumReadExpression(c, readExpr, enumType: enumType);
           return c.nullable ? '$readExpr == null ? null : $expr' : expr;
         case ColumnType.integer:
-          final expr = '$enumType.values[$readExpr as int]';
+          final expr = enumReadExpression(c, readExpr, enumType: enumType);
           return c.nullable ? '$readExpr == null ? null : $expr' : expr;
         default:
           return c.nullable

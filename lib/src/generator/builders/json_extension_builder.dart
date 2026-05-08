@@ -4,6 +4,7 @@ import 'package:code_builder/code_builder.dart';
 
 import '../../annotations/column.dart';
 import 'models.dart';
+import 'utils.dart';
 
 class JsonExtensionBuilder {
   const JsonExtensionBuilder();
@@ -26,11 +27,7 @@ class JsonExtensionBuilder {
       final source = c.prop;
       var value = source;
       if (c.isEnum) {
-        if (c.type == ColumnType.text) {
-          value = c.nullable ? '$value?.name' : '$value.name';
-        } else if (c.type == ColumnType.integer) {
-          value = c.nullable ? '$value?.index' : '$value.index';
-        }
+        value = enumStoreExpression(c, value);
       } else if (c.type == ColumnType.dateTime &&
           c.dartTypeCode.contains('DateTime')) {
         if (c.nullable) {
@@ -52,9 +49,13 @@ class JsonExtensionBuilder {
       final source = r.fieldName;
       var value = source;
       if (r.isCollection) {
-        value = '$value?.map((e) => e.toJson()).toList()';
+        value = context.omitNullJsonFields
+            ? '$value!.map((e) => e.toJson()).toList()'
+            : '$value?.map((e) => e.toJson()).toList()';
       } else {
-        value = '$value?.toJson()';
+        value = context.omitNullJsonFields
+            ? '$value!.toJson()'
+            : '$value?.toJson()';
       }
       if (context.omitNullJsonFields) {
         entries.add('if ($source != null) $key: $value');

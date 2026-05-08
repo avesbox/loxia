@@ -2,6 +2,7 @@ import 'package:loxia/loxia.dart';
 import 'package:loxia/src/generator/builders/dto_builders.dart';
 import 'package:loxia/src/generator/builders/models.dart';
 import 'package:test/test.dart';
+import 'package:code_builder/code_builder.dart';
 
 void main() {
   group('InsertDtoBuilder', () {
@@ -117,6 +118,190 @@ void main() {
         );
 
         expect(categoryIdField.type?.symbol, 'int?');
+      });
+    });
+
+    group('fromMap factory', () {
+      test('generates a fromMap factory with snake_case and cascade parsing', () {
+        final context = EntityGenerationContext(
+          className: 'Order',
+          tableName: 'orders',
+          columns: [
+            GenColumn(
+              name: 'attempts',
+              prop: 'attempts',
+              type: ColumnType.integer,
+              dartTypeCode: 'int',
+              isEnum: false,
+              nullable: false,
+              unique: false,
+              isPk: false,
+              autoIncrement: false,
+              uuid: false,
+              defaultLiteral: '0',
+            ),
+            GenColumn(
+              name: 'status',
+              prop: 'status',
+              type: ColumnType.text,
+              dartTypeCode: 'OrderStatus',
+              enumTypeName: 'OrderStatus',
+              isEnum: true,
+              nullable: false,
+              unique: false,
+              isPk: false,
+              autoIncrement: false,
+              uuid: false,
+            ),
+            GenColumn(
+              name: 'created_at',
+              prop: 'createdAt',
+              type: ColumnType.dateTime,
+              dartTypeCode: 'DateTime?',
+              isEnum: false,
+              nullable: true,
+              unique: false,
+              isPk: false,
+              autoIncrement: false,
+              uuid: false,
+              isCreatedAt: true,
+            ),
+          ],
+          queries: [],
+          relations: [
+            GenRelation(
+              fieldName: 'customer',
+              type: RelationKind.manyToOne,
+              targetTypeCode: 'Customer',
+              isOwningSide: true,
+              mappedBy: null,
+              fetchLiteral: 'RelationFetchStrategy.lazy',
+              cascadeLiteral: 'const [Cascade.persist]',
+              cascadePersist: true,
+              cascadeMerge: false,
+              cascadeRemove: false,
+              joinColumn: GenJoinColumn(
+                name: 'customer_id',
+                referencedColumnName: 'id',
+                nullable: false,
+                unique: false,
+              ),
+              joinColumnPropertyName: 'customerId',
+              joinColumnBaseDartType: 'int',
+              joinColumnNullable: false,
+            ),
+            GenRelation(
+              fieldName: 'items',
+              type: RelationKind.oneToMany,
+              targetTypeCode: 'OrderItem',
+              isOwningSide: false,
+              mappedBy: 'order',
+              fetchLiteral: 'RelationFetchStrategy.lazy',
+              cascadeLiteral: 'const [Cascade.persist]',
+              cascadePersist: true,
+              cascadeMerge: false,
+              cascadeRemove: false,
+              isCollection: true,
+            ),
+          ],
+        );
+
+        final code = _emitClass(builder.build(context));
+
+        expect(
+          code,
+          contains('factory OrderInsertDto.fromMap(Map<String, dynamic> map)'),
+        );
+        expect(
+          code,
+          contains(
+            "attempts: map.containsKey('attempts') ? map['attempts'] as int : 0",
+          ),
+        );
+        expect(
+          code,
+          contains(
+            "status: OrderStatus.values.byName(map['status'] as String)",
+          ),
+        );
+        expect(code, contains("createdAt: map['created_at'] == null ? null"));
+        expect(code, contains("DateTime.parse(map['created_at'].toString())"));
+        expect(code, contains("customerId: map['customer_id'] as int"));
+        expect(
+          code,
+          contains(
+            'OrderItemInsertDto.fromMap((entry as Map).cast<String, dynamic>())',
+          ),
+        );
+      });
+
+      test('generates json decoding with a non-null cast receiver', () {
+        final context = EntityGenerationContext(
+          className: 'Movie',
+          tableName: 'movies',
+          columns: [
+            GenColumn(
+              name: 'genres',
+              prop: 'genres',
+              type: ColumnType.json,
+              dartTypeCode: 'List<String>',
+              isEnum: false,
+              nullable: false,
+              unique: false,
+              isPk: false,
+              autoIncrement: false,
+              uuid: false,
+            ),
+          ],
+          queries: [],
+          relations: [],
+        );
+
+        final code = _emitClass(builder.build(context));
+
+        expect(
+          code,
+          contains(
+            "genres: ((map['genres'] is String ? decodeJsonColumn(map['genres']) : map['genres']) as List).cast<String>()",
+          ),
+        );
+      });
+
+      test('uses custom enum value accessors for text-backed enums', () {
+        final context = EntityGenerationContext(
+          className: 'Order',
+          tableName: 'orders',
+          columns: [
+            GenColumn(
+              name: 'status',
+              prop: 'status',
+              type: ColumnType.text,
+              dartTypeCode: 'OrderStatus',
+              isEnum: true,
+              enumTypeName: 'OrderStatus',
+              enumValueAccessor: 'value',
+              nullable: false,
+              unique: false,
+              isPk: false,
+              autoIncrement: false,
+              uuid: false,
+              defaultLiteral: 'OrderStatus.pending',
+            ),
+          ],
+          queries: [],
+          relations: [],
+        );
+
+        final code = _emitClass(builder.build(context));
+
+        expect(
+          code,
+          contains(
+            "status: map.containsKey('status') ? OrderStatus.values.firstWhere((entry) => entry.value == (map['status'] as String)) : OrderStatus.pending",
+          ),
+        );
+        expect(code, contains("'status': status.value"));
+        expect(code, contains('this.status = OrderStatus.pending'));
       });
     });
 
@@ -281,6 +466,67 @@ void main() {
       });
     });
   });
+
+  group('UpdateDtoBuilder', () {
+    test('generates a fromMap factory for update cascades', () {
+      final builder = const UpdateDtoBuilder();
+      final context = EntityGenerationContext(
+        className: 'Post',
+        tableName: 'posts',
+        columns: [
+          GenColumn(
+            name: 'title',
+            prop: 'title',
+            type: ColumnType.text,
+            dartTypeCode: 'String',
+            isEnum: false,
+            nullable: false,
+            unique: false,
+            isPk: false,
+            autoIncrement: false,
+            uuid: false,
+          ),
+        ],
+        queries: [],
+        relations: [
+          GenRelation(
+            fieldName: 'tags',
+            type: RelationKind.manyToMany,
+            targetTypeCode: 'Tag',
+            isOwningSide: true,
+            mappedBy: null,
+            fetchLiteral: 'RelationFetchStrategy.lazy',
+            cascadeLiteral: 'const [Cascade.merge]',
+            cascadePersist: false,
+            cascadeMerge: true,
+            cascadeRemove: false,
+            isCollection: true,
+          ),
+        ],
+      );
+
+      final code = _emitClass(builder.build(context));
+
+      expect(
+        code,
+        contains('factory PostUpdateDto.fromMap(Map<String, dynamic> map)'),
+      );
+      expect(
+        code,
+        contains("title: map['title'] == null ? null : map['title'] as String"),
+      );
+      expect(
+        code,
+        contains(
+          'TagUpdateDto.fromMap((entry as Map).cast<String, dynamic>())',
+        ),
+      );
+    });
+  });
+}
+
+String _emitClass(Class clazz) {
+  return clazz.accept(DartEmitter(useNullSafetySyntax: true)).toString();
 }
 
 EntityGenerationContext _createContextWithNonNullableFK() {

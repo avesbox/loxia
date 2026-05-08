@@ -512,6 +512,26 @@ class MerchantInsertDto implements InsertDto<Merchant> {
     this.updatedAt,
   });
 
+  factory MerchantInsertDto.fromMap(Map<String, dynamic> map) {
+    return MerchantInsertDto(
+      name: map['name'] as String,
+      businessName: map['business_name'] as String,
+      mobileNumber: map['mobile_number'] as String,
+      email: map['email'] as String,
+      passwordHash: map['password_hash'] as String,
+      createdAt: map['created_at'] == null
+          ? null
+          : map['created_at'] is String
+          ? DateTime.parse(map['created_at'].toString())
+          : map['created_at'] as DateTime,
+      updatedAt: map['updated_at'] == null
+          ? null
+          : map['updated_at'] is String
+          ? DateTime.parse(map['updated_at'].toString())
+          : map['updated_at'] as DateTime,
+    );
+  }
+
   final String name;
 
   final String businessName;
@@ -574,6 +594,32 @@ class MerchantUpdateDto implements UpdateDto<Merchant> {
     this.createdAt,
     this.updatedAt,
   });
+
+  factory MerchantUpdateDto.fromMap(Map<String, dynamic> map) {
+    return MerchantUpdateDto(
+      name: map['name'] == null ? null : map['name'] as String,
+      businessName: map['business_name'] == null
+          ? null
+          : map['business_name'] as String,
+      mobileNumber: map['mobile_number'] == null
+          ? null
+          : map['mobile_number'] as String,
+      email: map['email'] == null ? null : map['email'] as String,
+      passwordHash: map['password_hash'] == null
+          ? null
+          : map['password_hash'] as String,
+      createdAt: map['created_at'] == null
+          ? null
+          : map['created_at'] is String
+          ? DateTime.parse(map['created_at'].toString())
+          : map['created_at'] as DateTime,
+      updatedAt: map['updated_at'] == null
+          ? null
+          : map['updated_at'] is String
+          ? DateTime.parse(map['updated_at'].toString())
+          : map['updated_at'] as DateTime,
+    );
+  }
 
   final String? name;
 
@@ -1040,7 +1086,7 @@ class UserPartial extends PartialEntity<User> {
       if (email != null) 'email': email,
       if (role != null) 'role': role?.name,
       if (tags != null) 'tags': tags,
-      if (posts != null) 'posts': posts?.map((e) => e.toJson()).toList(),
+      if (posts != null) 'posts': posts!.map((e) => e.toJson()).toList(),
     };
   }
 }
@@ -1052,6 +1098,28 @@ class UserInsertDto implements InsertDto<User> {
     required this.tags,
     this.posts,
   });
+
+  factory UserInsertDto.fromMap(Map<String, dynamic> map) {
+    return UserInsertDto(
+      email: map['email'] as String,
+      role: Role.values.byName(map['role'] as String),
+      tags:
+          ((map['tags'] is String ? decodeJsonColumn(map['tags']) : map['tags'])
+                  as List)
+              .cast<String>(),
+      posts: map['posts'] == null
+          ? null
+          : (map['posts'] as List)
+                .map<PostInsertDto>(
+                  (entry) => entry is PostInsertDto
+                      ? entry
+                      : PostInsertDto.fromMap(
+                          (entry as Map).cast<String, dynamic>(),
+                        ),
+                )
+                .toList(),
+    );
+  }
 
   final String email;
 
@@ -1088,6 +1156,22 @@ class UserInsertDto implements InsertDto<User> {
 class UserUpdateDto implements UpdateDto<User> {
   const UserUpdateDto({this.email, this.role, this.tags});
 
+  factory UserUpdateDto.fromMap(Map<String, dynamic> map) {
+    return UserUpdateDto(
+      email: map['email'] == null ? null : map['email'] as String,
+      role: map['role'] == null
+          ? null
+          : Role.values.byName(map['role'] as String),
+      tags: map['tags'] == null
+          ? null
+          : ((map['tags'] is String
+                        ? decodeJsonColumn(map['tags'])
+                        : map['tags'])
+                    as List)
+                .cast<String>(),
+    );
+  }
+
   final String? email;
 
   final Role? role;
@@ -1120,7 +1204,7 @@ extension UserJson on User {
       'email': email,
       'role': role.name,
       'tags': tags,
-      if (posts != null) 'posts': posts?.map((e) => e.toJson()).toList(),
+      if (posts != null) 'posts': posts!.map((e) => e.toJson()).toList(),
     };
   }
 }
@@ -1796,8 +1880,8 @@ class PostPartial extends PartialEntity<Post> {
       if (createdAt != null) 'createdAt': createdAt?.toIso8601String(),
       if (lastUpdatedAt != null) 'lastUpdatedAt': lastUpdatedAt,
       if (deletedAt != null) 'deletedAt': deletedAt?.toIso8601String(),
-      if (user != null) 'user': user?.toJson(),
-      if (tags != null) 'tags': tags?.map((e) => e.toJson()).toList(),
+      if (user != null) 'user': user!.toJson(),
+      if (tags != null) 'tags': tags!.map((e) => e.toJson()).toList(),
       if (userId != null) 'userId': userId,
     };
   }
@@ -1814,6 +1898,42 @@ class PostInsertDto implements InsertDto<Post> {
     this.userId,
     this.tags,
   });
+
+  factory PostInsertDto.fromMap(Map<String, dynamic> map) {
+    return PostInsertDto(
+      title: map['title'] as String,
+      content: map['content'] as String,
+      likes: map.containsKey('likes') ? map['likes'] as int : 0,
+      createdAt: map['created_at'] == null
+          ? null
+          : map['created_at'] is String
+          ? DateTime.parse(map['created_at'].toString())
+          : map['created_at'] as DateTime,
+      lastUpdatedAt: map['last_updated_at'] == null
+          ? null
+          : (map['last_updated_at'] is String
+                    ? DateTime.parse(map['last_updated_at'].toString())
+                    : map['last_updated_at'] as DateTime)
+                .millisecondsSinceEpoch,
+      deletedAt: map['deleted_at'] == null
+          ? null
+          : map['deleted_at'] is String
+          ? DateTime.parse(map['deleted_at'].toString())
+          : map['deleted_at'] as DateTime,
+      userId: map['user_id'] == null ? null : map['user_id'] as int,
+      tags: map['tags'] == null
+          ? null
+          : (map['tags'] as List)
+                .map<TagInsertDto>(
+                  (entry) => entry is TagInsertDto
+                      ? entry
+                      : TagInsertDto.fromMap(
+                          (entry as Map).cast<String, dynamic>(),
+                        ),
+                )
+                .toList(),
+    );
+  }
 
   final String title;
 
@@ -1886,6 +2006,31 @@ class PostUpdateDto implements UpdateDto<Post> {
     this.userId,
   });
 
+  factory PostUpdateDto.fromMap(Map<String, dynamic> map) {
+    return PostUpdateDto(
+      title: map['title'] == null ? null : map['title'] as String,
+      content: map['content'] == null ? null : map['content'] as String,
+      likes: map['likes'] == null ? null : map['likes'] as int,
+      createdAt: map['created_at'] == null
+          ? null
+          : map['created_at'] is String
+          ? DateTime.parse(map['created_at'].toString())
+          : map['created_at'] as DateTime,
+      lastUpdatedAt: map['last_updated_at'] == null
+          ? null
+          : (map['last_updated_at'] is String
+                    ? DateTime.parse(map['last_updated_at'].toString())
+                    : map['last_updated_at'] as DateTime)
+                .millisecondsSinceEpoch,
+      deletedAt: map['deleted_at'] == null
+          ? null
+          : map['deleted_at'] is String
+          ? DateTime.parse(map['deleted_at'].toString())
+          : map['deleted_at'] as DateTime,
+      userId: map['user_id'] == null ? null : map['user_id'] as int,
+    );
+  }
+
   final String? title;
 
   final String? content;
@@ -1941,8 +2086,8 @@ extension PostJson on Post {
       if (createdAt != null) 'createdAt': createdAt?.toIso8601String(),
       if (lastUpdatedAt != null) 'lastUpdatedAt': lastUpdatedAt,
       if (deletedAt != null) 'deletedAt': deletedAt?.toIso8601String(),
-      if (user != null) 'user': user?.toJson(),
-      if (tags != null) 'tags': tags?.map((e) => e.toJson()).toList(),
+      if (user != null) 'user': user!.toJson(),
+      if (tags != null) 'tags': tags!.map((e) => e.toJson()).toList(),
     };
   }
 }
@@ -2261,13 +2406,17 @@ class TagPartial extends PartialEntity<Tag> {
     return {
       if (id != null) 'id': id,
       if (name != null) 'name': name,
-      if (posts != null) 'posts': posts?.map((e) => e.toJson()).toList(),
+      if (posts != null) 'posts': posts!.map((e) => e.toJson()).toList(),
     };
   }
 }
 
 class TagInsertDto implements InsertDto<Tag> {
   const TagInsertDto({required this.name});
+
+  factory TagInsertDto.fromMap(Map<String, dynamic> map) {
+    return TagInsertDto(name: map['name'] as String);
+  }
 
   final String name;
 
@@ -2287,6 +2436,12 @@ class TagInsertDto implements InsertDto<Tag> {
 
 class TagUpdateDto implements UpdateDto<Tag> {
   const TagUpdateDto({this.name});
+
+  factory TagUpdateDto.fromMap(Map<String, dynamic> map) {
+    return TagUpdateDto(
+      name: map['name'] == null ? null : map['name'] as String,
+    );
+  }
 
   final String? name;
 
@@ -2310,7 +2465,7 @@ extension TagJson on Tag {
     return {
       'id': id,
       'name': name,
-      if (posts != null) 'posts': posts?.map((e) => e.toJson()).toList(),
+      if (posts != null) 'posts': posts!.map((e) => e.toJson()).toList(),
     };
   }
 }
@@ -2792,6 +2947,26 @@ class SubscriptionInsertDto implements InsertDto<Subscription> {
     this.updatedAt,
   });
 
+  factory SubscriptionInsertDto.fromMap(Map<String, dynamic> map) {
+    return SubscriptionInsertDto(
+      plan: Plan.values.byName(map['plan'] as String),
+      status: SubscriptionStatus.values.byName(map['status'] as String),
+      currentPeriodEnd: map['current_period_end'] is String
+          ? DateTime.parse(map['current_period_end'].toString())
+          : map['current_period_end'] as DateTime,
+      createdAt: map['created_at'] == null
+          ? null
+          : map['created_at'] is String
+          ? DateTime.parse(map['created_at'].toString())
+          : map['created_at'] as DateTime,
+      updatedAt: map['updated_at'] == null
+          ? null
+          : map['updated_at'] is String
+          ? DateTime.parse(map['updated_at'].toString())
+          : map['updated_at'] as DateTime,
+    );
+  }
+
   final Plan plan;
 
   final SubscriptionStatus status;
@@ -2842,6 +3017,32 @@ class SubscriptionUpdateDto implements UpdateDto<Subscription> {
     this.createdAt,
     this.updatedAt,
   });
+
+  factory SubscriptionUpdateDto.fromMap(Map<String, dynamic> map) {
+    return SubscriptionUpdateDto(
+      plan: map['plan'] == null
+          ? null
+          : Plan.values.byName(map['plan'] as String),
+      status: map['status'] == null
+          ? null
+          : SubscriptionStatus.values.byName(map['status'] as String),
+      currentPeriodEnd: map['current_period_end'] == null
+          ? null
+          : map['current_period_end'] is String
+          ? DateTime.parse(map['current_period_end'].toString())
+          : map['current_period_end'] as DateTime,
+      createdAt: map['created_at'] == null
+          ? null
+          : map['created_at'] is String
+          ? DateTime.parse(map['created_at'].toString())
+          : map['created_at'] as DateTime,
+      updatedAt: map['updated_at'] == null
+          ? null
+          : map['updated_at'] is String
+          ? DateTime.parse(map['updated_at'].toString())
+          : map['updated_at'] as DateTime,
+    );
+  }
 
   final Plan? plan;
 
@@ -3470,6 +3671,32 @@ class MovieInsertDto implements InsertDto<Movie> {
     this.updatedAt,
   });
 
+  factory MovieInsertDto.fromMap(Map<String, dynamic> map) {
+    return MovieInsertDto(
+      title: map['title'] as String,
+      overview: map['overview'] == null ? null : map['overview'] as String,
+      releaseYear: map['release_year'] as int,
+      genres:
+          ((map['genres'] is String
+                      ? decodeJsonColumn(map['genres'])
+                      : map['genres'])
+                  as List)
+              .cast<String>(),
+      runtime: map['runtime'] == null ? null : map['runtime'] as int,
+      posterUrl: map['poster_url'] == null ? null : map['poster_url'] as String,
+      createdAt: map['created_at'] == null
+          ? null
+          : map['created_at'] is String
+          ? DateTime.parse(map['created_at'].toString())
+          : map['created_at'] as DateTime,
+      updatedAt: map['updated_at'] == null
+          ? null
+          : map['updated_at'] is String
+          ? DateTime.parse(map['updated_at'].toString())
+          : map['updated_at'] as DateTime,
+    );
+  }
+
   final String title;
 
   final String? overview;
@@ -3538,6 +3765,35 @@ class MovieUpdateDto implements UpdateDto<Movie> {
     this.createdAt,
     this.updatedAt,
   });
+
+  factory MovieUpdateDto.fromMap(Map<String, dynamic> map) {
+    return MovieUpdateDto(
+      title: map['title'] == null ? null : map['title'] as String,
+      overview: map['overview'] == null ? null : map['overview'] as String,
+      releaseYear: map['release_year'] == null
+          ? null
+          : map['release_year'] as int,
+      genres: map['genres'] == null
+          ? null
+          : ((map['genres'] is String
+                        ? decodeJsonColumn(map['genres'])
+                        : map['genres'])
+                    as List)
+                .cast<String>(),
+      runtime: map['runtime'] == null ? null : map['runtime'] as int,
+      posterUrl: map['poster_url'] == null ? null : map['poster_url'] as String,
+      createdAt: map['created_at'] == null
+          ? null
+          : map['created_at'] is String
+          ? DateTime.parse(map['created_at'].toString())
+          : map['created_at'] as DateTime,
+      updatedAt: map['updated_at'] == null
+          ? null
+          : map['updated_at'] is String
+          ? DateTime.parse(map['updated_at'].toString())
+          : map['updated_at'] as DateTime,
+    );
+  }
 
   final String? title;
 
@@ -4070,8 +4326,8 @@ class WatchlistItemPartial extends PartialEntity<WatchlistItem> {
       if (id != null) 'id': id,
       if (notes != null) 'notes': notes,
       if (createdAt != null) 'createdAt': createdAt?.toIso8601String(),
-      if (user != null) 'user': user?.toJson(),
-      if (movie != null) 'movie': movie?.toJson(),
+      if (user != null) 'user': user!.toJson(),
+      if (movie != null) 'movie': movie!.toJson(),
       if (userId != null) 'userId': userId,
       if (movieId != null) 'movieId': movieId,
     };
@@ -4085,6 +4341,19 @@ class WatchlistItemInsertDto implements InsertDto<WatchlistItem> {
     this.userId,
     this.movieId,
   });
+
+  factory WatchlistItemInsertDto.fromMap(Map<String, dynamic> map) {
+    return WatchlistItemInsertDto(
+      notes: map['notes'] == null ? null : map['notes'] as String,
+      createdAt: map['created_at'] == null
+          ? null
+          : map['created_at'] is String
+          ? DateTime.parse(map['created_at'].toString())
+          : map['created_at'] as DateTime,
+      userId: map['user_id'] == null ? null : map['user_id'] as int,
+      movieId: map['movie_id'] == null ? null : map['movie_id'] as String,
+    );
+  }
 
   final String? notes;
 
@@ -4131,6 +4400,19 @@ class WatchlistItemUpdateDto implements UpdateDto<WatchlistItem> {
     this.movieId,
   });
 
+  factory WatchlistItemUpdateDto.fromMap(Map<String, dynamic> map) {
+    return WatchlistItemUpdateDto(
+      notes: map['notes'] == null ? null : map['notes'] as String,
+      createdAt: map['created_at'] == null
+          ? null
+          : map['created_at'] is String
+          ? DateTime.parse(map['created_at'].toString())
+          : map['created_at'] as DateTime,
+      userId: map['user_id'] == null ? null : map['user_id'] as int,
+      movieId: map['movie_id'] == null ? null : map['movie_id'] as String,
+    );
+  }
+
   final String? notes;
 
   final DateTime? createdAt;
@@ -4173,8 +4455,8 @@ extension WatchlistItemJson on WatchlistItem {
       'id': id,
       if (notes != null) 'notes': notes,
       if (createdAt != null) 'createdAt': createdAt?.toIso8601String(),
-      if (user != null) 'user': user?.toJson(),
-      if (movie != null) 'movie': movie?.toJson(),
+      if (user != null) 'user': user!.toJson(),
+      if (movie != null) 'movie': movie!.toJson(),
     };
   }
 }

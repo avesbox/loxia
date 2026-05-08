@@ -175,8 +175,19 @@ class SchemaSnapshotBuilder implements Builder {
       );
       final nullable = _resolveNullable(columnReader, field.type);
       final unique = columnReader?.peek('unique')?.boolValue ?? false;
+      final enumValueAccessor = isEnumType
+          ? _validateEnumStorageAccessor(
+              field.type as InterfaceType,
+              type,
+              columnReader?.peek('enumValueField')?.stringValue,
+              field,
+            )
+          : null;
       final defaultValue = _dartObjToLiteral(
         columnReader?.peek('defaultValue')?.objectValue,
+        type: field.type,
+        columnType: type,
+        enumValueAccessor: enumValueAccessor,
       );
 
       final snapshotColumn = SnapshotColumn(
@@ -261,6 +272,12 @@ class SchemaSnapshotBuilder implements Builder {
     }
   }
 
+  String _stripNullability(String typeName) {
+    return typeName.endsWith('?')
+        ? typeName.substring(0, typeName.length - 1)
+        : typeName;
+  }
+
   String _columnTypeToString(ColumnType type) {
     switch (type) {
       case ColumnType.integer:
@@ -287,7 +304,54 @@ class SchemaSnapshotBuilder implements Builder {
     }
   }
 
-  String? _dartObjToLiteral(DartObject? obj) {
+  String? _validateEnumStorageAccessor(
+    InterfaceType enumType,
+    ColumnType? columnType,
+    String? accessor,
+    FieldElement field,
+  ) {
+    if (accessor == null || accessor.isEmpty) return null;
+
+    final expectedType = switch (columnType) {
+      ColumnType.text => 'String',
+      ColumnType.integer => 'int',
+      _ => null,
+    };
+    if (expectedType == null) {
+      throw InvalidGenerationSourceError(
+        'Enum value fields can only be used with ColumnType.text or ColumnType.integer.',
+        element: field,
+      );
+    }
+
+    final getter = enumType.element.fields.firstWhere(
+      (candidate) =>
+          candidate.displayName == accessor &&
+          !candidate.isStatic &&
+          !candidate.isEnumConstant,
+      orElse: () => throw InvalidGenerationSourceError(
+        'Enum value field "$accessor" was not found on ${enumType.element.displayName}.',
+        element: field,
+      ),
+    );
+
+    final actualType = _stripNullability(getter.type.getDisplayString());
+    if (actualType != expectedType) {
+      throw InvalidGenerationSourceError(
+        'Enum value field "$accessor" on ${enumType.element.displayName} must return $expectedType for ColumnType.${columnType?.name}.',
+        element: field,
+      );
+    }
+
+    return accessor;
+  }
+
+  String? _dartObjToLiteral(
+    DartObject? obj, {
+    DartType? type,
+    ColumnType? columnType,
+    String? enumValueAccessor,
+  }) {
     if (obj == null) return null;
     final i = obj.toIntValue();
     if (i != null) return i.toString();
@@ -297,6 +361,38 @@ class SchemaSnapshotBuilder implements Builder {
     if (b != null) return b ? 'true' : 'false';
     final s = obj.toStringValue();
     if (s != null) return "'${s.replaceAll("'", "''")}'";
+
+    if (type is InterfaceType && type.element is EnumElement) {
+      final enumIndex = obj.getField('index')?.toIntValue();
+      if (enumIndex == null) return null;
+      if (columnType == ColumnType.integer) {
+        final customValue = enumValueAccessor == null
+            ? null
+            : obj.getField(enumValueAccessor)?.toIntValue();
+        return (customValue ?? enumIndex).toString();
+      }
+
+      if (columnType == ColumnType.text) {
+        final customValue = enumValueAccessor == null
+            ? null
+            : obj.getField(enumValueAccessor)?.toStringValue();
+        if (customValue != null) {
+          return "'${customValue.replaceAll("'", "''")}'";
+        }
+      }
+
+      final enumElement = type.element as EnumElement;
+      final enumValues = enumElement.fields
+          .where((field) => field.isEnumConstant)
+          .toList();
+      if (enumIndex < 0 || enumIndex >= enumValues.length) {
+        return null;
+      }
+
+      final enumName = enumValues[enumIndex].displayName;
+      return "'${enumName.replaceAll("'", "''")}'";
+    }
+
     return null;
   }
 

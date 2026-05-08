@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.0
+
+- feat: create fromMap methods in utility classes, allowing for easier conversion.
+- fix: add support for default enum values.
+- fix: allow duplication of property name in custom queries.
+
 ## 0.2.6
 
 - fix: schema json now shows text instead of varchar for ColumnType.text.

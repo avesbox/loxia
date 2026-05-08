@@ -38,7 +38,7 @@ const options = computed(() => props.options || defaultOptions)
 	<motion.div
       :initial="{ opacity: 0, y: 10 }"
       :animate="{ opacity: 1, y: 0 }"
-      :class="['inline-flex items-center gap-3 px-4 py-2 rounded-full bg-serinus-dark border border-border-imp fixed bottom-16 right-16', props.className]"
+      :class="['inline-flex items-center gap-3 px-4 py-2 rounded-full bg-serinus-dark border border-border-imp fixed bottom-16 right-16 sm:hidden', props.className]"
     >
       <span className="text-sm text-muted-foreground font-medium font-mono">Open in</span>
       

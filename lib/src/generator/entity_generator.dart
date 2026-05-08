@@ -265,11 +265,16 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
         hasAggregates: analysis.hasAggregates,
         isSingleResult: analysis.isSingleResult,
         dtoClassName: analysis.dtoClassName,
+        variableTypes: analysis.variableTypes,
       );
 
       // Validate parameters
       final sqlParams = _extractSqlParams(query.sql);
-      final unknownParams = analyzer.validateVariables(query.name, sqlParams);
+      final unknownParams = analyzer.validateVariables(
+        query.name,
+        sqlParams,
+        inferredTypes: analysis.variableTypes,
+      );
 
       if (unknownParams.isNotEmpty) {
         // Log a warning but don't fail - params might be intentionally custom
@@ -460,6 +465,14 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
         type = ColumnType.uuid;
       }
       final dartTypeCode = dartType.getDisplayString();
+      final enumValueAccessor = isEnumType
+          ? _validateEnumStorageAccessor(
+              dartType,
+              type,
+              colAnn?.peek('enumValueField')?.stringValue,
+              field,
+            )
+          : null;
 
       columns.add(
         GenColumn(
@@ -469,6 +482,7 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
           dartTypeCode: dartTypeCode,
           isEnum: isEnumType,
           enumTypeName: enumTypeName,
+          enumValueAccessor: enumValueAccessor,
           nullable: nullable,
           unique: unique,
           isPk: isPk,
@@ -477,7 +491,7 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
           isCreatedAt: isCreatedAt,
           isUpdatedAt: isUpdatedAt,
           isDeletedAt: isDeletedAt,
-          defaultLiteral: _dartObjToLiteral(defaultValue),
+          defaultLiteral: _dartObjToLiteral(defaultValue, type: dartType),
         ),
       );
     }
@@ -1017,14 +1031,72 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
         : typeName;
   }
 
-  String? _dartObjToLiteral(DartObject? obj) {
+  String? _validateEnumStorageAccessor(
+    InterfaceType enumType,
+    ColumnType columnType,
+    String? accessor,
+    FieldElement field,
+  ) {
+    if (accessor == null || accessor.isEmpty) return null;
+
+    final expectedType = switch (columnType) {
+      ColumnType.text => 'String',
+      ColumnType.integer => 'int',
+      _ => null,
+    };
+    if (expectedType == null) {
+      throw InvalidGenerationSourceError(
+        'Enum value fields can only be used with ColumnType.text or ColumnType.integer.',
+        element: field,
+      );
+    }
+
+    final getter = enumType.element.fields.firstWhere(
+      (candidate) =>
+          candidate.displayName == accessor &&
+          !candidate.isStatic &&
+          !candidate.isEnumConstant,
+      orElse: () => throw InvalidGenerationSourceError(
+        'Enum value field "$accessor" was not found on ${enumType.element.displayName}.',
+        element: field,
+      ),
+    );
+
+    final actualType = _stripNullability(getter.type.getDisplayString());
+    if (actualType != expectedType) {
+      throw InvalidGenerationSourceError(
+        'Enum value field "$accessor" on ${enumType.element.displayName} must return $expectedType for ColumnType.${columnType.name}.',
+        element: field,
+      );
+    }
+
+    return accessor;
+  }
+
+  String? _dartObjToLiteral(DartObject? obj, {DartType? type}) {
     if (obj == null) return null;
-    final type = obj.type?.getDisplayString();
+    final resolvedType = type ?? obj.type;
+    if (resolvedType is InterfaceType && resolvedType.element is EnumElement) {
+      final enumIndex = obj.getField('index')?.toIntValue();
+      final enumFields = (resolvedType.element as EnumElement).fields
+          .where((field) => field.isEnumConstant)
+          .toList();
+      if (enumIndex != null &&
+          enumIndex >= 0 &&
+          enumIndex < enumFields.length) {
+        final enumTypeName = _stripNullability(resolvedType.getDisplayString());
+        return '$enumTypeName.${enumFields[enumIndex].displayName}';
+      }
+    }
+
+    final typeName = resolvedType?.getDisplayString();
     final i = obj.toIntValue();
     if (i != null) return i.toString();
     final d = obj.toDoubleValue();
     if (d != null) return d.toString();
-    if (type == 'bool') return (obj.toBoolValue() ?? false) ? 'true' : 'false';
+    if (typeName == 'bool') {
+      return (obj.toBoolValue() ?? false) ? 'true' : 'false';
+    }
     final s = obj.toStringValue();
     if (s != null) return "'${s.replaceAll("'", "\\'")}'";
     return null;

@@ -15,6 +15,7 @@ class GenColumn {
     required this.dartTypeCode,
     required this.isEnum,
     this.enumTypeName,
+    this.enumValueAccessor,
     required this.nullable,
     required this.unique,
     required this.isPk,
@@ -32,6 +33,7 @@ class GenColumn {
   final String dartTypeCode;
   final bool isEnum;
   final String? enumTypeName;
+  final String? enumValueAccessor;
   final bool nullable;
   final bool unique;
   final bool isPk;
@@ -264,7 +266,8 @@ class GenQueryAnalysisResult {
     required this.hasAggregates,
     required this.isSingleResult,
     required this.dtoClassName,
-  });
+    Map<String, String>? variableTypes,
+  }) : variableTypes = variableTypes ?? const {};
 
   /// The resolved columns from the SELECT statement.
   final List<GenQueryColumn> columns;
@@ -286,6 +289,9 @@ class GenQueryAnalysisResult {
 
   /// The generated DTO class name if needed.
   final String dtoClassName;
+
+  /// Inferred Dart types for SQL placeholders keyed by placeholder name.
+  final Map<String, String> variableTypes;
 
   /// Returns true if a DTO class needs to be generated.
   bool get requiresDto => !matchesEntity && !matchesPartialEntity;

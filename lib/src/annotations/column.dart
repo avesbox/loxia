@@ -5,6 +5,7 @@ class Column {
   final bool nullable;
   final bool unique;
   final dynamic defaultValue;
+  final String? enumValueField;
 
   const Column({
     this.name,
@@ -12,6 +13,7 @@ class Column {
     this.nullable = false,
     this.unique = false,
     this.defaultValue,
+    this.enumValueField,
   });
 }
 

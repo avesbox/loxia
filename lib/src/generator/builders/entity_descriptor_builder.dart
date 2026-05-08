@@ -7,6 +7,7 @@ import '../../annotations/column.dart';
 import 'column_builder.dart';
 import 'models.dart';
 import 'relation_builder.dart';
+import 'utils.dart';
 
 /// Builds the EntityDescriptor top-level final variable for an entity.
 class EntityDescriptorBuilder {
@@ -238,9 +239,7 @@ class EntityDescriptorBuilder {
     if (c.isEnum) {
       final source = "row['${c.name}']";
       final enumType = c.enumTypeName ?? c.dartTypeCode;
-      final expr = c.type == ColumnType.text
-          ? '$enumType.values.byName($source as String)'
-          : '$enumType.values[$source as int]';
+      final expr = enumReadExpression(c, source, enumType: enumType);
       final wrapped = c.nullable ? '$source == null ? null : $expr' : expr;
       return CodeExpression(Code(wrapped));
     }
@@ -317,9 +316,7 @@ class EntityDescriptorBuilder {
 
     if (c.isEnum) {
       final source = 'e.${c.prop}';
-      final expr = c.type == ColumnType.text
-          ? (c.nullable ? '$source?.name' : '$source.name')
-          : (c.nullable ? '$source?.index' : '$source.index');
+      final expr = enumStoreExpression(c, source);
       return CodeExpression(Code(expr));
     }
 

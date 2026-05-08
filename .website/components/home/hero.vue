@@ -1,5 +1,6 @@
 <script setup>
 import { motion } from 'motion-v';
+import { data } from '../data/pub.data';
 import CliSequence from './cli_sequence.vue';
 
 </script>
@@ -38,7 +39,7 @@ import CliSequence from './cli_sequence.vue';
                         :transition="{ duration: 0.6, delay: 0.1 }"
                         :inViewOptions="{ once: true }"
                     >
-                        v0.2.0
+                        v{{data}}
                     </motion.div>
                     
                     <motion.div

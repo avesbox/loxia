@@ -36,7 +36,8 @@ class QueryResultAnalysis {
     required this.hasAggregates,
     required this.isSingleResult,
     required this.dtoClassName,
-  });
+    Map<String, String>? variableTypes,
+  }) : variableTypes = variableTypes ?? const {};
 
   /// The resolved columns from the SELECT statement.
   final List<ResolvedQueryColumn> columns;
@@ -59,6 +60,9 @@ class QueryResultAnalysis {
 
   /// The generated DTO class name if needed.
   final String dtoClassName;
+
+  /// Inferred Dart types for SQL placeholders keyed by placeholder name.
+  final Map<String, String> variableTypes;
 
   /// Returns true if a DTO class needs to be generated.
   bool get requiresDto => !matchesEntity && !matchesPartialEntity;
@@ -190,9 +194,10 @@ class SqlAnalyzer {
 
     // Analyze the parsed statement
     final stmt = result.root;
+    final variableTypes = _inferVariableTypes(stmt);
 
     if (stmt is SelectStatement) {
-      return _analyzeSelectStatement(queryName, stmt, result);
+      return _analyzeSelectStatement(queryName, stmt, result, variableTypes);
     } else if (stmt is InsertStatement ||
         stmt is UpdateStatement ||
         stmt is DeleteStatement) {
@@ -205,6 +210,7 @@ class SqlAnalyzer {
         hasAggregates: false,
         isSingleResult: false,
         dtoClassName: '${_toPascalCase(queryName)}Result',
+        variableTypes: variableTypes,
       );
     } else {
       throw InvalidGenerationSourceError(
@@ -220,6 +226,7 @@ class SqlAnalyzer {
     String queryName,
     SelectStatement stmt,
     AnalysisContext result,
+    Map<String, String> variableTypes,
   ) {
     final hasJoins = stmt.from != null && _hasJoinClause(stmt.from!);
     final hasAggregates = _hasAggregateFunctions(stmt);
@@ -248,6 +255,7 @@ class SqlAnalyzer {
         hasAggregates: false,
         isSingleResult: isSingleResult,
         dtoClassName: '${_toPascalCase(queryName)}Result',
+        variableTypes: variableTypes,
       );
     }
 
@@ -308,7 +316,101 @@ class SqlAnalyzer {
       hasAggregates: hasAggregates,
       isSingleResult: isSingleResult,
       dtoClassName: '${_toPascalCase(queryName)}Result',
+      variableTypes: variableTypes,
     );
+  }
+
+  Map<String, String> _inferVariableTypes(AstNode? root) {
+    if (root == null) return const {};
+
+    final inferred = <String, String>{};
+    final conflicts = <String>{};
+
+    void record(String name, String type) {
+      final existing = inferred[name];
+      if (existing == null) {
+        inferred[name] = type;
+        return;
+      }
+
+      if (existing == type) return;
+
+      final merged = _mergeInferredTypes(existing, type);
+      if (merged != null) {
+        inferred[name] = merged;
+        return;
+      }
+
+      inferred.remove(name);
+      conflicts.add(name);
+    }
+
+    void visit(AstNode node) {
+      if (node is BinaryExpression) {
+        final comparison = _comparisonVariableType(node);
+        if (comparison != null && !conflicts.contains(comparison.$1)) {
+          record(comparison.$1, comparison.$2);
+        }
+      }
+
+      for (final child in node.childNodes) {
+        visit(child);
+      }
+    }
+
+    visit(root);
+    return inferred;
+  }
+
+  (String, String)? _comparisonVariableType(BinaryExpression expression) {
+    final left = expression.left;
+    final right = expression.right;
+
+    if (left is NamedVariable && right is Reference) {
+      return _variableTypeFromReference(left.name, right);
+    }
+
+    if (left is Reference && right is NamedVariable) {
+      return _variableTypeFromReference(right.name, left);
+    }
+
+    return null;
+  }
+
+  (String, String)? _variableTypeFromReference(
+    String variableName,
+    Reference reference,
+  ) {
+    final entityCol = _findEntityColumnByName(reference.columnName);
+    if (entityCol != null) {
+      return (variableName, entityCol.dartTypeCode);
+    }
+
+    for (final relation in context.owningJoinColumns) {
+      final joinColumn = relation.joinColumn;
+      if (joinColumn == null) continue;
+      if (joinColumn.name.toLowerCase() != reference.columnName.toLowerCase()) {
+        continue;
+      }
+
+      final baseType = relation.joinColumnBaseDartType ?? 'int';
+      final type = relation.joinColumnNullable && !baseType.endsWith('?')
+          ? '$baseType?'
+          : baseType;
+      return (variableName, type);
+    }
+
+    return null;
+  }
+
+  String? _mergeInferredTypes(String left, String right) {
+    if (left == right) return left;
+
+    final leftBase = left.replaceAll('?', '');
+    final rightBase = right.replaceAll('?', '');
+    if (leftBase != rightBase) return null;
+
+    return left.endsWith('?') || right.endsWith('?') ? '$leftBase?' : leftBase;
   }
 
   /// Resolves a single expression column to a query column.
@@ -534,7 +636,11 @@ class SqlAnalyzer {
   ///
   /// [sqlParams] are the parameter names extracted from the SQL.
   /// Returns a list of parameter names that don't match any column.
-  List<String> validateVariables(String queryName, List<String> sqlParams) {
+  List<String> validateVariables(
+    String queryName,
+    List<String> sqlParams, {
+    Map<String, String> inferredTypes = const {},
+  }) {
     final unknownParams = <String>[];
 
     for (final param in sqlParams) {
@@ -542,8 +648,9 @@ class SqlAnalyzer {
       final matchesJoinColumn = context.owningJoinColumns.any(
         (r) => r.joinColumnPropertyName == param,
       );
+      final matchesInferredType = inferredTypes.containsKey(param);
 
-      if (!matchesColumn && !matchesJoinColumn) {
+      if (!matchesColumn && !matchesJoinColumn && !matchesInferredType) {
         unknownParams.add(param);
       }
     }

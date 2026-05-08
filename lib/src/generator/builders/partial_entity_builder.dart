@@ -360,11 +360,7 @@ if (missing.isNotEmpty) {
       final key = "'${c.prop}'";
       var value = c.prop;
       if (c.isEnum) {
-        if (c.type == ColumnType.text) {
-          value = '$value?.name';
-        } else if (c.type == ColumnType.integer) {
-          value = '$value?.index';
-        }
+        value = enumStoreExpression(c, value, isNullable: true);
       } else if (c.type == ColumnType.dateTime &&
           c.dartTypeCode.contains('DateTime')) {
         // All fields in a Partial are nullable
@@ -383,11 +379,15 @@ if (missing.isNotEmpty) {
       var value = r.fieldName;
       if (r.isCollection) {
         // List<Partial>?
-        value = '$value?.map((e) => e.toJson()).toList()';
+        value = context.omitNullJsonFields
+            ? '$value!.map((e) => e.toJson()).toList()'
+            : '$value?.map((e) => e.toJson()).toList()';
         // If join table relation or such, assume .toJson exists on target partial
       } else {
         // Partial?
-        value = '$value?.toJson()';
+        value = context.omitNullJsonFields
+            ? '$value!.toJson()'
+            : '$value?.toJson()';
       }
       if (!context.omitNullJsonFields) {
         entries.add('$key: $value');

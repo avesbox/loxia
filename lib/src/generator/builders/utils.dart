@@ -3,6 +3,9 @@ library;
 
 import 'package:code_builder/code_builder.dart';
 
+import '../../annotations/column.dart';
+import 'models.dart';
+
 /// Creates a const list literal.
 Expression constList(List<Expression> items, [Reference? type]) {
   return literalConstList(items, type);
@@ -20,3 +23,40 @@ String simpleTypeName(String typeCode) {
 
 /// Escapes a string for use in generated code.
 String escapeString(String value) => value.replaceAll("'", "\\'");
+
+String enumReadExpression(GenColumn c, String source, {String? enumType}) {
+  final resolvedEnumType =
+      enumType ?? c.enumTypeName ?? c.dartTypeCode.replaceAll('?', '');
+  final enumValueAccessor = c.enumValueAccessor;
+
+  switch (c.type) {
+    case ColumnType.text:
+      if (enumValueAccessor != null) {
+        return '$resolvedEnumType.values.firstWhere((entry) => entry.$enumValueAccessor == ($source as String))';
+      }
+      return '$resolvedEnumType.values.byName($source as String)';
+    case ColumnType.integer:
+      if (enumValueAccessor != null) {
+        return '$resolvedEnumType.values.firstWhere((entry) => entry.$enumValueAccessor == ($source as int))';
+      }
+      return '$resolvedEnumType.values[$source as int]';
+    default:
+      return '$source as $resolvedEnumType';
+  }
+}
+
+String enumStoreExpression(GenColumn c, String source, {bool? isNullable}) {
+  final nullable = isNullable ?? c.nullable;
+  final enumValueAccessor =
+      c.enumValueAccessor ??
+      switch (c.type) {
+        ColumnType.text => 'name',
+        ColumnType.integer => 'index',
+        _ => null,
+      };
+
+  if (enumValueAccessor == null) return source;
+  return nullable
+      ? '$source?.$enumValueAccessor'
+      : '$source.$enumValueAccessor';
+}
