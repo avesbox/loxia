@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.1
+
+- chore: update dependencies.
+
 ## 0.3.0
 
 - feat: create fromMap methods in utility classes, allowing for easier conversion.
