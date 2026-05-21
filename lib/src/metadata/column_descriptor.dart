@@ -12,6 +12,7 @@ class ColumnDescriptor {
     this.autoIncrement = false,
     this.uuid = false,
     this.isDeletedAt = false,
+    this.useUtcForTimestamp = false,
     this.defaultValue,
   });
 
@@ -24,5 +25,6 @@ class ColumnDescriptor {
   final bool autoIncrement;
   final bool uuid;
   final bool isDeletedAt;
+  final bool useUtcForTimestamp;
   final dynamic defaultValue;
 }

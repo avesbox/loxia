@@ -364,7 +364,30 @@ void main() {
       );
       expect(engine.executeParamsHistory.first.length, 2);
       expect(engine.executeParamsHistory.first[1], 1);
+      expect(
+        engine.executeParamsHistory.first[0] as String,
+        isNot(endsWith('Z')),
+      );
     });
+
+    test(
+      'softDelete uses utc for DeletedAt columns configured with utc',
+      () async {
+        final engine = _RepoFakeEngine(rows: const [], executeResult: 1);
+        final descriptor = _buildStoreDescriptorWithDeletedAt(useUtc: true);
+        final repository = EntityRepository<_StoreEntity, _StorePartial>(
+          descriptor,
+          engine,
+          const _StoreFields(),
+        );
+
+        await repository.softDelete(
+          QueryBuilder<_StoreEntity>.from((q) => q.field<int>('id').equals(1)),
+        );
+
+        expect(engine.executeParamsHistory.first[0] as String, endsWith('Z'));
+      },
+    );
 
     test('softDeleteEntities soft deletes each entity', () async {
       final engine = _RepoFakeEngine(rows: const []);
@@ -479,7 +502,7 @@ EntityDescriptor<_StoreEntity, _StorePartial> _buildStoreDescriptor() {
 }
 
 EntityDescriptor<_StoreEntity, _StorePartial>
-_buildStoreDescriptorWithDeletedAt() {
+_buildStoreDescriptorWithDeletedAt({bool useUtc = false}) {
   late final EntityDescriptor<_StoreEntity, _StorePartial> descriptor;
   descriptor = EntityDescriptor<_StoreEntity, _StorePartial>(
     entityType: _StoreEntity,
@@ -508,6 +531,7 @@ _buildStoreDescriptorWithDeletedAt() {
         type: ColumnType.dateTime,
         nullable: true,
         isDeletedAt: true,
+        useUtcForTimestamp: useUtc,
       ),
     ],
     relations: const [

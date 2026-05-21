@@ -59,6 +59,53 @@ class Merchant extends Entity {
       $MerchantEntityDescriptor;
 }
 
+abstract class SyncEntity extends Entity {
+  @PrimaryKey(uuid: true)
+  final String id;
+
+  @Column(defaultValue: 0)
+  final int version;
+
+  @CreatedAt()
+  final DateTime createdAt;
+
+  @UpdatedAt()
+  final DateTime updatedAt;
+
+  @DeletedAt()
+  DateTime? deletedAt;
+
+  SyncEntity({
+    required this.id,
+    required this.version,
+    required this.createdAt,
+    required this.updatedAt,
+    this.deletedAt,
+  });
+}
+
+@EntityMeta(table: 'products')
+class Product extends SyncEntity {
+  @Column()
+  final String name;
+
+  @Column()
+  final double price;
+
+  Product({
+    required super.id,
+    required super.version,
+    required super.createdAt,
+    required super.updatedAt,
+    super.deletedAt,
+    required this.name,
+    required this.price,
+  });
+
+  static EntityDescriptor<Product, ProductPartial> get entity =>
+      $ProductEntityDescriptor;
+}
+
 @EntityMeta(
   table: 'users',
   queries: [

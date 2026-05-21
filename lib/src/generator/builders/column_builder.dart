@@ -22,6 +22,7 @@ class ColumnDescriptorBuilder {
       'autoIncrement': literalBool(column.autoIncrement),
       'uuid': literalBool(column.uuid),
       'isDeletedAt': literalBool(column.isDeletedAt),
+      'useUtcForTimestamp': literalBool(column.useUtcForTimestamp),
       if (column.defaultLiteral != null)
         'defaultValue': CodeExpression(Code(column.defaultLiteral!)),
     });

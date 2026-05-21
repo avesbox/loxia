@@ -13,6 +13,7 @@ import 'package:source_gen/source_gen.dart';
 
 import '../annotations/column.dart';
 import '../annotations/entity_meta.dart';
+import '../annotations/timestamps.dart';
 import '../migrations/schema_snapshot.dart';
 
 /// Builder responsible for snapshotting schema and creating migration artifacts.
@@ -152,11 +153,21 @@ class SchemaSnapshotBuilder implements Builder {
     final columns = <String, SnapshotColumn>{};
     final columnChecker = TypeChecker.typeNamed(Column);
     final primaryChecker = TypeChecker.typeNamed(PrimaryKey);
+    final createdAtChecker = TypeChecker.typeNamed(CreatedAt);
+    final updatedAtChecker = TypeChecker.typeNamed(UpdatedAt);
+    final deletedAtChecker = TypeChecker.typeNamed(DeletedAt);
 
-    for (final field in clazz.fields.where((f) => !f.isStatic)) {
+    for (final field in _instanceFieldsInHierarchy(clazz)) {
       final columnAnn = columnChecker.firstAnnotationOfExact(field);
       final primaryAnn = primaryChecker.firstAnnotationOfExact(field);
-      if (columnAnn == null && primaryAnn == null) continue;
+      final createdAtAnn = createdAtChecker.firstAnnotationOfExact(field);
+      final updatedAtAnn = updatedAtChecker.firstAnnotationOfExact(field);
+      final deletedAtAnn = deletedAtChecker.firstAnnotationOfExact(field);
+      final isTimestampField =
+          createdAtAnn != null || updatedAtAnn != null || deletedAtAnn != null;
+      if (columnAnn == null && primaryAnn == null && !isTimestampField) {
+        continue;
+      }
 
       final columnReader = columnAnn == null ? null : ConstantReader(columnAnn);
       final columnName =
@@ -167,12 +178,14 @@ class SchemaSnapshotBuilder implements Builder {
           field.type is InterfaceType &&
           (field.type as InterfaceType).element is EnumElement;
 
-      final type = _resolveColumnType(
-        columnReader,
-        field.type,
-        isEnum: isEnumType,
-        field: field,
-      );
+      final type = isTimestampField
+          ? ColumnType.dateTime
+          : _resolveColumnType(
+              columnReader,
+              field.type,
+              isEnum: isEnumType,
+              field: field,
+            );
       final nullable = _resolveNullable(columnReader, field.type);
       final unique = columnReader?.peek('unique')?.boolValue ?? false;
       final enumValueAccessor = isEnumType
@@ -203,6 +216,31 @@ class SchemaSnapshotBuilder implements Builder {
     }
 
     return columns;
+  }
+
+  Iterable<FieldElement> _instanceFieldsInHierarchy(ClassElement clazz) sync* {
+    final fieldsByName = <String, FieldElement>{};
+
+    for (final type in _classHierarchy(clazz)) {
+      for (final field in type.fields.where((f) => !f.isStatic)) {
+        fieldsByName[field.displayName] = field;
+      }
+    }
+
+    yield* fieldsByName.values;
+  }
+
+  Iterable<ClassElement> _classHierarchy(ClassElement clazz) sync* {
+    final chain = <ClassElement>[];
+    ClassElement? current = clazz;
+
+    while (current != null) {
+      chain.add(current);
+      final superElement = current.supertype?.element;
+      current = superElement is ClassElement ? superElement : null;
+    }
+
+    yield* chain.reversed;
   }
 
   bool _resolveNullable(ConstantReader? reader, DartType type) {

@@ -1876,7 +1876,13 @@ class EntityRepository<T extends Entity, P extends PartialEntity<T>> {
     return descriptor.columns.where((column) => column.isDeletedAt).firstOrNull;
   }
 
-  Object _nowForDeletedAt() => DateTime.now().toUtc().toIso8601String();
+  Object _nowForDeletedAt() {
+    final deletedAtColumn = _deletedAtColumnOrThrow();
+    final timestamp = deletedAtColumn.useUtcForTimestamp
+        ? DateTime.now().toUtc()
+        : DateTime.now();
+    return timestamp.toIso8601String();
+  }
 
   String _renderTableReference(String name) =>
       name.split('.').map((part) => '"$part"').join('.');

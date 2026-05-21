@@ -1,12 +1,18 @@
 /// Timestamp column annotations.
 class CreatedAt {
-  const CreatedAt();
+  const CreatedAt({this.utc = false});
+
+  final bool utc;
 }
 
 class UpdatedAt {
-  const UpdatedAt();
+  const UpdatedAt({this.utc = false});
+
+  final bool utc;
 }
 
 class DeletedAt {
-  const DeletedAt();
+  const DeletedAt({this.utc = false});
+
+  final bool utc;
 }

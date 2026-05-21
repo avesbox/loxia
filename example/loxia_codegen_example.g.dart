@@ -712,6 +712,658 @@ void $initMerchantJsonCodec() {
 extension MerchantRepositoryExtensions
     on EntityRepository<Merchant, PartialEntity<Merchant>> {}
 
+final EntityDescriptor<Product, ProductPartial> $ProductEntityDescriptor = () {
+  $initProductJsonCodec();
+  return EntityDescriptor(
+    entityType: Product,
+    tableName: 'products',
+    columns: [
+      ColumnDescriptor(
+        name: 'id',
+        propertyName: 'id',
+        type: ColumnType.uuid,
+        nullable: false,
+        unique: false,
+        isPrimaryKey: true,
+        autoIncrement: false,
+        uuid: true,
+        isDeletedAt: false,
+      ),
+      ColumnDescriptor(
+        name: 'version',
+        propertyName: 'version',
+        type: ColumnType.integer,
+        nullable: false,
+        unique: false,
+        isPrimaryKey: false,
+        autoIncrement: false,
+        uuid: false,
+        isDeletedAt: false,
+        defaultValue: 0,
+      ),
+      ColumnDescriptor(
+        name: 'created_at',
+        propertyName: 'createdAt',
+        type: ColumnType.dateTime,
+        nullable: false,
+        unique: false,
+        isPrimaryKey: false,
+        autoIncrement: false,
+        uuid: false,
+        isDeletedAt: false,
+      ),
+      ColumnDescriptor(
+        name: 'updated_at',
+        propertyName: 'updatedAt',
+        type: ColumnType.dateTime,
+        nullable: false,
+        unique: false,
+        isPrimaryKey: false,
+        autoIncrement: false,
+        uuid: false,
+        isDeletedAt: false,
+      ),
+      ColumnDescriptor(
+        name: 'deleted_at',
+        propertyName: 'deletedAt',
+        type: ColumnType.dateTime,
+        nullable: true,
+        unique: false,
+        isPrimaryKey: false,
+        autoIncrement: false,
+        uuid: false,
+        isDeletedAt: true,
+      ),
+      ColumnDescriptor(
+        name: 'name',
+        propertyName: 'name',
+        type: ColumnType.text,
+        nullable: false,
+        unique: false,
+        isPrimaryKey: false,
+        autoIncrement: false,
+        uuid: false,
+        isDeletedAt: false,
+      ),
+      ColumnDescriptor(
+        name: 'price',
+        propertyName: 'price',
+        type: ColumnType.doublePrecision,
+        nullable: false,
+        unique: false,
+        isPrimaryKey: false,
+        autoIncrement: false,
+        uuid: false,
+        isDeletedAt: false,
+      ),
+    ],
+    relations: const [],
+    fromRow: (row) => Product(
+      id: (row['id'] as String),
+      version: (row['version'] as int),
+      createdAt: row['created_at'] is String
+          ? DateTime.parse(row['created_at'].toString())
+          : row['created_at'] as DateTime,
+      updatedAt: row['updated_at'] is String
+          ? DateTime.parse(row['updated_at'].toString())
+          : row['updated_at'] as DateTime,
+      deletedAt: row['deleted_at'] == null
+          ? null
+          : row['deleted_at'] is String
+          ? DateTime.parse(row['deleted_at'].toString())
+          : row['deleted_at'] as DateTime,
+      name: (row['name'] as String),
+      price: (row['price'] as double),
+    ),
+    toRow: (e) => {
+      'id': e.id,
+      'version': e.version,
+      'created_at': e.createdAt.toIso8601String(),
+      'updated_at': e.updatedAt.toIso8601String(),
+      'deleted_at': e.deletedAt?.toIso8601String(),
+      'name': e.name,
+      'price': e.price,
+    },
+    fieldsContext: const ProductFieldsContext(),
+    repositoryFactory: (EngineAdapter engine) => ProductRepository(engine),
+    hooks: EntityHooks<Product>(
+      prePersist: (e) {
+        e.createdAt = DateTime.now();
+        e.updatedAt = DateTime.now();
+      },
+      preUpdate: (e) {
+        e.updatedAt = DateTime.now();
+      },
+    ),
+    defaultSelect: () => ProductSelect(),
+  );
+}();
+
+class ProductFieldsContext extends QueryFieldsContext<Product> {
+  const ProductFieldsContext([super.runtimeContext, super.alias]);
+
+  @override
+  ProductFieldsContext bind(QueryRuntimeContext runtimeContext, String alias) =>
+      ProductFieldsContext(runtimeContext, alias);
+
+  QueryField<String> get id => field<String>('id');
+
+  QueryField<int> get version => field<int>('version');
+
+  QueryField<DateTime> get createdAt => field<DateTime>('created_at');
+
+  QueryField<DateTime> get updatedAt => field<DateTime>('updated_at');
+
+  QueryField<DateTime?> get deletedAt => field<DateTime?>('deleted_at');
+
+  QueryField<String> get name => field<String>('name');
+
+  QueryField<double> get price => field<double>('price');
+}
+
+class ProductQuery extends QueryBuilder<Product> {
+  const ProductQuery(this._builder);
+
+  final WhereExpression Function(ProductFieldsContext) _builder;
+
+  @override
+  WhereExpression build(QueryFieldsContext<Product> context) {
+    if (context is! ProductFieldsContext) {
+      throw ArgumentError('Expected ProductFieldsContext for ProductQuery');
+    }
+    return _builder(context);
+  }
+}
+
+class ProductSelect extends SelectOptions<Product, ProductPartial> {
+  const ProductSelect({
+    this.id = true,
+    this.version = true,
+    this.createdAt = true,
+    this.updatedAt = true,
+    this.deletedAt = true,
+    this.name = true,
+    this.price = true,
+    this.relations,
+  });
+
+  final bool id;
+
+  final bool version;
+
+  final bool createdAt;
+
+  final bool updatedAt;
+
+  final bool deletedAt;
+
+  final bool name;
+
+  final bool price;
+
+  final ProductRelations? relations;
+
+  @override
+  bool get hasSelections =>
+      id ||
+      version ||
+      createdAt ||
+      updatedAt ||
+      deletedAt ||
+      name ||
+      price ||
+      (relations?.hasSelections ?? false);
+
+  @override
+  SelectOptions<Product, ProductPartial> withRelations(
+    RelationsOptions<Product, ProductPartial>? relations,
+  ) {
+    return ProductSelect(
+      id: id,
+      version: version,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+      deletedAt: deletedAt,
+      name: name,
+      price: price,
+      relations: relations as ProductRelations?,
+    );
+  }
+
+  @override
+  void collect(
+    QueryFieldsContext<Product> context,
+    List<SelectField> out, {
+    String? path,
+  }) {
+    if (context is! ProductFieldsContext) {
+      throw ArgumentError('Expected ProductFieldsContext for ProductSelect');
+    }
+    final ProductFieldsContext scoped = context;
+    String? aliasFor(String column) {
+      final current = path;
+      if (current == null || current.isEmpty) return null;
+      return '${current}_$column';
+    }
+
+    final tableAlias = scoped.currentAlias;
+    if (id) {
+      out.add(SelectField('id', tableAlias: tableAlias, alias: aliasFor('id')));
+    }
+    if (version) {
+      out.add(
+        SelectField(
+          'version',
+          tableAlias: tableAlias,
+          alias: aliasFor('version'),
+        ),
+      );
+    }
+    if (createdAt) {
+      out.add(
+        SelectField(
+          'created_at',
+          tableAlias: tableAlias,
+          alias: aliasFor('created_at'),
+        ),
+      );
+    }
+    if (updatedAt) {
+      out.add(
+        SelectField(
+          'updated_at',
+          tableAlias: tableAlias,
+          alias: aliasFor('updated_at'),
+        ),
+      );
+    }
+    if (deletedAt) {
+      out.add(
+        SelectField(
+          'deleted_at',
+          tableAlias: tableAlias,
+          alias: aliasFor('deleted_at'),
+        ),
+      );
+    }
+    if (name) {
+      out.add(
+        SelectField('name', tableAlias: tableAlias, alias: aliasFor('name')),
+      );
+    }
+    if (price) {
+      out.add(
+        SelectField('price', tableAlias: tableAlias, alias: aliasFor('price')),
+      );
+    }
+    final rels = relations;
+    if (rels != null && rels.hasSelections) {
+      rels.collect(scoped, out, path: path);
+    }
+  }
+
+  @override
+  ProductPartial hydrate(Map<String, dynamic> row, {String? path}) {
+    return ProductPartial(
+      id: id ? readValue(row, 'id', path: path) as String : null,
+      version: version ? readValue(row, 'version', path: path) as int : null,
+      createdAt: createdAt
+          ? (readValue(row, 'created_at', path: path) is String
+                ? DateTime.parse(
+                    readValue(row, 'created_at', path: path) as String,
+                  )
+                : readValue(row, 'created_at', path: path) as DateTime)
+          : null,
+      updatedAt: updatedAt
+          ? (readValue(row, 'updated_at', path: path) is String
+                ? DateTime.parse(
+                    readValue(row, 'updated_at', path: path) as String,
+                  )
+                : readValue(row, 'updated_at', path: path) as DateTime)
+          : null,
+      deletedAt: deletedAt
+          ? readValue(row, 'deleted_at', path: path) == null
+                ? null
+                : (readValue(row, 'deleted_at', path: path) is String
+                      ? DateTime.parse(
+                          readValue(row, 'deleted_at', path: path) as String,
+                        )
+                      : readValue(row, 'deleted_at', path: path) as DateTime)
+          : null,
+      name: name ? readValue(row, 'name', path: path) as String : null,
+      price: price ? readValue(row, 'price', path: path) as double : null,
+    );
+  }
+
+  @override
+  bool get hasCollectionRelations => false;
+
+  @override
+  String? get primaryKeyColumn => 'id';
+}
+
+class ProductRelations extends RelationsOptions<Product, ProductPartial> {
+  const ProductRelations();
+
+  @override
+  bool get hasSelections => false;
+
+  @override
+  void collect(
+    QueryFieldsContext<Product> context,
+    List<SelectField> out, {
+    String? path,
+  }) {
+    if (context is! ProductFieldsContext) {
+      throw ArgumentError('Expected ProductFieldsContext for ProductRelations');
+    }
+  }
+}
+
+class ProductPartial extends PartialEntity<Product> {
+  const ProductPartial({
+    this.id,
+    this.version,
+    this.createdAt,
+    this.updatedAt,
+    this.deletedAt,
+    this.name,
+    this.price,
+  });
+
+  final String? id;
+
+  final int? version;
+
+  final DateTime? createdAt;
+
+  final DateTime? updatedAt;
+
+  final DateTime? deletedAt;
+
+  final String? name;
+
+  final double? price;
+
+  @override
+  Object? get primaryKeyValue {
+    return id;
+  }
+
+  @override
+  ProductInsertDto toInsertDto() {
+    final missing = <String>[];
+    if (name == null) missing.add('name');
+    if (price == null) missing.add('price');
+    if (missing.isNotEmpty) {
+      throw StateError(
+        'Cannot convert ProductPartial to ProductInsertDto: missing required fields: ${missing.join(', ')}',
+      );
+    }
+    return ProductInsertDto(
+      version: version ?? 0,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+      deletedAt: deletedAt,
+      name: name!,
+      price: price!,
+    );
+  }
+
+  @override
+  ProductUpdateDto toUpdateDto() {
+    return ProductUpdateDto(
+      version: version,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+      deletedAt: deletedAt,
+      name: name,
+      price: price,
+    );
+  }
+
+  @override
+  Product toEntity() {
+    final missing = <String>[];
+    if (id == null) missing.add('id');
+    if (version == null) missing.add('version');
+    if (createdAt == null) missing.add('createdAt');
+    if (updatedAt == null) missing.add('updatedAt');
+    if (name == null) missing.add('name');
+    if (price == null) missing.add('price');
+    if (missing.isNotEmpty) {
+      throw StateError(
+        'Cannot convert ProductPartial to Product: missing required fields: ${missing.join(', ')}',
+      );
+    }
+    return Product(
+      id: id!,
+      version: version!,
+      createdAt: createdAt!,
+      updatedAt: updatedAt!,
+      deletedAt: deletedAt,
+      name: name!,
+      price: price!,
+    );
+  }
+
+  @override
+  Map<String, dynamic> toJson() {
+    return {
+      if (id != null) 'id': id,
+      if (version != null) 'version': version,
+      if (createdAt != null) 'createdAt': createdAt?.toIso8601String(),
+      if (updatedAt != null) 'updatedAt': updatedAt?.toIso8601String(),
+      if (deletedAt != null) 'deletedAt': deletedAt?.toIso8601String(),
+      if (name != null) 'name': name,
+      if (price != null) 'price': price,
+    };
+  }
+}
+
+class ProductInsertDto implements InsertDto<Product> {
+  const ProductInsertDto({
+    this.version = 0,
+    this.createdAt,
+    this.updatedAt,
+    this.deletedAt,
+    required this.name,
+    required this.price,
+  });
+
+  factory ProductInsertDto.fromMap(Map<String, dynamic> map) {
+    return ProductInsertDto(
+      version: map.containsKey('version') ? map['version'] as int : 0,
+      createdAt: map['created_at'] == null
+          ? null
+          : map['created_at'] is String
+          ? DateTime.parse(map['created_at'].toString())
+          : map['created_at'] as DateTime,
+      updatedAt: map['updated_at'] == null
+          ? null
+          : map['updated_at'] is String
+          ? DateTime.parse(map['updated_at'].toString())
+          : map['updated_at'] as DateTime,
+      deletedAt: map['deleted_at'] == null
+          ? null
+          : map['deleted_at'] is String
+          ? DateTime.parse(map['deleted_at'].toString())
+          : map['deleted_at'] as DateTime,
+      name: map['name'] as String,
+      price: (map['price'] as num).toDouble(),
+    );
+  }
+
+  final int version;
+
+  final DateTime? createdAt;
+
+  final DateTime? updatedAt;
+
+  final DateTime? deletedAt;
+
+  final String name;
+
+  final double price;
+
+  @override
+  Map<String, dynamic> toMap() {
+    return {
+      'version': version,
+      'created_at': DateTime.now().toIso8601String(),
+      'updated_at': DateTime.now().toIso8601String(),
+      'deleted_at': deletedAt is DateTime
+          ? (deletedAt as DateTime).toIso8601String()
+          : deletedAt?.toString(),
+      'name': name,
+      'price': price,
+    };
+  }
+
+  Map<String, dynamic> get cascades {
+    return const {};
+  }
+
+  ProductInsertDto copyWith({
+    int? version,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    DateTime? deletedAt,
+    String? name,
+    double? price,
+  }) {
+    return ProductInsertDto(
+      version: version ?? this.version,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      name: name ?? this.name,
+      price: price ?? this.price,
+    );
+  }
+}
+
+class ProductUpdateDto implements UpdateDto<Product> {
+  const ProductUpdateDto({
+    this.version,
+    this.createdAt,
+    this.updatedAt,
+    this.deletedAt,
+    this.name,
+    this.price,
+  });
+
+  factory ProductUpdateDto.fromMap(Map<String, dynamic> map) {
+    return ProductUpdateDto(
+      version: map['version'] == null ? null : map['version'] as int,
+      createdAt: map['created_at'] == null
+          ? null
+          : map['created_at'] is String
+          ? DateTime.parse(map['created_at'].toString())
+          : map['created_at'] as DateTime,
+      updatedAt: map['updated_at'] == null
+          ? null
+          : map['updated_at'] is String
+          ? DateTime.parse(map['updated_at'].toString())
+          : map['updated_at'] as DateTime,
+      deletedAt: map['deleted_at'] == null
+          ? null
+          : map['deleted_at'] is String
+          ? DateTime.parse(map['deleted_at'].toString())
+          : map['deleted_at'] as DateTime,
+      name: map['name'] == null ? null : map['name'] as String,
+      price: map['price'] == null ? null : (map['price'] as num).toDouble(),
+    );
+  }
+
+  final int? version;
+
+  final DateTime? createdAt;
+
+  final DateTime? updatedAt;
+
+  final DateTime? deletedAt;
+
+  final String? name;
+
+  final double? price;
+
+  @override
+  Map<String, dynamic> toMap() {
+    return {
+      if (version != null) 'version': version,
+      if (createdAt != null)
+        'created_at': createdAt is DateTime
+            ? (createdAt as DateTime).toIso8601String()
+            : createdAt?.toString(),
+      'updated_at': DateTime.now().toIso8601String(),
+      if (deletedAt != null)
+        'deleted_at': deletedAt is DateTime
+            ? (deletedAt as DateTime).toIso8601String()
+            : deletedAt?.toString(),
+      if (name != null) 'name': name,
+      if (price != null) 'price': price,
+    };
+  }
+
+  Map<String, dynamic> get cascades {
+    return const {};
+  }
+}
+
+class ProductRepository extends EntityRepository<Product, ProductPartial> {
+  ProductRepository(EngineAdapter engine)
+    : super(
+        $ProductEntityDescriptor,
+        engine,
+        $ProductEntityDescriptor.fieldsContext,
+      );
+}
+
+extension ProductJson on Product {
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'version': version,
+      'createdAt': createdAt.toIso8601String(),
+      'updatedAt': updatedAt.toIso8601String(),
+      if (deletedAt != null) 'deletedAt': deletedAt?.toIso8601String(),
+      'name': name,
+      'price': price,
+    };
+  }
+}
+
+extension ProductCodec on Product {
+  Object? toEncodable() {
+    return toJson();
+  }
+
+  String toJsonString() {
+    return encodeJsonColumn(toJson()) as String;
+  }
+}
+
+extension ProductPartialCodec on ProductPartial {
+  Object? toEncodable() {
+    return toJson();
+  }
+
+  String toJsonString() {
+    return encodeJsonColumn(toJson()) as String;
+  }
+}
+
+var $isProductJsonCodecInitialized = false;
+void $initProductJsonCodec() {
+  if ($isProductJsonCodecInitialized) return;
+  EntityJsonRegistry.register<Product>((value) => ProductJson(value).toJson());
+  $isProductJsonCodecInitialized = true;
+}
+
+extension ProductRepositoryExtensions
+    on EntityRepository<Product, PartialEntity<Product>> {}
+
 final EntityDescriptor<User, UserPartial> $UserEntityDescriptor = () {
   $initUserJsonCodec();
   return EntityDescriptor(

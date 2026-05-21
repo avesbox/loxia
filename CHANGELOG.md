@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.2
+
+- fix: add missing useUtcForTimestamp option in ColumnDescriptor, allowing the soft delete functionality to properly respect the useUtcForTimestamp setting when generating the timestamp for the deletedAt field. This ensures that the correct timestamp format is used based on the configuration of the column, providing more accurate and consistent handling of soft-deleted entities in the database.
+- fix: support inheritance for entities, allowing you to define a base entity class with common fields and have other entity classes inherit from it. This enables better code reuse and organization by allowing you to define shared properties and behavior in a base class, while still being able to define specific fields and functionality in the derived entity classes. The generator will properly handle the inheritance hierarchy when generating the database schema and the repository code, ensuring that all fields from the base class are included in the derived entities and that the database schema is correctly structured to accommodate the inheritance.
+
 ## 0.3.1
 
 - chore: update dependencies.

@@ -194,7 +194,7 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
     }
 
     // 2. Column-level indexes from @IndexColumn on fields
-    for (final field in clazz.fields.where((f) => !f.isStatic)) {
+    for (final field in _instanceFieldsInHierarchy(clazz)) {
       final indexAnnObj = _firstAnnotation(field, IndexColumn);
       if (indexAnnObj == null) continue;
       final indexAnn = ConstantReader(indexAnnObj);
@@ -297,20 +297,49 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
     final createdAt = <GenTimestampField>[];
     final updatedAt = <GenTimestampField>[];
     final deletedAt = <GenTimestampField>[];
-    for (final field in clazz.fields.where((f) => !f.isStatic)) {
-      final hasCreatedAt = _firstAnnotation(field, CreatedAt) != null;
-      final hasUpdatedAt = _firstAnnotation(field, UpdatedAt) != null;
-      final hasDeletedAt = _firstAnnotation(field, DeletedAt) != null;
-      if (!hasCreatedAt && !hasUpdatedAt && !hasDeletedAt) continue;
+    for (final field in _instanceFieldsInHierarchy(clazz)) {
+      final createdAtAnn = _firstAnnotation(field, CreatedAt);
+      final updatedAtAnn = _firstAnnotation(field, UpdatedAt);
+      final deletedAtAnn = _firstAnnotation(field, DeletedAt);
+      if (createdAtAnn == null &&
+          updatedAtAnn == null &&
+          deletedAtAnn == null) {
+        continue;
+      }
 
-      final valueExpression = _timestampValueExpression(field);
-      final model = GenTimestampField(
-        fieldName: field.displayName,
-        valueExpression: valueExpression,
-      );
-      if (hasCreatedAt) createdAt.add(model);
-      if (hasUpdatedAt) updatedAt.add(model);
-      if (hasDeletedAt) deletedAt.add(model);
+      if (createdAtAnn != null) {
+        createdAt.add(
+          GenTimestampField(
+            fieldName: field.displayName,
+            valueExpression: _timestampValueExpression(
+              field,
+              useUtc: _timestampUsesUtc(createdAtAnn),
+            ),
+          ),
+        );
+      }
+      if (updatedAtAnn != null) {
+        updatedAt.add(
+          GenTimestampField(
+            fieldName: field.displayName,
+            valueExpression: _timestampValueExpression(
+              field,
+              useUtc: _timestampUsesUtc(updatedAtAnn),
+            ),
+          ),
+        );
+      }
+      if (deletedAtAnn != null) {
+        deletedAt.add(
+          GenTimestampField(
+            fieldName: field.displayName,
+            valueExpression: _timestampValueExpression(
+              field,
+              useUtc: _timestampUsesUtc(deletedAtAnn),
+            ),
+          ),
+        );
+      }
     }
 
     return _TimestampFields(
@@ -320,20 +349,21 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
     );
   }
 
-  String _timestampValueExpression(FieldElement field) {
+  String _timestampValueExpression(FieldElement field, {required bool useUtc}) {
     var typeName = field.type.getDisplayString();
     if (field.type.nullabilitySuffix == NullabilitySuffix.question) {
       typeName = typeName.substring(0, typeName.length - 1);
     }
+    final nowExpression = useUtc ? 'DateTime.now().toUtc()' : 'DateTime.now()';
     switch (typeName) {
       case 'DateTime':
-        return 'DateTime.now()';
+        return nowExpression;
       case 'int':
-        return 'DateTime.now().millisecondsSinceEpoch';
+        return '$nowExpression.millisecondsSinceEpoch';
       case 'double':
-        return 'DateTime.now().millisecondsSinceEpoch.toDouble()';
+        return '$nowExpression.millisecondsSinceEpoch.toDouble()';
       case 'String':
-        return 'DateTime.now().toIso8601String()';
+        return '$nowExpression.toIso8601String()';
       default:
         throw InvalidGenerationSourceError(
           'Unsupported timestamp field type ${field.type.getDisplayString()} on ${field.enclosingElement.displayName}.${field.displayName}. '
@@ -341,6 +371,10 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
           element: field,
         );
     }
+  }
+
+  bool _timestampUsesUtc(DartObject annotation) {
+    return ConstantReader(annotation).peek('utc')?.boolValue ?? false;
   }
 
   Map<String, List<String>> _parseHooks(ClassElement clazz) {
@@ -355,7 +389,7 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
       PostLoad: 'postLoad',
     };
 
-    for (final method in clazz.methods.where((m) => !m.isStatic)) {
+    for (final method in _instanceMethodsInHierarchy(clazz)) {
       final matching = <String>[];
       for (final entry in hookTypes.entries) {
         if (_hasAnnotation(method, entry.key)) {
@@ -411,7 +445,7 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
   List<GenColumn> _parseColumns(ClassElement clazz) {
     final columns = <GenColumn>[];
 
-    for (final field in clazz.fields.where((f) => !f.isStatic)) {
+    for (final field in _instanceFieldsInHierarchy(clazz)) {
       final primaryAnnObj = _firstAnnotation(field, PrimaryKey);
       final colAnnObj = _firstAnnotation(field, Column) ?? primaryAnnObj;
       final createdAtAnn = _firstAnnotation(field, CreatedAt);
@@ -451,6 +485,9 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
       final isCreatedAt = createdAtAnn != null;
       final isUpdatedAt = updatedAtAnn != null;
       final isDeletedAt = deletedAtAnn != null;
+      final useUtcForTimestamp = isCreatedAt || isUpdatedAt || isDeletedAt
+          ? _timestampUsesUtc((createdAtAnn ?? updatedAtAnn ?? deletedAtAnn)!)
+          : false;
 
       var type =
           (createdAtAnn != null || updatedAtAnn != null || deletedAtAnn != null)
@@ -491,6 +528,7 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
           isCreatedAt: isCreatedAt,
           isUpdatedAt: isUpdatedAt,
           isDeletedAt: isDeletedAt,
+          useUtcForTimestamp: useUtcForTimestamp,
           defaultLiteral: _dartObjToLiteral(defaultValue, type: dartType),
         ),
       );
@@ -507,7 +545,7 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
   ) {
     final relations = <GenRelation>[];
 
-    for (final field in clazz.fields.where((f) => !f.isStatic)) {
+    for (final field in _instanceFieldsInHierarchy(clazz)) {
       final relation = _buildRelation(field, entityName, tableName);
       if (relation != null) {
         relations.add(relation);
@@ -515,6 +553,45 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
     }
 
     return relations;
+  }
+
+  Iterable<FieldElement> _instanceFieldsInHierarchy(ClassElement clazz) sync* {
+    final fieldsByName = <String, FieldElement>{};
+
+    for (final type in _classHierarchy(clazz)) {
+      for (final field in type.fields.where((f) => !f.isStatic)) {
+        fieldsByName[field.displayName] = field;
+      }
+    }
+
+    yield* fieldsByName.values;
+  }
+
+  Iterable<MethodElement> _instanceMethodsInHierarchy(
+    ClassElement clazz,
+  ) sync* {
+    final methodsByName = <String, MethodElement>{};
+
+    for (final type in _classHierarchy(clazz)) {
+      for (final method in type.methods.where((m) => !m.isStatic)) {
+        methodsByName[method.displayName] = method;
+      }
+    }
+
+    yield* methodsByName.values;
+  }
+
+  Iterable<ClassElement> _classHierarchy(ClassElement clazz) sync* {
+    final chain = <ClassElement>[];
+    ClassElement? current = clazz;
+
+    while (current != null) {
+      chain.add(current);
+      final superElement = current.supertype?.element;
+      current = superElement is ClassElement ? superElement : null;
+    }
+
+    yield* chain.reversed;
   }
 
   DartObject? _firstAnnotation(FieldElement field, Type t) {

@@ -24,6 +24,7 @@ class GenColumn {
     this.isCreatedAt = false,
     this.isUpdatedAt = false,
     this.isDeletedAt = false,
+    this.useUtcForTimestamp = false,
     this.defaultLiteral,
   });
 
@@ -42,6 +43,7 @@ class GenColumn {
   final bool isCreatedAt;
   final bool isUpdatedAt;
   final bool isDeletedAt;
+  final bool useUtcForTimestamp;
   final String? defaultLiteral;
 }
 
