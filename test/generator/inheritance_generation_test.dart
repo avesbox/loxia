@@ -94,6 +94,28 @@ void main() {
         readerWriter: readerWriter,
       );
     });
+
+    test('resolves inherited primary keys for relation targets', () async {
+      final readerWriter = await _createReaderWriter();
+
+      await testBuilder(
+        entityDescriptorBuilder(BuilderOptions.empty),
+        {'loxia|lib/inheritance_generation_input.dart': _relationEntitySource},
+        rootPackage: 'loxia',
+        outputs: {
+          'loxia|lib/inheritance_generation_input.loxia.g.part': decodedMatches(
+            allOf([
+              contains('this.accountId,'),
+              contains(
+                "QueryField<String?> get accountId => field<String?>(\'account_id\');",
+              ),
+              contains("'account_id': e.account?.id"),
+            ]),
+          ),
+        },
+        readerWriter: readerWriter,
+      );
+    });
   });
 }
 
@@ -173,5 +195,37 @@ class Event extends Entity {
   DateTime? deletedAt;
 
   Event({required this.id, this.createdAt, this.updatedAt, this.deletedAt});
+}
+''';
+
+const String _relationEntitySource = r'''
+import 'package:loxia/loxia.dart';
+
+part 'inheritance_generation_input.g.dart';
+
+abstract class BaseRecord extends Entity {
+  @PrimaryKey(uuid: true)
+  final String id;
+
+  const BaseRecord({required this.id});
+}
+
+@EntityMeta(table: 'accounts')
+class Account extends BaseRecord {
+  @Column()
+  final String email;
+
+  const Account({required super.id, required this.email});
+}
+
+@EntityMeta(table: 'users')
+class User extends Entity {
+  @PrimaryKey(uuid: true)
+  final String id;
+
+  @ManyToOne(on: Account)
+  Account? account;
+
+  User({required this.id, this.account});
 }
 ''';

@@ -997,7 +997,10 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
 
   PrimaryKeyInfo _resolvePrimaryKeyInfo(InterfaceType type) {
     final element = type.element;
-    for (final field in element.fields.where((f) => !f.isStatic)) {
+    final fields = element is ClassElement
+        ? _instanceFieldsInHierarchy(element)
+        : element.fields.where((f) => !f.isStatic);
+    for (final field in fields) {
       if (_firstAnnotation(field, PrimaryKey) != null) {
         final columnAnnObj = _firstAnnotation(field, Column);
         final columnName = columnAnnObj == null

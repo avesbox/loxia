@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.3
+
+- fix: inheritance now properly get fields from parent entities, especially id field.
+
 ## 0.3.2
 
 - fix: add missing useUtcForTimestamp option in ColumnDescriptor, allowing the soft delete functionality to properly respect the useUtcForTimestamp setting when generating the timestamp for the deletedAt field. This ensures that the correct timestamp format is used based on the configuration of the column, providing more accurate and consistent handling of soft-deleted entities in the database.
