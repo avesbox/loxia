@@ -724,13 +724,17 @@ String _fromMapCascadeValue(GenRelation relation, {required bool isInsertDto}) {
 }
 
 String _fromMapJsonValue(GenColumn c, String source) {
-  final baseType = c.dartTypeCode.replaceAll('?', '');
   final decoded = '$source is String ? decodeJsonColumn($source) : $source';
-  final casted = _castJsonValue(decoded, baseType);
-  return c.nullable ? '$source == null ? null : $casted' : casted;
+  return _castJsonValue(c, decoded);
 }
 
-String _castJsonValue(String decoded, String baseType) {
+String _castJsonValue(GenColumn c, String decoded) {
+  final customTemplate = c.jsonDecodeTemplate;
+  if (customTemplate != null) {
+    return applyJsonDecodeTemplate(customTemplate, decoded);
+  }
+
+  final baseType = c.dartTypeCode.replaceAll('?', '');
   final listMatch = RegExp(r'^List<(.+)>$').firstMatch(baseType);
   if (listMatch != null) {
     final elem = listMatch.group(1)!;

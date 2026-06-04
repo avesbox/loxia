@@ -26,6 +26,7 @@ class GenColumn {
     this.isDeletedAt = false,
     this.useUtcForTimestamp = false,
     this.defaultLiteral,
+    this.jsonDecodeTemplate,
   });
 
   final String name;
@@ -45,6 +46,7 @@ class GenColumn {
   final bool isDeletedAt;
   final bool useUtcForTimestamp;
   final String? defaultLiteral;
+  final String? jsonDecodeTemplate;
 }
 
 /// Represents a parsed join column configuration.

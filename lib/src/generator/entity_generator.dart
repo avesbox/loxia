@@ -502,6 +502,9 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
         type = ColumnType.uuid;
       }
       final dartTypeCode = dartType.getDisplayString();
+      final jsonDecodeTemplate = type == ColumnType.json
+          ? _buildJsonDecodeTemplate(dartType)
+          : null;
       final enumValueAccessor = isEnumType
           ? _validateEnumStorageAccessor(
               dartType,
@@ -530,6 +533,7 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
           isDeletedAt: isDeletedAt,
           useUtcForTimestamp: useUtcForTimestamp,
           defaultLiteral: _dartObjToLiteral(defaultValue, type: dartType),
+          jsonDecodeTemplate: jsonDecodeTemplate,
         ),
       );
     }
@@ -1103,6 +1107,190 @@ class LoxiaEntityGenerator extends GeneratorForAnnotation<EntityMeta> {
       default:
         return ColumnType.text;
     }
+  }
+
+  String? _buildJsonDecodeTemplate(DartType type) {
+    if (!_needsJsonDecodeTemplate(type)) return null;
+    return _buildNonNullableJsonDecodeExpression(
+      type,
+      jsonValueTemplatePlaceholder,
+    );
+  }
+
+  bool _needsJsonDecodeTemplate(DartType type) {
+    if (type is! InterfaceType) return false;
+    if (type.isDartCoreList) {
+      return type.typeArguments.isNotEmpty &&
+          _needsJsonDecodeTemplate(type.typeArguments.first);
+    }
+    if (type.isDartCoreMap) {
+      return type.typeArguments.length == 2 &&
+          (_needsJsonDecodeTemplate(type.typeArguments.first) ||
+              _needsJsonDecodeTemplate(type.typeArguments.last));
+    }
+    return _buildCustomJsonDecoderInvocation(
+              type,
+              jsonValueTemplatePlaceholder,
+            ) !=
+            null ||
+        _buildRuntimeJsonDecoderInvocation(
+              type,
+              jsonValueTemplatePlaceholder,
+            ) !=
+            null;
+  }
+
+  String _buildJsonDecodeExpression(DartType type, String source) {
+    final nullable = type.nullabilitySuffix == NullabilitySuffix.question;
+    final expression = _buildNonNullableJsonDecodeExpression(type, source);
+    return nullable ? '$source == null ? null : $expression' : expression;
+  }
+
+  String _buildNonNullableJsonDecodeExpression(DartType type, String source) {
+    if (type is InterfaceType) {
+      if (type.isDartCoreList &&
+          type.typeArguments.isNotEmpty &&
+          _needsJsonDecodeTemplate(type.typeArguments.first)) {
+        final entryExpr = _buildJsonDecodeExpression(
+          type.typeArguments.first,
+          'entry',
+        );
+        return '($source as List).map((entry) => $entryExpr).toList()';
+      }
+
+      if (type.isDartCoreMap &&
+          type.typeArguments.length == 2 &&
+          (_needsJsonDecodeTemplate(type.typeArguments.first) ||
+              _needsJsonDecodeTemplate(type.typeArguments.last))) {
+        final keyExpr = _buildJsonDecodeExpression(
+          type.typeArguments.first,
+          'key',
+        );
+        final valueExpr = _buildJsonDecodeExpression(
+          type.typeArguments.last,
+          'value',
+        );
+        return '($source as Map).map((key, value) => MapEntry($keyExpr, $valueExpr))';
+      }
+
+      final customDecoder = _buildCustomJsonDecoderInvocation(type, source);
+      if (customDecoder != null) return customDecoder;
+
+      final runtimeDecoder = _buildRuntimeJsonDecoderInvocation(type, source);
+      if (runtimeDecoder != null) return runtimeDecoder;
+    }
+
+    return _buildJsonCastExpression(type, source);
+  }
+
+  String? _buildRuntimeJsonDecoderInvocation(
+    InterfaceType type,
+    String source,
+  ) {
+    if (!_shouldUseRuntimeJsonDecoder(type)) return null;
+    final typeName = _stripNullability(type.getDisplayString());
+    return 'EntityJsonRegistry.decode<$typeName>($source)';
+  }
+
+  bool _shouldUseRuntimeJsonDecoder(InterfaceType type) {
+    if (type.isDartCoreList || type.isDartCoreMap) return false;
+    if (type.element is EnumElement) return false;
+
+    final typeName = _stripNullability(type.getDisplayString());
+    return !const <String>{
+      'String',
+      'int',
+      'double',
+      'num',
+      'bool',
+      'Object',
+      'dynamic',
+      'DateTime',
+    }.contains(typeName);
+  }
+
+  String _buildJsonCastExpression(DartType type, String source) {
+    if (type is InterfaceType) {
+      if (type.isDartCoreList && type.typeArguments.isNotEmpty) {
+        final elementType = type.typeArguments.first.getDisplayString();
+        return '($source as List).cast<$elementType>()';
+      }
+      if (type.isDartCoreMap && type.typeArguments.length == 2) {
+        final keyType = type.typeArguments.first.getDisplayString();
+        final valueType = type.typeArguments.last.getDisplayString();
+        return '($source as Map).cast<$keyType, $valueType>()';
+      }
+    }
+
+    final typeName = type.getDisplayString();
+    final baseTypeName = _stripNullability(typeName);
+    if (baseTypeName == 'dynamic' || baseTypeName == 'Object') {
+      return source;
+    }
+
+    return '$source as $typeName';
+  }
+
+  String? _buildCustomJsonDecoderInvocation(InterfaceType type, String source) {
+    final typeName = _stripNullability(type.getDisplayString());
+
+    for (final constructor in type.element.constructors) {
+      if (constructor.name != 'fromJson') continue;
+      final argument = _buildJsonDecoderArgument(
+        constructor.formalParameters,
+        source,
+      );
+      if (argument != null) {
+        return '$typeName.fromJson($argument)';
+      }
+    }
+
+    for (final method in type.element.methods) {
+      if (!method.isStatic || method.displayName != 'fromJson') continue;
+      final returnType = _stripNullability(
+        method.returnType.getDisplayString(),
+      );
+      if (returnType != typeName) continue;
+      final argument = _buildJsonDecoderArgument(
+        method.formalParameters,
+        source,
+      );
+      if (argument != null) {
+        return '$typeName.fromJson($argument)';
+      }
+    }
+
+    return null;
+  }
+
+  String? _buildJsonDecoderArgument(
+    List<FormalParameterElement> parameters,
+    String source,
+  ) {
+    if (parameters.length != 1) return null;
+    final parameter = parameters.single;
+    if (parameter.isNamed || parameter.isOptionalPositional) return null;
+
+    final parameterType = parameter.type;
+    if (parameterType is InterfaceType) {
+      if (parameterType.isDartCoreMap &&
+          parameterType.typeArguments.length == 2) {
+        final keyType = parameterType.typeArguments.first.getDisplayString();
+        final valueType = parameterType.typeArguments.last.getDisplayString();
+        return '($source as Map).cast<$keyType, $valueType>()';
+      }
+      if (parameterType.isDartCoreList &&
+          parameterType.typeArguments.isNotEmpty) {
+        final elementType = parameterType.typeArguments.first
+            .getDisplayString();
+        return '($source as List).cast<$elementType>()';
+      }
+    }
+
+    final typeName = parameterType.getDisplayString();
+    final baseTypeName = _stripNullability(typeName);
+    if (baseTypeName == 'dynamic' || baseTypeName == 'Object') return source;
+    return '$source as $typeName';
   }
 
   String _stripNullability(String typeName) {

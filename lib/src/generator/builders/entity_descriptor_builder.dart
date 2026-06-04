@@ -363,13 +363,18 @@ class EntityDescriptorBuilder {
 
   String _decodeJsonColumn(GenColumn c) {
     final raw = "row['${c.name}']";
-    final baseType = c.dartTypeCode.replaceAll('?', '');
     final decoded = 'decodeJsonColumn($raw)';
-    final casted = _castJson(decoded, baseType);
+    final casted = _castJson(c, decoded);
     return c.nullable ? '$raw == null ? null : $casted' : casted;
   }
 
-  String _castJson(String decoded, String baseType) {
+  String _castJson(GenColumn c, String decoded) {
+    final customTemplate = c.jsonDecodeTemplate;
+    if (customTemplate != null) {
+      return applyJsonDecodeTemplate(customTemplate, decoded);
+    }
+
+    final baseType = c.dartTypeCode.replaceAll('?', '');
     final listMatch = RegExp(r'^List<(.+)>$').firstMatch(baseType);
     if (listMatch != null) {
       final elem = listMatch.group(1)!;

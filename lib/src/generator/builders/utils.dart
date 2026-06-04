@@ -6,6 +6,15 @@ import 'package:code_builder/code_builder.dart';
 import '../../annotations/column.dart';
 import 'models.dart';
 
+const String jsonValueTemplatePlaceholder = '__jsonValue__';
+
+String applyJsonDecodeTemplate(String template, String valueExpression) {
+  return template.replaceAll(
+    jsonValueTemplatePlaceholder,
+    '($valueExpression)',
+  );
+}
+
 /// Creates a const list literal.
 Expression constList(List<Expression> items, [Reference? type]) {
   return literalConstList(items, type);

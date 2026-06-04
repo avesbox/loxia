@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.4
+
+- feat: add support for typed JSON Columns in entities, allowing you to define columns that store JSON data with a specific type. This feature enables you to work with complex data structures in your entities while still benefiting from the convenience of JSON storage in the database.
+
 ## 0.3.3
 
 - fix: inheritance now properly get fields from parent entities, especially id field.

@@ -208,3 +208,91 @@ class User extends Entity {
 ```
 
 When `omitNullJsonFields` is set to `true`, any fields in your entities or partial entities that have null values will be excluded from the generated JSON output when calling the `toJson()` method. This can help reduce the size of the JSON payload and make it easier to work with in client applications. If you prefer to include null fields in the JSON output, simply set `omitNullJsonFields` to `false`.
+
+## Typed JSON Columns
+
+Loxia allows you to define typed JSON columns in your entities, which can be used to store complex data structures as JSON in the database. To define a typed JSON column, you can use the `@Column` annotation with the `type` option set to `ColumnType.json`. For example:
+
+```dart
+class User extends Entity {
+  @PrimaryKey(autoIncrement: true)
+  final int id;
+
+  @Column()
+  final String email;
+
+  @Column(type: ColumnType.json)
+  final Preferences preferences;
+
+  User({required this.id, required this.email, required this.preferences});
+}
+```
+
+When reading JSON columns back from the database, Loxia supports two decoding strategies for custom types:
+
+- If the field type exposes a compatible `fromJson(...)` factory or static method, the generated code will call it automatically.
+- If the type cannot expose `fromJson(...)`, you can register a runtime decoder with `EntityJsonRegistry.registerDecoder<T>(...)`.
+
+For example, this works out of the box because `Preferences` exposes `fromJson(...)`:
+
+```dart
+class Preferences {
+  final bool marketing;
+
+  const Preferences({required this.marketing});
+
+  factory Preferences.fromJson(Map<String, dynamic> json) {
+    return Preferences(marketing: json['marketing'] as bool? ?? false);
+  }
+
+  Map<String, dynamic> toJson() => {'marketing': marketing};
+}
+```
+
+If your type cannot add `fromJson(...)`, register a decoder once during startup before loading entities from the database:
+
+```dart
+class Preferences {
+  final bool marketing;
+
+  const Preferences({required this.marketing});
+
+  Map<String, dynamic> toJson() => {'marketing': marketing};
+}
+
+void configureJsonDecoders() {
+  EntityJsonRegistry.registerDecoder<Preferences>((value) {
+    final json = (value as Map).cast<String, dynamic>();
+    return Preferences(marketing: json['marketing'] as bool? ?? false);
+  });
+}
+```
+
+The same runtime decoder path also works for JSON arrays of custom types. If you store a `List<PreferenceItem>` in a JSON column, Loxia will decode each array entry using the registered decoder for `PreferenceItem`.
+
+```dart
+class PreferenceItem {
+  final String key;
+
+  const PreferenceItem({required this.key});
+
+  Map<String, dynamic> toJson() => {'key': key};
+}
+
+class User extends Entity {
+  @PrimaryKey(autoIncrement: true)
+  final int id;
+
+  @Column(type: ColumnType.json)
+  final List<PreferenceItem> preferences;
+
+  User({required this.id, required this.preferences});
+}
+
+void configureJsonDecoders() {
+  EntityJsonRegistry.registerDecoder<PreferenceItem>((value) {
+    final json = (value as Map).cast<String, dynamic>();
+    return PreferenceItem(key: json['key'] as String);
+  });
+}
+```
